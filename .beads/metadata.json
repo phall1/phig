@@ -1,0 +1,7 @@
+{
+  "database": "dolt",
+  "backend": "dolt",
+  "dolt_mode": "embedded",
+  "dolt_database": "phig",
+  "project_id": "1816fe38-b4a1-4f07-96aa-b645063a4b40"
+}
