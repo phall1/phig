@@ -18,6 +18,10 @@ mkdir -p "$repository/files"
 git -C "$repository" init --quiet -b main
 git -C "$repository" config user.name 'phig benchmark'
 git -C "$repository" config user.email 'benchmark@example.invalid'
+# Keep fixture creation deterministic: automatic background packing can race
+# the tight commit loop on shared CI runners.
+git -C "$repository" config gc.auto 0
+git -C "$repository" config maintenance.auto false
 path=0
 while [ "$path" -lt 100 ]; do
   printf '0\n' >"$repository/files/path-$(printf '%03d' "$path").txt"
