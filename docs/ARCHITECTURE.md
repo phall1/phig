@@ -51,7 +51,7 @@ repository domain or protocol.
 
 ## Git process contract
 
-Git is resolved from `PATH` unless explicitly overridden. Every command:
+Git 2.45.1 or newer is resolved from `PATH` unless explicitly overridden. This minimum is required because `GIT_NO_LAZY_FETCH` only became enforceable in 2.45.1. Every command:
 
 - uses `std::process::Command`, never a shell
 - sets `--no-pager`, `GIT_TERMINAL_PROMPT=0`, and a deterministic locale where
@@ -77,13 +77,15 @@ Effects are sent to a small bounded worker service. Results include an operation
 kind and monotonically increasing generation. Moving selection increments the
 preview generation; older results may complete but cannot replace current state.
 
-A supervisor owns each child, concurrently drains bounded stdout/stderr, and
-always reaps it. On Unix each operation uses a separate process group; platform
-equivalents use job objects where available. Cancellation signals the full
-process tree, waits at most 200 ms, force-kills remaining descendants, closes
-pipes, and completes reaping within one second. Queues coalesce previews and
+A supervisor owns each child and concurrently drains bounded stdout/stderr. On
+Unix each operation uses a separate process group. Completion, cancellation, or
+timeout force-kills any remaining group members, then transfers the child to a
+reaper that retains ownership through `wait`. Pipe drains and observed reaping
+share one one-second cleanup deadline; exceeding it returns a typed timeout while
+the reaper still guarantees eventual collection. Queues coalesce previews and
 repository refreshes. A busy repository therefore produces bounded stale work
-rather than unbounded threads or output.
+rather than unbounded threads or output. Native Windows is gated until an
+equivalent job-object contract is implemented and tested.
 
 ## Rendering and terminal ownership
 
@@ -104,7 +106,9 @@ error rather than mixing escape sequences with output.
 ## Data identity
 
 Object IDs contain an algorithm plus hexadecimal bytes; no code assumes SHA-1
-or forty characters. Repository paths are retained as platform bytes. Human
+or forty characters. Repository paths are retained as platform bytes. Native
+Windows is rejected at discovery in version 1 rather than converting path bytes
+lossily; WSL is supported. Human
 JSON fields use escaped UTF-8 when possible and an explicit byte encoding when
 not. Display strings are never authoritative identity.
 

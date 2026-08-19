@@ -36,7 +36,7 @@ release. From source today:
 cargo install --path . --locked
 ```
 
-The installed executable is `phig`; Git 2.35 or newer is required.
+The installed executable is `phig`; Git 2.45.1 or newer is required so read-only inspection can reliably disable lazy object fetching.
 
 ## Quick start
 

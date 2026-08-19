@@ -84,12 +84,14 @@ mutation release requires a separate authority, recovery, and conflict design.
 
 - macOS on Apple Silicon and x86_64
 - Linux on x86_64 and aarch64, including WSL
-- Git 2.35 or newer; building from source requires Rust 1.88 or newer
+- Git 2.45.1 or newer, required for enforceable no-lazy-fetch inspection; building from source requires Rust 1.88 or newer
 - terminals supporting standard ANSI control sequences; true color is optional
 - no Nerd Font or patched font requirement
 
-Native Windows is best-effort until its terminal and process behavior has a
-dedicated CI acceptance lane.
+Native Windows is explicitly unsupported in version 1; phig returns a typed
+platform error rather than risking lossy repository paths. Windows users run
+phig under WSL until terminal, process, and byte-path behavior has a dedicated
+CI acceptance lane.
 
 ## Budgets and release gates
 
