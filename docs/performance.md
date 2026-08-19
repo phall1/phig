@@ -33,16 +33,16 @@ than gated because allocator and OS accounting differ across platforms.
 
 ## 1.0.0 release-candidate measurement
 
-This result is from the dirty release candidate based on commit
-`67c7139cd0102bd760fcfaa06f3305a3a5b0c5cc`, not from a published tag. It was
+This result is from the clean release candidate at commit
+`ecaf54b1673d997fc5034698b2586b7bcc123430`, not from a published tag. It was
 measured on 2026-08-19 with Apple M4 Pro/arm64, macOS 26.5.1, Git 2.55.0, Python
-3.14.7, and fixture commit `215b9700a24574bc26b2588ce7ec59eb0adc78cf`:
+3.14.7, and fixture commit `7b46e04b7727121e1369ba05c6f223822c4d6ab5`:
 
 ```text
-warm snapshot, 20 samples:       p50 126.408 ms  p95 135.394 ms
-PTY first useful frame, 10:      p50 160.444 ms  p95 168.944 ms
+warm snapshot, 20 samples:       p50 133.609 ms  p95 139.570 ms
+PTY first useful frame, 10:      p50 162.799 ms  p95 166.430 ms
 release binary:                  2.316 MiB (2,428,960 bytes)
-representative phig peak RSS:    9.062 MiB
+representative phig peak RSS:    9.125 MiB
 ```
 
 The measured release gates passed. Replace or supplement this record with the

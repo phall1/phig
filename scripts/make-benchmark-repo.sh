@@ -34,4 +34,4 @@ while [ "$i" -lt "$commits" ]; do
   git -C "$repository" commit --quiet -m "benchmark $i"
   i=$((i + 1))
 done
-printf '%s\n' "created $commits commits across 100 paths in $repository"
+printf '%s\n' "created $commits commits across 100 paths in $repository" >&2
