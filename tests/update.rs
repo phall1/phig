@@ -26,6 +26,24 @@ fn version_script(version: &str) -> String {
     )
 }
 
+fn current_version() -> &'static str {
+    env!("CARGO_PKG_VERSION")
+}
+
+fn next_version() -> String {
+    let mut parts = current_version()
+        .split('.')
+        .map(|part| part.parse::<u64>().expect("stable package version"))
+        .collect::<Vec<_>>();
+    assert_eq!(parts.len(), 3, "tests require a stable semantic version");
+    parts[2] += 1;
+    format!("{}.{}.{}", parts[0], parts[1], parts[2])
+}
+
+fn next_tag() -> String {
+    format!("v{}", next_version())
+}
+
 fn fake_path(directory: &TempDir) -> String {
     format!(
         "{}:{}",
@@ -123,19 +141,25 @@ fn update_check_reports_current_and_available_releases() {
     let destination = fixture.path().join("bin/phig");
     executable(&destination, &version_script("1.0.0"));
 
-    let (mut current, _) = update_command(&fixture, &destination, "v1.0.0");
+    let current_tag = format!("v{}", current_version());
+    let (mut current, _) = update_command(&fixture, &destination, &current_tag);
     current
         .args(["update", "--check"])
         .assert()
         .success()
-        .stdout("phig 1.0.0 is current\n");
+        .stdout(format!("phig {} is current\n", current_version()));
 
-    let (mut available, _) = update_command(&fixture, &destination, "v1.4.2");
+    let next = next_version();
+    let next_tag = format!("v{next}");
+    let (mut available, _) = update_command(&fixture, &destination, &next_tag);
     available
         .args(["update", "--check"])
         .assert()
         .success()
-        .stdout("phig 1.4.2 is available (current 1.0.0); run `phig update`\n");
+        .stdout(format!(
+            "phig {next} is available (current {}); run `phig update`\n",
+            current_version()
+        ));
 }
 
 #[test]
@@ -143,26 +167,29 @@ fn release_install_stages_verifies_and_atomically_replaces() {
     let fixture = TempDir::new().unwrap();
     let destination = fixture.path().join("bin/phig");
     executable(&destination, &version_script("1.0.0"));
-    let (mut command, log) = update_command(&fixture, &destination, "v1.1.0");
+    let next = next_version();
+    let tag = format!("v{next}");
+    let (mut command, log) = update_command(&fixture, &destination, &tag);
     command
         .arg("update")
         .assert()
         .success()
-        .stdout(predicate::str::contains(
-            "updated phig 1.0.0 to 1.1.0 with release installer",
-        ));
+        .stdout(predicate::str::contains(format!(
+            "updated phig {} to {next} with release installer",
+            current_version()
+        )));
 
     let output = std::process::Command::new(&destination)
         .args(["version", "--json"])
         .output()
         .unwrap();
-    assert!(String::from_utf8_lossy(&output.stdout).contains("\"version\":\"1.1.0\""));
+    assert!(String::from_utf8_lossy(&output.stdout).contains(&format!("\"version\":\"{next}\"")));
     let mode = fs::metadata(&destination).unwrap().permissions().mode() & 0o777;
     assert_eq!(mode, 0o755, "candidate permissions were not hardened");
     assert!(
         fs::read_to_string(log)
             .unwrap()
-            .contains("/releases/download/v1.1.0/phig-cli-installer.sh")
+            .contains(&format!("/releases/download/{tag}/phig-cli-installer.sh"))
     );
     assert_no_staging(destination.parent().unwrap());
 }
@@ -174,10 +201,11 @@ fn candidate_mismatch_installer_failure_and_post_verify_all_preserve_old_binary(
         let destination = fixture.path().join("bin/phig");
         let original = version_script("1.0.0");
         executable(&destination, &original);
-        let (mut command, _) = update_command(&fixture, &destination, "v1.1.0");
+        let tag = next_tag();
+        let (mut command, _) = update_command(&fixture, &destination, &tag);
         match failure {
             "mismatch" => {
-                command.env("PHIG_TEST_CANDIDATE_VERSION", "1.0.9");
+                command.env("PHIG_TEST_CANDIDATE_VERSION", "0.0.1");
             }
             "installer" => {
                 command.env("PHIG_TEST_INSTALL_FAIL", "1");
@@ -203,7 +231,8 @@ fn rollback_failure_preserves_manual_recovery_backup() {
     let destination = fixture.path().join("bin/phig");
     let original = version_script("1.0.0");
     executable(&destination, &original);
-    let (mut command, _) = update_command(&fixture, &destination, "v1.1.0");
+    let tag = next_tag();
+    let (mut command, _) = update_command(&fixture, &destination, &tag);
     command
         .env("PHIG_TEST_POST_INSTALL_FAIL", "1")
         .env("PHIG_TEST_ROLLBACK_FAIL", "1")
@@ -238,14 +267,16 @@ fn no_op_and_unwritable_destination_do_not_damage_installation() {
     let original = version_script("1.0.0");
     executable(&destination, &original);
 
-    let (mut no_op, log) = update_command(&fixture, &destination, "v1.0.0");
+    let current_tag = format!("v{}", current_version());
+    let (mut no_op, log) = update_command(&fixture, &destination, &current_tag);
     no_op.arg("update").assert().success();
     let network = fs::read_to_string(log).unwrap();
     assert!(!network.contains("phig-cli-installer.sh"));
     assert_eq!(fs::read_to_string(&destination).unwrap(), original);
 
     fs::set_permissions(&parent, fs::Permissions::from_mode(0o555)).unwrap();
-    let (mut denied, _) = update_command(&fixture, &destination, "v1.1.0");
+    let tag = next_tag();
+    let (mut denied, _) = update_command(&fixture, &destination, &tag);
     denied.arg("update").assert().code(6).stdout("");
     fs::set_permissions(&parent, fs::Permissions::from_mode(0o755)).unwrap();
     assert_eq!(fs::read_to_string(&destination).unwrap(), original);
@@ -276,7 +307,8 @@ fn homebrew_ownership_uses_canonical_formula_prefix_and_rejects_false_positives(
     let false_positive = fixture.path().join("Cellar/not-phig/bin/phig");
     executable(&false_positive, &version_script("1.0.0"));
     fs::write(&brew_log, "").unwrap();
-    let (mut release, _) = update_command(&fixture, &false_positive, "v1.1.0");
+    let tag = next_tag();
+    let (mut release, _) = update_command(&fixture, &false_positive, &tag);
     release
         .env("PHIG_TEST_BREW_PREFIX", fixture.path().join("opt/phig"))
         .env("PHIG_TEST_BREW_LOG", &brew_log)
@@ -292,12 +324,13 @@ fn exact_release_tag_is_retained_and_noncanonical_tags_are_rejected() {
     let fixture = TempDir::new().unwrap();
     let destination = fixture.path().join("bin/phig");
     executable(&destination, &version_script("1.0.0"));
-    let (mut exact, log) = update_command(&fixture, &destination, "v1.1.0+build.7");
+    let exact_tag = format!("{}+build.7", next_tag());
+    let (mut exact, log) = update_command(&fixture, &destination, &exact_tag);
     exact.arg("update").assert().success();
     assert!(
         fs::read_to_string(log)
             .unwrap()
-            .contains("/v1.1.0+build.7/phig-cli-installer.sh")
+            .contains(&format!("/{exact_tag}/phig-cli-installer.sh"))
     );
 
     for invalid in ["1.2.0", "release-v1.2.0", "v01.2.0"] {
@@ -318,9 +351,11 @@ fn interrupted_update_leaves_old_binary_and_only_private_staging() {
     executable(&destination, &original);
     let child_pid = fixture.path().join("installer.pid");
     let curl = fixture.path().join("curl");
+    let tag = next_tag();
     executable(
         &curl,
-        r#"#!/bin/sh
+        &format!(
+            r#"#!/bin/sh
 set -eu
 output=
 previous=
@@ -336,9 +371,10 @@ printf '%s\n' "$$" >"$PHIG_TEST_CHILD_PID"
 exec sleep 30
 INSTALLER
 else
-  printf '%s\n' '{"tag_name":"v1.1.0"}'
+  printf '%s\n' '{{"tag_name":"{tag}"}}'
 fi
-"#,
+"#
+        ),
     );
     let mut process = std::process::Command::new(assert_cmd::cargo::cargo_bin("phig"))
         .env("PATH", fake_path(&fixture))

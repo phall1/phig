@@ -37,12 +37,13 @@ fn repository() -> tempfile::TempDir {
     d
 }
 fn assert_selection_prompt(output: &str, kind: &str, accept: &str, cancel: &str) {
-    let mut remaining = output;
-    for part in ["SELECT", kind, accept, "emit", cancel, "cancel"] {
-        let offset = remaining
-            .find(part)
-            .unwrap_or_else(|| panic!("selection prompt omitted {part:?}: {output:?}"));
-        remaining = &remaining[offset + part.len()..];
+    let normalized = output.to_ascii_lowercase();
+    for part in ["select", kind, accept, "emit", cancel, "cancel"] {
+        let part = part.to_ascii_lowercase();
+        assert!(
+            normalized.contains(&part),
+            "selection prompt omitted {part:?}: {output:?}"
+        );
     }
 }
 
@@ -185,6 +186,8 @@ fn command_substitution_reserves_stdout_for_exact_selection() {
     );
     let output = run_script(d.path(), &script, "two (HEAD", b'\r');
     assert_selection_prompt(&output, "COMMIT", "Enter", "Esc/q");
+    assert!(output.contains("\u{1b}[?2004h"));
+    assert!(output.contains("\u{1b}[?2004l"));
     let marker = output.rsplit("RESULT:").next().unwrap();
     let mut fields = marker.lines().next().unwrap().split(':');
     assert_eq!(fields.next(), Some("0"));
@@ -290,7 +293,7 @@ fn configured_keys_are_remaps_not_additive_aliases() {
     );
     writer.write_all(b"h").unwrap();
     writer.flush().unwrap();
-    wait_for_output(&output, "phig keys", Duration::from_secs(3));
+    wait_for_output(&output, "Help", Duration::from_secs(3));
     writer.write_all(b"\x1b").unwrap();
     writer.flush().unwrap();
     let status = retry_key_until_exit(&mut child, &mut writer, b"x", Duration::from_secs(5));
@@ -300,7 +303,7 @@ fn configured_keys_are_remaps_not_additive_aliases() {
     read.join().unwrap();
     let output = String::from_utf8_lossy(&output.lock().unwrap()).into_owned();
     assert!(
-        output.contains("phig keys"),
+        output.contains("Help"),
         "remapped help key did not open help"
     );
 }
@@ -334,7 +337,7 @@ fn selection_cancellation_honors_semantic_quit_remap() {
     let reader = pair.master.try_clone_reader().unwrap();
     let (output, read) = read_live(reader);
     let mut writer = pair.master.take_writer().unwrap();
-    wait_for_output(&output, "COMMIT", Duration::from_secs(5));
+    wait_for_output(&output, "select commit", Duration::from_secs(5));
     writer.write_all(b"q").unwrap();
     writer.flush().unwrap();
     assert_running_for(

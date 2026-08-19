@@ -1,7 +1,10 @@
 //! Core library for phig, a read-only terminal Git browser.
 //!
-//! The library never writes to stdout, never invokes a shell, and keeps Git
-//! process execution independent from terminal rendering.
+//! Git inspection never invokes a shell and stays independent from terminal
+//! rendering. Interactive mode renders only to its terminal, while explicit
+//! machine modes write their documented stdout protocols. The opt-in updater
+//! may invoke Homebrew or a verified installer through `/bin/sh` as documented
+//! in the security and installation guides.
 
 pub mod app;
 pub mod cli;

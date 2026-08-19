@@ -23,6 +23,8 @@ modern terminals without becoming a Git dashboard.
 ## Why phig
 
 - **Immediate.** Run `phig`; history appears with an asynchronous diff preview.
+- **Calm by default.** Native terminal colors, marker-led selection, thin
+  dividers, and compact contextual chrome keep the repository—not the UI—in focus.
 - **Diff-first.** Move through commits, files, hunks, parents, and blame without
   losing context.
 - **Honest comparisons.** Merge-base branch comparisons and exact endpoint
@@ -59,7 +61,7 @@ release archive's SHA-256 checksum. Pin a release or choose a prefix when needed
 ```sh
 curl --proto '=https' --tlsv1.2 -LsSf \
   https://raw.githubusercontent.com/phall1/phig/main/install.sh -o /tmp/phig-install.sh
-PHIG_VERSION=1.0.0 sh /tmp/phig-install.sh --prefix "$HOME/.local" --yes
+PHIG_VERSION=1.1.0 sh /tmp/phig-install.sh --prefix "$HOME/.local" --yes
 ```
 
 ### Cargo
@@ -90,6 +92,7 @@ phig stash                   # stash entries and patches
 
 No configuration is required. `phig config init` writes a documented config to
 `$XDG_CONFIG_HOME/phig/config.toml` (normally `~/.config/phig/config.toml`).
+Set `ui.glyphs = "ascii"` when a terminal cannot display Unicode line art.
 
 ## Keys
 

@@ -11,7 +11,7 @@ use std::{
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use crossterm::{
     cursor::{Hide, MoveTo, MoveToNextLine, Show},
-    event::{DisableMouseCapture, EnableMouseCapture},
+    event::{DisableBracketedPaste, DisableMouseCapture, EnableBracketedPaste, EnableMouseCapture},
     execute,
     terminal::{
         Clear, ClearType, EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode,
@@ -33,6 +33,7 @@ pub struct TerminalSession {
     cursor_hidden: bool,
     normal_screen_advanced: bool,
     mouse_capture: bool,
+    bracketed_paste: bool,
 }
 
 impl TerminalSession {
@@ -89,6 +90,10 @@ impl TerminalSession {
             rollback_setup(&mut output, alternate_screen, cursor_hidden);
             return Err(error);
         }
+        if let Err(error) = execute!(output, EnableBracketedPaste) {
+            rollback_setup(&mut output, alternate_screen, cursor_hidden);
+            return Err(error);
+        }
         if mouse {
             if let Err(error) = execute!(output, EnableMouseCapture) {
                 rollback_setup(&mut output, alternate_screen, cursor_hidden);
@@ -109,6 +114,7 @@ impl TerminalSession {
             cursor_hidden,
             normal_screen_advanced: false,
             mouse_capture: mouse,
+            bracketed_paste: true,
         })
     }
     pub fn terminal_mut(&mut self) -> &mut PhigTerminal {
@@ -132,6 +138,14 @@ impl TerminalSession {
             match execute!(self.terminal.backend_mut(), DisableMouseCapture) {
                 Ok(()) => self.mouse_capture = false,
                 Err(error) => first = Some(error),
+            }
+        }
+        if self.bracketed_paste {
+            match execute!(self.terminal.backend_mut(), DisableBracketedPaste) {
+                Ok(()) => self.bracketed_paste = false,
+                Err(error) => {
+                    first.get_or_insert(error);
+                }
             }
         }
 
@@ -181,7 +195,7 @@ impl Drop for TerminalSession {
     }
 }
 fn rollback_setup(output: &mut Box<dyn Write>, alternate: bool, hidden: bool) {
-    let _ = execute!(output, DisableMouseCapture);
+    let _ = execute!(output, DisableMouseCapture, DisableBracketedPaste);
     if hidden {
         let _ = execute!(output, Show);
     }
@@ -215,7 +229,7 @@ fn emergency_restore() {
     #[cfg(not(unix))]
     let output: Box<dyn Write> = Box::new(io::stderr());
     let mut output = output;
-    let _ = execute!(output, DisableMouseCapture, Show);
+    let _ = execute!(output, DisableMouseCapture, DisableBracketedPaste, Show);
     if ALT_ACTIVE.load(Ordering::SeqCst) && execute!(output, LeaveAlternateScreen).is_ok() {
         ALT_ACTIVE.store(false, Ordering::SeqCst)
     }
@@ -223,4 +237,19 @@ fn emergency_restore() {
         RAW_ACTIVE.store(false, Ordering::SeqCst)
     }
     let _ = output.flush();
+}
+
+#[cfg(test)]
+mod tests {
+    use crossterm::{
+        event::{DisableBracketedPaste, EnableBracketedPaste},
+        execute,
+    };
+
+    #[test]
+    fn bracketed_paste_commands_are_symmetric() {
+        let mut output = Vec::new();
+        execute!(output, EnableBracketedPaste, DisableBracketedPaste).unwrap();
+        assert_eq!(output, b"\x1b[?2004h\x1b[?2004l");
+    }
 }

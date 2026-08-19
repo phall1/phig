@@ -21,6 +21,10 @@ import time
 from pathlib import Path
 
 
+FIXTURE_VERSION = 1
+FIXTURE_PATHS = 100
+
+
 def command_output(argv: list[str], cwd: Path | None = None) -> str:
     return subprocess.check_output(argv, cwd=cwd, text=True).strip()
 
@@ -36,22 +40,55 @@ def timed_command(argv: list[str], cwd: Path | None = None) -> float:
     return (time.perf_counter_ns() - started) / 1_000_000
 
 
-def ensure_fixture(root: Path, repository: Path, commits: int) -> None:
+def fixture_metadata(repository: Path) -> dict[str, int] | None:
     try:
-        probe = subprocess.run(
-            ["git", "-C", str(repository), "rev-list", "--count", "HEAD"],
-            check=True,
-            capture_output=True,
-            text=True,
-        )
-        current = int(probe.stdout.strip())
+        return {
+            "version": int(
+                command_output(
+                    ["git", "-C", str(repository), "config", "--get", "phig.benchmark.version"]
+                )
+            ),
+            "commits": int(
+                command_output(
+                    ["git", "-C", str(repository), "rev-list", "--count", "HEAD"]
+                )
+            ),
+            "declared_commits": int(
+                command_output(
+                    ["git", "-C", str(repository), "config", "--get", "phig.benchmark.commits"]
+                )
+            ),
+            "paths": int(
+                command_output(
+                    ["git", "-C", str(repository), "config", "--get", "phig.benchmark.paths"]
+                )
+            ),
+        }
     except (subprocess.CalledProcessError, FileNotFoundError, ValueError):
-        current = -1
-    if current != commits:
+        return None
+
+
+def valid_fixture(metadata: dict[str, int] | None, commits: int) -> bool:
+    return metadata == {
+        "version": FIXTURE_VERSION,
+        "commits": commits,
+        "declared_commits": commits,
+        "paths": FIXTURE_PATHS,
+    }
+
+
+def ensure_fixture(root: Path, repository: Path, commits: int) -> dict[str, int]:
+    metadata = fixture_metadata(repository)
+    if not valid_fixture(metadata, commits):
         subprocess.run(
             [str(root / "scripts/make-benchmark-repo.sh"), str(repository), str(commits)],
             check=True,
         )
+        metadata = fixture_metadata(repository)
+    if not valid_fixture(metadata, commits):
+        raise RuntimeError(f"benchmark fixture validation failed: {metadata!r}")
+    assert metadata is not None
+    return metadata
 
 
 def rss_mib(value: float) -> float:
@@ -148,13 +185,17 @@ def main() -> int:
     parser.add_argument("--first-frame-p95-ms", type=float, default=1000)
     parser.add_argument("--binary-max-mib", type=float, default=15)
     parser.add_argument("--skip-build", action="store_true")
+    parser.add_argument("--validate-fixture-only", action="store_true")
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args()
     if min(args.commits, args.snapshot_samples, args.pty_samples) < 1:
         parser.error("commit and sample counts must be positive")
 
     root = Path(__file__).resolve().parent.parent
-    ensure_fixture(root, args.repository, args.commits)
+    fixture = ensure_fixture(root, args.repository, args.commits)
+    if args.validate_fixture_only:
+        print(json.dumps(fixture, sort_keys=True))
+        return 0
     if not args.skip_build:
         subprocess.run(["cargo", "build", "--release", "--locked", "--quiet"], cwd=root, check=True)
     binary = root / "target/release/phig"
@@ -165,7 +206,13 @@ def main() -> int:
     for _ in range(3):
         subprocess.run(snapshot, check=True, stdout=subprocess.DEVNULL)
     snapshot_ms = [timed_command(snapshot) for _ in range(args.snapshot_samples)]
-    marker = f"benchmark {args.commits - 1}".encode()
+    # Ratatui may insert cursor-positioning control sequences between words
+    # while refining an initial frame, so prose is not guaranteed to be a
+    # contiguous byte sequence on the PTY. The short HEAD identity is stable,
+    # contiguous, and proves that repository history reached the screen.
+    marker = command_output(
+        ["git", "-C", str(args.repository), "rev-parse", "--short=8", "HEAD"]
+    ).encode()
     frame_samples = [
         first_useful_frame(binary, args.repository, marker, timeout=10)
         for _ in range(args.pty_samples)
@@ -177,8 +224,9 @@ def main() -> int:
         "source_commit": command_output(["git", "rev-parse", "HEAD"], root),
         "source_dirty": bool(command_output(["git", "status", "--porcelain"], root)),
         "fixture_commit": command_output(["git", "-C", str(args.repository), "rev-parse", "HEAD"]),
-        "fixture_commits": args.commits,
-        "fixture_paths": 100,
+        "fixture_commits": fixture["commits"],
+        "fixture_paths": fixture["paths"],
+        "fixture_version": fixture["version"],
         "platform": platform.platform(),
         "machine": platform.machine(),
         "python": platform.python_version(),

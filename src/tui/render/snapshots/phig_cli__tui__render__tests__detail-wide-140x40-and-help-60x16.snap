@@ -1,0 +1,110 @@
+---
+source: src/tui/render/tests.rs
+expression: "format!(\"DETAIL 140x40\\n{}\\nHELP 60x16\\n{}\", styled_screen(140, 40, &detail),\nstyled_screen(60, 16, &help))"
+---
+DETAIL 140x40
+TEXT
+ phig SHOW phig-demo / main  HEAD
+aaaaaaaaaaaa
+make history pleasant
+Author: Pat Example <pat@example.invalid>
+Date: 2023-11-14 18:13:20 -04:00
+Parents: root · Files: 1 (+1 -1)
+Explain the change safely.
+Second body paragraph.
+diff --git a/src/main.rs b/src/main.rs
+@@ -1 +1 @@
+-old
++new
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+ j/k scroll · f files · [/] hunk                                                                                                      line 1
+STYLES
+0:0-10 fg=Cyan bg=Reset mod=BOLD text=" phig SHOW "
+0:20-32 fg=DarkGray bg=Reset mod=NONE text=" / main  HEAD"
+1:0-11 fg=Yellow bg=Reset mod=NONE text="aaaaaaaaaaaa"
+2:0-20 fg=Reset bg=Reset mod=BOLD text="make history pleasant"
+3:0-40 fg=DarkGray bg=Reset mod=NONE text="Author: Pat Example <pat@example.invalid>"
+4:0-31 fg=DarkGray bg=Reset mod=NONE text="Date: 2023-11-14 18:13:20 -04:00"
+5:0-31 fg=DarkGray bg=Reset mod=NONE text="Parents: root · Files: 1 (+1 -1)"
+8:0-37 fg=Yellow bg=Reset mod=BOLD text="diff --git a/src/main.rs b/src/main.rs"
+9:0-10 fg=Cyan bg=Reset mod=BOLD text="@@ -1 +1 @@"
+10:0-3 fg=Red bg=Reset mod=NONE text="-old"
+11:0-3 fg=Green bg=Reset mod=NONE text="+new"
+39:0-139 fg=DarkGray bg=Reset mod=NONE text=" j/k scroll · f files · [/] hunk                                                                                                      line 1"
+
+HELP 60x16
+TEXT
+ ╭ Help ──────────────────────────────────────────────────╮
+ │j/k            move / scroll                            │
+ │Enter          open · Esc back                          │
+ │/              search · n/N matches                     │
+ │:              commands · f changed files               │
+ │[/] hunks · {/} files                                   │
+ │r refs · s status · t tree · b blame · z stash          │
+ │v mark · c compare · y copy · p preview                 │
+ │                                                        │
+ │log view                                                │
+ │                                                        │
+ │                                                        │
+ │                                                        │
+ │                                                        │
+ │? close                                                 │
+ ╰────────────────────────────────────────────────────────╯
+STYLES
+0:1-1 fg=DarkGray bg=Reset mod=NONE text="╭"
+0:2-7 fg=Cyan bg=Reset mod=BOLD text=" Help "
+0:8-58 fg=DarkGray bg=Reset mod=NONE text="──────────────────────────────────────────────────╮"
+1:1-1 fg=DarkGray bg=Reset mod=NONE text="│"
+1:58-58 fg=DarkGray bg=Reset mod=NONE text="│"
+2:1-1 fg=DarkGray bg=Reset mod=NONE text="│"
+2:58-58 fg=DarkGray bg=Reset mod=NONE text="│"
+3:1-1 fg=DarkGray bg=Reset mod=NONE text="│"
+3:58-58 fg=DarkGray bg=Reset mod=NONE text="│"
+4:1-1 fg=DarkGray bg=Reset mod=NONE text="│"
+4:58-58 fg=DarkGray bg=Reset mod=NONE text="│"
+5:1-1 fg=DarkGray bg=Reset mod=NONE text="│"
+5:58-58 fg=DarkGray bg=Reset mod=NONE text="│"
+6:1-1 fg=DarkGray bg=Reset mod=NONE text="│"
+6:58-58 fg=DarkGray bg=Reset mod=NONE text="│"
+7:1-1 fg=DarkGray bg=Reset mod=NONE text="│"
+7:58-58 fg=DarkGray bg=Reset mod=NONE text="│"
+8:1-1 fg=DarkGray bg=Reset mod=NONE text="│"
+8:58-58 fg=DarkGray bg=Reset mod=NONE text="│"
+9:1-9 fg=DarkGray bg=Reset mod=NONE text="│log view"
+9:58-58 fg=DarkGray bg=Reset mod=NONE text="│"
+10:1-1 fg=DarkGray bg=Reset mod=NONE text="│"
+10:58-58 fg=DarkGray bg=Reset mod=NONE text="│"
+11:1-1 fg=DarkGray bg=Reset mod=NONE text="│"
+11:58-58 fg=DarkGray bg=Reset mod=NONE text="│"
+12:1-1 fg=DarkGray bg=Reset mod=NONE text="│"
+12:58-58 fg=DarkGray bg=Reset mod=NONE text="│"
+13:1-1 fg=DarkGray bg=Reset mod=NONE text="│"
+13:58-58 fg=DarkGray bg=Reset mod=NONE text="│"
+14:1-58 fg=DarkGray bg=Reset mod=NONE text="│? close                                                 │"
+15:1-58 fg=DarkGray bg=Reset mod=NONE text="╰────────────────────────────────────────────────────────╯"

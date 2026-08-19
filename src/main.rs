@@ -17,7 +17,7 @@ use phig_cli::{
     domain::{ComparisonMode, GitPath},
     git::{CancellationToken, GitClient, GitError},
     protocol::{self, Envelope, SnapshotError},
-    tui::{self, RenderTheme, TuiError},
+    tui::{self, ColorMode, DateMode, GlyphMode, RenderConfig, RenderTheme, TuiError, TuiOptions},
     update::{self, UpdateError, UpdateResult},
 };
 use thiserror::Error;
@@ -88,7 +88,6 @@ fn run() -> Result<Outcome, MainError> {
         _ => {}
     }
     let loaded = config::load(cli.config.as_deref(), cli.no_config)?;
-    apply_theme(&loaded);
     let client = GitClient::default()
         .with_content_limits(
             loaded.config.limits.patch_bytes,
@@ -260,14 +259,7 @@ fn run_interactive(cli: Cli, loaded: LoadedConfig, client: GitClient) -> Result<
         &loaded,
     )?;
     let no_alt = launch.no_alt_screen || !loaded.config.ui.alternate_screen;
-    tui::run_configured(
-        app,
-        client,
-        no_alt,
-        loaded.bindings,
-        loaded.config.ui.mouse,
-        loaded.config.ui.clipboard == "osc52",
-    )?;
+    tui::run_with_options(app, client, tui_options(&loaded, no_alt))?;
     Ok(())
 }
 
@@ -316,15 +308,8 @@ fn run_select(
     let (accept_key, cancel_keys) = loaded.bindings.selection_key_labels();
     app.selection_contract = Some(SelectionContract::new(target, accept_key, cancel_keys));
     let no_alt = cli.no_alt_screen || !loaded.config.ui.alternate_screen;
-    let Some(selection) = tui::run_select(
-        app,
-        client,
-        no_alt,
-        loaded.bindings.clone(),
-        args.kind,
-        loaded.config.ui.mouse,
-        loaded.config.ui.clipboard == "osc52",
-    )?
+    let Some(selection) =
+        tui::run_select_with_options(app, client, args.kind, tui_options(loaded, no_alt))?
     else {
         return Ok(Outcome::Cancelled);
     };
@@ -420,20 +405,29 @@ fn collect_manpages(command: &clap::Command, name: &str, pages: &mut Vec<(String
     }
 }
 
-fn apply_theme(loaded: &LoadedConfig) {
-    tui::set_color_mode(&loaded.config.ui.color);
-    tui::set_date_mode(&loaded.config.ui.date);
-    let t = &loaded.config.theme;
-    tui::set_theme(RenderTheme {
-        accent: config::parse_color(&t.accent).unwrap(),
-        muted: config::parse_color(&t.muted).unwrap(),
-        added: config::parse_color(&t.added).unwrap(),
-        removed: config::parse_color(&t.removed).unwrap(),
-        warning: config::parse_color(&t.warning).unwrap(),
-        error: config::parse_color(&t.error).unwrap(),
-        selection_fg: config::parse_color(&t.selection_fg).unwrap(),
-        selection_bg: config::parse_color(&t.selection_bg).unwrap(),
-    })
+fn tui_options(loaded: &LoadedConfig, no_alt_screen: bool) -> TuiOptions {
+    let theme = &loaded.config.theme;
+    TuiOptions {
+        no_alt_screen,
+        mouse: loaded.config.ui.mouse,
+        clipboard_osc52: loaded.config.ui.clipboard == "osc52",
+        bindings: loaded.bindings.clone(),
+        render: RenderConfig {
+            theme: RenderTheme {
+                accent: config::parse_color(&theme.accent).unwrap(),
+                muted: config::parse_color(&theme.muted).unwrap(),
+                added: config::parse_color(&theme.added).unwrap(),
+                removed: config::parse_color(&theme.removed).unwrap(),
+                warning: config::parse_color(&theme.warning).unwrap(),
+                error: config::parse_color(&theme.error).unwrap(),
+                selection_fg: config::parse_color(&theme.selection_fg).unwrap(),
+                selection_bg: config::parse_color(&theme.selection_bg).unwrap(),
+            },
+            date_mode: DateMode::parse(&loaded.config.ui.date).expect("validated date mode"),
+            color_mode: ColorMode::parse(&loaded.config.ui.color).expect("validated color mode"),
+            glyph_mode: GlyphMode::parse(&loaded.config.ui.glyphs).expect("validated glyph mode"),
+        },
+    }
 }
 
 fn exit_code(error: &MainError) -> u8 {

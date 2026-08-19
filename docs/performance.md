@@ -33,6 +33,30 @@ The harness captures each PTY phig process with `wait4`, normalizes Darwin bytes
 and Linux KiB to MiB, and reports the largest sample. It is still reported rather
 than gated because allocator and OS accounting differ across platforms.
 
+## 1.1.0 release-candidate measurement
+
+This result compares the clean `c997d17` candidate with the installed 1.0.0
+release on the same fixture and host, using 30 warm snapshots and 20 real-PTY
+samples for each binary:
+
+| Metric | 1.0.0 | 1.1.0 | Change |
+| --- | ---: | ---: | ---: |
+| warm snapshot p50 | 210.139 ms | 240.276 ms | +14.3% |
+| warm snapshot p95 | 258.415 ms | 281.480 ms | +8.9% |
+| first useful frame p50 | 231.043 ms | 223.231 ms | -3.4% |
+| first useful frame p95 | 296.167 ms | 317.436 ms | +7.2% |
+| release binary | 2.153 MiB | 2.332 MiB | +8.3% |
+| representative peak RSS | 8.156 MiB | 8.172 MiB | +0.2% |
+
+The fixture was `90ec4a2d04ceddab52d3a7a8e032d714a54a0d63` with
+1,000 commits and 100 paths on Apple Silicon macOS 26.5.1 using Git 2.55.0 and
+Python 3.14.7. Both binaries were measured consecutively under the same elevated
+host load; the comparison remains within the 15% latency and 10% binary-size
+budgets, and the candidate remains comfortably inside every absolute release
+gate. Earlier isolated candidate runs measured 129–139 ms snapshot p95 and
+154–155 ms PTY p95, illustrating why the release decision uses a paired run
+rather than comparing unrelated host conditions.
+
 ## 1.0.0 release-candidate measurement
 
 This result is from the clean release candidate at commit
