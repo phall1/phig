@@ -84,7 +84,7 @@ impl Default for UiConfig {
             mouse: false,
             date: "relative".into(),
             color: "auto".into(),
-            clipboard: "off".into(),
+            clipboard: "osc52".into(),
         }
     }
 }
@@ -414,6 +414,7 @@ fn action_name(action: &Action) -> &'static str {
         Action::ToggleFocus => "toggle-focus",
         Action::StartSearch => "search",
         Action::StartPalette => "palette",
+        Action::StartFilePicker => "file-picker",
         Action::ToggleHelp => "help",
         Action::NextMatch => "next-match",
         Action::PreviousMatch => "previous-match",
@@ -455,6 +456,7 @@ fn parse_action(value: &str) -> Option<Action> {
         "toggle-focus" => Action::ToggleFocus,
         "search" => Action::StartSearch,
         "palette" => Action::StartPalette,
+        "file-picker" => Action::StartFilePicker,
         "help" => Action::ToggleHelp,
         "next-match" => Action::NextMatch,
         "previous-match" => Action::PreviousMatch,
@@ -648,6 +650,15 @@ pub fn init(path: &Path, force: bool) -> Result<(), ConfigError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn zero_config_enables_osc52_copy_and_off_remains_valid() {
+        let default = Config::default();
+        assert_eq!(default.ui.clipboard, "osc52");
+        let mut disabled = default;
+        disabled.ui.clipboard = "off".into();
+        validate(&disabled, Path::new("disabled.toml")).unwrap();
+    }
+
     #[test]
     fn recursively_rejects_unknown_keys_and_conflicts() {
         let e = toml::from_str::<Config>("version=1\n[ui]\nwat=true")

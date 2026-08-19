@@ -35,9 +35,10 @@ jobs:
         run: shellcheck install.sh scripts/*.sh
       - name: Dependency policy
         run: |
+          mkdir -p "$RUNNER_TEMP/cargo-deny"
           curl --proto '=https' --tlsv1.2 -LsSf https://github.com/EmbarkStudios/cargo-deny/releases/download/0.20.2/cargo-deny-0.20.2-x86_64-unknown-linux-musl.tar.gz |
-            tar --strip-components=1 -xz cargo-deny-0.20.2-x86_64-unknown-linux-musl/cargo-deny
-          ./cargo-deny check
+            tar -C "$RUNNER_TEMP/cargo-deny" --strip-components=1 -xz cargo-deny-0.20.2-x86_64-unknown-linux-musl/cargo-deny
+          "$RUNNER_TEMP/cargo-deny/cargo-deny" check
       - name: Release plan
         run: |
           curl --proto '=https' --tlsv1.2 -LsSf https://github.com/axodotdev/cargo-dist/releases/download/v0.32.0/cargo-dist-installer.sh | sh
@@ -62,14 +63,18 @@ jobs:
         run: cargo test --tests --locked
       - name: Release build
         run: cargo build --release --locked
+      - name: Performance regression gate
+        run: python3 scripts/benchmark.py --repository "$RUNNER_TEMP/phig-benchmark" --commits 1000 --snapshot-samples 5 --pty-samples 5 --skip-build --json
       - name: Build real cargo-dist installer fixture
         if: runner.os == 'macOS'
         shell: bash
         run: |
           curl --proto '=https' --tlsv1.2 -LsSf https://github.com/axodotdev/cargo-dist/releases/download/v0.32.0/cargo-dist-installer.sh | sh
           mkdir -p target/distrib
-          dist build --allow-dirty --artifacts=local --target=aarch64-apple-darwin --output-format=json > target/distrib/aarch64-apple-darwin-dist-manifest.json
-          dist build --allow-dirty --artifacts=global --output-format=json > target/distrib/global-dist-manifest.json
+          dist build --allow-dirty --artifacts=local --target=aarch64-apple-darwin --output-format=json > "$RUNNER_TEMP/aarch64-apple-darwin-dist-manifest.json"
+          cp "$RUNNER_TEMP/aarch64-apple-darwin-dist-manifest.json" target/distrib/aarch64-apple-darwin-dist-manifest.json
+          dist build --allow-dirty --artifacts=global --output-format=json > "$RUNNER_TEMP/global-dist-manifest.json"
+          cp "$RUNNER_TEMP/global-dist-manifest.json" target/distrib/global-dist-manifest.json
       - name: Verify real cargo-dist installer compatibility
         if: runner.os == 'macOS'
         env:

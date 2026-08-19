@@ -1,41 +1,58 @@
 # Performance
 
-Phig keeps all Git work off the terminal thread, bounds queues and captured
-output, and loads history incrementally. Performance regressions should be
-measured against a generated repository rather than a developer's changing
-checkout.
+Phig keeps Git work off the terminal thread, bounds queues and captured output,
+and loads history incrementally. Performance claims come from the committed
+fixture and standard-library harness rather than a developer's changing checkout.
 
-## Reproduce
+## Release benchmark
 
 ```sh
-scripts/make-benchmark-repo.sh /tmp/phig-benchmark 500
-scripts/benchmark.sh /tmp/phig-benchmark 500
+scripts/benchmark.sh /tmp/phig-benchmark 1000 --json
 ```
 
-`benchmark.sh` builds the locked release profile, warms the deterministic log
-snapshot, runs 20 samples with `hyperfine` when available (or one portable
-`time -p` sample), and reports stripped binary size. The fixture contains one
-line-appending commit per revision and no remotes.
+The fixture contains 1,000 commits distributed across 100 paths. The Python
+standard-library harness builds the locked release binary, warms the deterministic
+`snapshot log` path, and records:
 
-For interactive changes, also use the PTY tests and record cold/warm
-startup-to-first-frame, key-to-paint, idle CPU, resident memory, and cancellation
-latency described in `docs/PRODUCT.md`. A machine snapshot benchmark does not
-substitute for those UI measurements.
+- 20 warm snapshot samples with p50/p95;
+- 10 real PTY launches from process start to the first frame containing the
+  newest commit, with p50/p95;
+- release binary bytes/MiB;
+- per-process peak RSS for each PTY-launched phig via `wait4`;
+- source and fixture commits, source dirty state, platform, architecture, Git
+  and Python versions, and sample counts.
 
-## 1.0.0 pre-release candidate smoke
+The command fails if warm snapshot p95 exceeds 500 ms, PTY first-useful-frame p95
+exceeds 1,000 ms, or the release binary exceeds 15 MiB. CI runs five samples of
+each timing path on macOS and Linux; `just release-check` runs the full 20/10 gate.
+The PTY metric is a real rendered history frame, not terminal setup alone.
 
-This is a pre-release baseline, not a result measured from the eventual
-`v1.0.0` tag. It was measured from the release working tree based on commit
-`169ed31fc2bd` on 2026-08-19, using an Apple M4 Pro, macOS/Darwin 25.5.0, Git
-2.55.0, Rust 1.88, a 500-commit generated fixture, and a warm filesystem cache:
+The harness captures each PTY phig process with `wait4`, normalizes Darwin bytes
+and Linux KiB to MiB, and reports the largest sample. It is still reported rather
+than gated because allocator and OS accounting differ across platforms.
+
+## 1.0.0 release-candidate measurement
+
+This result is from the dirty release candidate based on commit
+`67c7139cd0102bd760fcfaa06f3305a3a5b0c5cc`, not from a published tag. It was
+measured on 2026-08-19 with Apple M4 Pro/arm64, macOS 26.5.1, Git 2.55.0, Python
+3.14.7, and fixture commit `215b9700a24574bc26b2588ce7ec59eb0adc78cf`:
 
 ```text
-phig snapshot log: real 0.10 s, user 0.02 s, sys 0.01 s (one time -p sample)
-stripped release binary: 2.30 MiB (2,412,256 bytes)
+warm snapshot, 20 samples:       p50 126.408 ms  p95 135.394 ms
+PTY first useful frame, 10:      p50 160.444 ms  p95 168.944 ms
+release binary:                  2.316 MiB (2,428,960 bytes)
+representative phig peak RSS:    9.062 MiB
 ```
 
-This is a reproducible candidate smoke measurement, not a statistically valid
-p95 claim or a tagged-release benchmark. Replace or supplement it with the exact
-tag commit after publication. CI guards correctness on macOS and Linux;
-performance claims should be updated only with the fixture, command, sample
-count, cache state, tested commit, and hardware recorded together.
+The measured release gates passed. Replace or supplement this record with the
+exact tag commit after publication; do not silently relabel candidate evidence
+as tagged-release evidence.
+
+## Targets not yet claimed
+
+The 150 ms first-useful-frame architectural target, cached key-to-paint latency,
+idle CPU, cancellation latency, and a 100,000-commit/10,000-path stress fixture
+remain unmeasured optimization goals. They are explicitly not 1.0 release claims
+or blockers. Any future claim must record the fixture, exact commit, platform,
+cache state, sample count, and measurement method together.

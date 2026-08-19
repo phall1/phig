@@ -4,6 +4,7 @@ use std::{
     fs,
     io::{Read, Write},
     process::Command,
+    sync::{Arc, Mutex},
     thread,
     time::{Duration, Instant},
 };
@@ -11,6 +12,82 @@ use std::{
 use portable_pty::{Child, CommandBuilder, ExitStatus, PtySize, native_pty_system};
 
 static PTY_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+fn read_live(mut reader: Box<dyn Read + Send>) -> (Arc<Mutex<Vec<u8>>>, thread::JoinHandle<()>) {
+    let output = Arc::new(Mutex::new(Vec::new()));
+    let shared = Arc::clone(&output);
+    let thread = thread::spawn(move || {
+        let mut chunk = [0; 4096];
+        loop {
+            match reader.read(&mut chunk) {
+                Ok(0) => break,
+                Ok(count) => shared.lock().unwrap().extend_from_slice(&chunk[..count]),
+                Err(error) if error.kind() == std::io::ErrorKind::Interrupted => continue,
+                Err(_) => break,
+            }
+        }
+    });
+    (output, thread)
+}
+
+fn output_text(output: &Arc<Mutex<Vec<u8>>>) -> String {
+    String::from_utf8_lossy(&output.lock().unwrap()).into_owned()
+}
+
+fn wait_for_marker(output: &Arc<Mutex<Vec<u8>>>, marker: &str, timeout: Duration) {
+    let deadline = Instant::now() + timeout;
+    loop {
+        if output_text(output).contains(marker) {
+            return;
+        }
+        assert!(
+            Instant::now() < deadline,
+            "PTY omitted marker {marker:?}: {}",
+            output_text(output)
+        );
+        thread::sleep(Duration::from_millis(10));
+    }
+}
+
+fn wait_for_marker_count(
+    output: &Arc<Mutex<Vec<u8>>>,
+    marker: &str,
+    minimum: usize,
+    timeout: Duration,
+) {
+    let deadline = Instant::now() + timeout;
+    loop {
+        if output_text(output).matches(marker).count() >= minimum {
+            return;
+        }
+        assert!(
+            Instant::now() < deadline,
+            "PTY omitted marker occurrence {minimum} for {marker:?}"
+        );
+        thread::sleep(Duration::from_millis(10));
+    }
+}
+
+fn retry_key_until_exit(
+    child: &mut Box<dyn Child + Send + Sync>,
+    writer: &mut dyn Write,
+    key: &[u8],
+    timeout: Duration,
+) -> ExitStatus {
+    let deadline = Instant::now() + timeout;
+    loop {
+        if let Some(status) = child.try_wait().unwrap() {
+            return status;
+        }
+        if Instant::now() >= deadline {
+            child.kill().unwrap();
+            panic!("phig ignored retryable exit key");
+        }
+        writer.write_all(key).unwrap();
+        writer.flush().unwrap();
+        thread::sleep(Duration::from_millis(40));
+    }
+}
 
 fn wait_bounded(
     child: &mut Box<dyn Child + Send + Sync>,
@@ -45,7 +122,7 @@ fn git(repo: &std::path::Path, args: &[&str]) {
     );
 }
 
-fn run_view(repo: &std::path::Path, args: &[&str]) -> String {
+fn run_view(repo: &std::path::Path, args: &[&str], ready: &str) -> String {
     let pty = native_pty_system();
     let pair = pty
         .openpty(PtySize {
@@ -62,30 +139,15 @@ fn run_view(repo: &std::path::Path, args: &[&str]) -> String {
     command.env("NO_COLOR", "1");
     let mut child = pair.slave.spawn_command(command).unwrap();
     drop(pair.slave);
-    let mut reader = pair.master.try_clone_reader().unwrap();
-    let reader_thread = thread::spawn(move || {
-        let mut output = Vec::new();
-        reader.read_to_end(&mut output).unwrap();
-        output
-    });
+    let reader = pair.master.try_clone_reader().unwrap();
+    let (output, reader_thread) = read_live(reader);
     let mut writer = pair.master.take_writer().unwrap();
-    thread::sleep(Duration::from_millis(800));
-    writer.write_all(b"qq").unwrap();
-    writer.flush().unwrap();
-    let deadline = Instant::now() + Duration::from_secs(8);
-    loop {
-        if child.try_wait().unwrap().is_some() {
-            break;
-        }
-        if Instant::now() >= deadline {
-            child.kill().unwrap();
-            panic!("phig view {args:?} did not exit");
-        }
-        thread::sleep(Duration::from_millis(25));
-    }
+    wait_for_marker(&output, ready, Duration::from_secs(5));
+    let _ = retry_key_until_exit(&mut child, &mut writer, b"q", Duration::from_secs(8));
     drop(writer);
     drop(pair.master);
-    String::from_utf8_lossy(&reader_thread.join().unwrap()).into_owned()
+    reader_thread.join().unwrap();
+    output_text(&output)
 }
 
 #[test]
@@ -111,22 +173,28 @@ fn all_daily_inspection_views_render_through_a_real_pty() {
     git(repo.path(), &["stash", "push", "-qm", "saved work"]);
     fs::write(repo.path().join("file.txt"), "one\ntwo\nworking\n").unwrap();
 
-    for (args, expected) in [
+    for (args, expected, ready) in [
         (
             vec!["compare", "main", "feature"],
             vec!["COMPARE", "merge-base"],
+            "merge-base",
         ),
-        (vec!["diff", "main", "feature"], vec!["COMPARE", "exact"]),
-        (vec!["refs"], vec!["REFS", "feature"]),
-        (vec!["status"], vec!["STATUS", "file.txt"]),
-        (vec!["tree", "HEAD"], vec!["TREE", "file.txt"]),
+        (
+            vec!["diff", "main", "feature"],
+            vec!["COMPARE", "exact"],
+            "exact",
+        ),
+        (vec!["refs"], vec!["REFS", "feature"], "branch"),
+        (vec!["status"], vec!["STATUS", "file.txt"], "file.txt"),
+        (vec!["tree", "HEAD"], vec!["TREE", "file.txt"], "file.txt"),
         (
             vec!["blame", "HEAD", "--", "file.txt"],
-            vec!["BLAME", "Phig PTY"],
+            vec!["BLAME", "one"],
+            "one",
         ),
-        (vec!["stash"], vec!["STASH", "saved work"]),
+        (vec!["stash"], vec!["STASH", "stash@{0}"], "stash@{0}"),
     ] {
-        let output = run_view(repo.path(), &args);
+        let output = run_view(repo.path(), &args, ready);
         for needle in expected {
             assert!(
                 output.contains(needle),
@@ -150,6 +218,7 @@ fn all_daily_inspection_views_render_through_a_real_pty() {
             "main",
             "feature",
         ],
+        "merge-base",
     );
     assert!(
         output.contains("merge-base"),
@@ -196,26 +265,18 @@ fn narrow_status_enter_opens_full_working_diff_and_returns() {
     command.env("NO_COLOR", "1");
     let mut child = pair.slave.spawn_command(command).unwrap();
     drop(pair.slave);
-    let mut reader = pair.master.try_clone_reader().unwrap();
-    let reader_thread = thread::spawn(move || {
-        let mut output = Vec::new();
-        reader.read_to_end(&mut output).unwrap();
-        output
-    });
+    let reader = pair.master.try_clone_reader().unwrap();
+    let (output, reader_thread) = read_live(reader);
     let mut writer = pair.master.take_writer().unwrap();
-    thread::sleep(Duration::from_millis(800));
+    wait_for_marker(&output, "Enter", Duration::from_secs(5));
     writer.write_all(b"\r").unwrap();
-    thread::sleep(Duration::from_millis(150));
-    writer.write_all(b"qqq").unwrap();
     writer.flush().unwrap();
-    let status = wait_bounded(
-        &mut child,
-        Duration::from_secs(8),
-        "waiting for narrow status flow",
-    );
+    wait_for_marker(&output, "+staged", Duration::from_secs(5));
+    let status = retry_key_until_exit(&mut child, &mut writer, b"q", Duration::from_secs(8));
     drop(writer);
     drop(pair.master);
-    let output = String::from_utf8_lossy(&reader_thread.join().unwrap()).into_owned();
+    reader_thread.join().unwrap();
+    let output = output_text(&output);
     assert!(status.success());
     assert!(
         output.contains("staged working"),
@@ -274,27 +335,37 @@ fn real_pty_exercises_navigation_overlays_resize_and_cleanup() {
     let mut child = pair.slave.spawn_command(command).unwrap();
     drop(pair.slave);
 
-    let mut reader = pair.master.try_clone_reader().unwrap();
-    let reader_thread = thread::spawn(move || {
-        let mut output = Vec::new();
-        reader.read_to_end(&mut output).unwrap();
-        output
-    });
+    let reader = pair.master.try_clone_reader().unwrap();
+    let (output, reader_thread) = read_live(reader);
     let mut writer = pair.master.take_writer().unwrap();
 
-    thread::sleep(Duration::from_millis(500));
-    writer.write_all(b"j").unwrap();
-    thread::sleep(Duration::from_millis(100));
-    writer.write_all(b"\r").unwrap(); // inspect
-    thread::sleep(Duration::from_millis(300));
+    let merge_oid = Command::new("git")
+        .args([
+            "-C",
+            repo.path().to_str().unwrap(),
+            "rev-parse",
+            "--short=8",
+            "HEAD",
+        ])
+        .output()
+        .unwrap();
+    let merge_oid = String::from_utf8(merge_oid.stdout).unwrap();
+    wait_for_marker(&output, merge_oid.trim(), Duration::from_secs(5));
+    writer.write_all(b"\r").unwrap(); // inspect the selected merge commit
+    writer.flush().unwrap();
+    wait_for_marker(&output, "SHOW", Duration::from_secs(5));
+    wait_for_marker(&output, "+side", Duration::from_secs(5));
+    writer.write_all(b"f").unwrap();
+    writer.flush().unwrap();
+    wait_for_marker(&output, "Changed", Duration::from_secs(3));
+    writer.write_all(b"side\r").unwrap(); // filter and jump through the file index
     writer.write_all(b"]}").unwrap(); // hunk and file navigation
-    thread::sleep(Duration::from_millis(75));
     writer.write_all(b"/\x1b[200~first\x1b[201~\r").unwrap(); // pasted diff search
-    thread::sleep(Duration::from_millis(100));
     writer.write_all(b":help\r").unwrap(); // palette -> contextual help
-    thread::sleep(Duration::from_millis(100));
+    writer.flush().unwrap();
+    wait_for_marker(&output, "Ctrl-l", Duration::from_secs(5));
     writer.write_all(b"\x1b").unwrap(); // close help
-    thread::sleep(Duration::from_millis(75));
+    writer.flush().unwrap();
     pair.master
         .resize(PtySize {
             rows: 20,
@@ -303,20 +374,15 @@ fn real_pty_exercises_navigation_overlays_resize_and_cleanup() {
             pixel_height: 0,
         })
         .unwrap();
-    writer.write_all(b"q").unwrap(); // detail -> log
-    thread::sleep(Duration::from_millis(100));
-    writer.write_all(b"q").unwrap(); // exit
-    writer.flush().unwrap();
-
-    let status = wait_bounded(&mut child, Duration::from_secs(8), "waiting for q exit");
+    let status = retry_key_until_exit(&mut child, &mut writer, b"q", Duration::from_secs(8));
     drop(writer);
     drop(pair.master);
-    let output = reader_thread.join().unwrap();
-    let screen = String::from_utf8_lossy(&output);
+    reader_thread.join().unwrap();
+    let screen = output_text(&output);
 
     assert!(status.success(), "phig exited unsuccessfully: {status:?}");
     assert!(screen.contains("phig"));
-    assert!(screen.contains("merge side branch") || screen.contains("second commit"));
+    assert!(screen.contains(merge_oid.trim()));
     assert!(
         screen.contains('◆'),
         "merge topology marker was not rendered"
@@ -325,14 +391,8 @@ fn real_pty_exercises_navigation_overlays_resize_and_cleanup() {
         screen.contains("SHOW"),
         "Enter did not render commit detail"
     );
-    assert!(
-        screen.contains("+one") || screen.contains("+two"),
-        "commit diff was not rendered"
-    );
-    assert!(
-        screen.contains("Help") && screen.contains("keys"),
-        "help overlay was not rendered"
-    );
+    assert!(screen.contains("+side"), "commit diff was not rendered");
+    assert!(screen.contains("Ctrl-l"), "help overlay was not rendered");
     assert!(screen.contains("\u{1b}[?25h"), "cursor was not restored");
     assert!(
         screen.contains("\u{1b}[?1049l"),
@@ -374,27 +434,15 @@ fn no_alt_screen_mode_leaves_scrollback_and_restores_cursor() {
     command.env("TERM", "xterm-256color");
     let mut child = pair.slave.spawn_command(command).unwrap();
     drop(pair.slave);
-    let mut reader = pair.master.try_clone_reader().unwrap();
-    let reader_thread = thread::spawn(move || {
-        let mut output = Vec::new();
-        reader.read_to_end(&mut output).unwrap();
-        output
-    });
+    let reader = pair.master.try_clone_reader().unwrap();
+    let (output, reader_thread) = read_live(reader);
     let mut writer = pair.master.take_writer().unwrap();
-    thread::sleep(Duration::from_millis(500));
-    writer.write_all(b"q").unwrap();
-    thread::sleep(Duration::from_millis(75));
-    writer.write_all(b"q").unwrap();
-    writer.flush().unwrap();
-    let status = wait_bounded(
-        &mut child,
-        Duration::from_secs(8),
-        "waiting for no-alt-screen exit",
-    );
+    wait_for_marker(&output, "exact show target", Duration::from_secs(5));
+    let status = retry_key_until_exit(&mut child, &mut writer, b"q", Duration::from_secs(8));
     drop(writer);
     drop(pair.master);
-    let output = reader_thread.join().unwrap();
-    let screen = String::from_utf8_lossy(&output);
+    reader_thread.join().unwrap();
+    let screen = output_text(&output);
 
     assert!(status.success());
     assert!(screen.contains("phig"));
@@ -405,6 +453,64 @@ fn no_alt_screen_mode_leaves_scrollback_and_restores_cursor() {
     assert!(screen.contains("\u{1b}[?25h"));
     assert!(!screen.contains("\u{1b}[?1049h"));
     assert!(!screen.contains("\u{1b}[?1049l"));
+}
+
+#[test]
+fn clipboard_defaults_to_osc52_and_explicit_off_reports_disabled() {
+    let _guard = PTY_LOCK
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    let repo = tempfile::tempdir().unwrap();
+    git(repo.path(), &["init", "-q", "-b", "main"]);
+    git(repo.path(), &["config", "user.name", "Phig PTY"]);
+    git(
+        repo.path(),
+        &["config", "user.email", "pty@example.invalid"],
+    );
+    fs::write(repo.path().join("file.txt"), "one\n").unwrap();
+    git(repo.path(), &["add", "file.txt"]);
+    git(repo.path(), &["commit", "-qm", "copy commit"]);
+    let disabled = repo.path().join("clipboard-off.toml");
+    fs::write(&disabled, "version = 1\n[ui]\nclipboard = \"off\"\n").unwrap();
+
+    for (extra, marker, osc52) in [
+        (Vec::<String>::new(), "]52;c;", true),
+        (
+            vec!["--config".into(), disabled.to_string_lossy().into_owned()],
+            "disabled",
+            false,
+        ),
+    ] {
+        let pair = native_pty_system()
+            .openpty(PtySize {
+                rows: 20,
+                cols: 80,
+                pixel_width: 0,
+                pixel_height: 0,
+            })
+            .unwrap();
+        let mut command = CommandBuilder::new(assert_cmd::cargo::cargo_bin!("phig"));
+        command.args(extra);
+        command.arg("--no-alt-screen");
+        command.cwd(repo.path());
+        command.env("TERM", "xterm-256color");
+        let mut child = pair.slave.spawn_command(command).unwrap();
+        drop(pair.slave);
+        let reader = pair.master.try_clone_reader().unwrap();
+        let (output, reader_thread) = read_live(reader);
+        let mut writer = pair.master.take_writer().unwrap();
+        wait_for_marker(&output, "copy commit", Duration::from_secs(5));
+        writer.write_all(b"y").unwrap();
+        writer.flush().unwrap();
+        wait_for_marker(&output, marker, Duration::from_secs(3));
+        let status = retry_key_until_exit(&mut child, &mut writer, b"q", Duration::from_secs(5));
+        assert!(status.success());
+        drop(writer);
+        drop(pair.master);
+        reader_thread.join().unwrap();
+        let screen = output_text(&output);
+        assert_eq!(screen.contains("]52;c;"), osc52);
+    }
 }
 
 #[test]
@@ -443,12 +549,8 @@ fn external_termination_signal_restores_the_terminal() {
         let mut child = pair.slave.spawn_command(command).unwrap();
         drop(pair.slave);
         let process_id = child.process_id().expect("PTY child has a process id");
-        let mut reader = pair.master.try_clone_reader().unwrap();
-        let reader_thread = thread::spawn(move || {
-            let mut output = Vec::new();
-            reader.read_to_end(&mut output).unwrap();
-            output
-        });
+        let reader = pair.master.try_clone_reader().unwrap();
+        let (output, reader_thread) = read_live(reader);
         let send_signal = |name: &str| {
             let signal = Command::new("kill")
                 .args([name, &process_id.to_string()])
@@ -457,12 +559,12 @@ fn external_termination_signal_restores_the_terminal() {
             assert!(signal.success(), "failed to send {name}");
         };
 
-        thread::sleep(Duration::from_millis(500));
+        wait_for_marker(&output, "signal commit", Duration::from_secs(5));
         if exercise_suspend {
             send_signal("-TSTP");
-            thread::sleep(Duration::from_millis(150));
+            wait_for_marker_count(&output, "\u{1b}[?1049l", 1, Duration::from_secs(3));
             send_signal("-CONT");
-            thread::sleep(Duration::from_millis(200));
+            wait_for_marker_count(&output, "\u{1b}[?1049h", 2, Duration::from_secs(3));
         }
         send_signal(signal_name);
         let status = wait_bounded(
@@ -471,8 +573,8 @@ fn external_termination_signal_restores_the_terminal() {
             "waiting for signal exit",
         );
         drop(pair.master);
-        let output = reader_thread.join().unwrap();
-        let screen = String::from_utf8_lossy(&output);
+        reader_thread.join().unwrap();
+        let screen = output_text(&output);
 
         assert_eq!(
             status.exit_code(),

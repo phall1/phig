@@ -76,7 +76,8 @@ Verify any installation with `phig version`. See the complete
 ## Quick start
 
 ```sh
-phig                         # browse the current branch
+phig                         # exactly phig log HEAD
+phig log main                # browse another revision
 phig show HEAD~3             # inspect one commit
 phig compare main            # merge-base(main, HEAD) → HEAD
 phig diff v1.0.0 HEAD -- src # exact endpoints, path-filtered
@@ -98,11 +99,12 @@ No configuration is required. `phig config init` writes a documented config to
 | `q` / `Esc` | back or quit | `/`, `n` / `N` | search, next/previous |
 | `g` / `G` | first/last | `[` / `]` | previous/next hunk |
 | `Tab` | change focus | `P` | next parent |
+| `f` | filter/jump changed files | `y` | copy with OSC 52 |
 | `v` | mark endpoint | `c` | compare marked/current |
 | `:` | command palette | `?` | contextual help |
 
-The footer is always the local source of truth. Every action is semantically
-remappable; see [configuration](docs/configuration.md).
+The footer is always the local source of truth. Documented semantic navigation
+and view actions are remappable; see [configuration](docs/configuration.md).
 
 ## Agent and phux workflows
 

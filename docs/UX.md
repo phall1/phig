@@ -3,9 +3,11 @@
 ## Visual model
 
 The header names the repository, active view, revision/range, path constraint,
-and loading/error state. The body is one dominant list or document. When space
-allows, a preview occupies the right side; on narrow terminals it is hidden and
-opened with `Enter`. The footer shows only the highest-value contextual keys.
+and loading/error state. The body is one dominant list or document. At 110
+columns and wider, log, refs, status, blame, and stash previews occupy the right
+side. Normal widths use a stacked list/preview; narrow terminals hide previews
+and open details with `Enter`. The footer shows only the highest-value contextual
+keys.
 
 Phig must remain usable at 60×16, comfortable at 100×28, and information-dense
 without decorative borders at larger sizes.
@@ -29,6 +31,7 @@ without decorative borders at larger sizes.
 | `]`, `[` | next/previous hunk |
 | `}`, `{` | next/previous changed file |
 | `P` | cycle merge parent in commit detail |
+| `f` | filter changed files and jump to one |
 | `r` | refs view |
 | `s` | status view |
 | `t` | tree view |
@@ -64,9 +67,10 @@ Additional history loads before the cursor reaches the end.
 
 ### Commit/diff
 
-Metadata precedes file summary and patch. A file index permits direct filtering
-and file navigation. Hunk headers are anchors. Merge commits expose parent and
-combined/exact-parent choices without guessing.
+Metadata precedes file summary and patch. `f` opens a searchable changed-file
+index; `Enter` jumps directly to the selected file header. Hunk headers are
+anchors. Merge commits expose explicit parent cycling with `P`; version 1 does
+not claim a combined-diff display.
 
 ### Compare
 

@@ -120,6 +120,9 @@ pub fn render(frame: &mut Frame<'_>, app: &App) {
         Overlay::Help => render_help(frame, app, area),
         Overlay::Search { draft, .. } => render_search(frame, draft, rows[1]),
         Overlay::Palette { draft, selected } => render_palette(frame, draft, *selected, area),
+        Overlay::FilePicker {
+            draft, selected, ..
+        } => render_file_picker(frame, app, draft, *selected, area),
         Overlay::None => {}
     }
 
@@ -695,11 +698,14 @@ fn diff_line(line: &DiffLine) -> Line<'_> {
 }
 
 fn list_preview_areas(app: &App, area: Rect) -> (Rect, Rect) {
-    if !app.show_preview || area.height < 16 {
+    if !app.show_preview || area.height < 16 || area.width < 72 {
         return (area, Rect::default());
     }
-    let parts =
-        Layout::vertical([Constraint::Percentage(50), Constraint::Percentage(50)]).split(area);
+    let parts = if area.width >= 110 {
+        Layout::horizontal([Constraint::Percentage(42), Constraint::Percentage(58)]).split(area)
+    } else {
+        Layout::vertical([Constraint::Percentage(50), Constraint::Percentage(50)]).split(area)
+    };
     (parts[0], parts[1])
 }
 
@@ -819,7 +825,7 @@ fn render_refs(frame: &mut Frame<'_>, app: &App, area: Rect) {
                 RefKind::Other => "ref",
             };
             let head = if reference.is_head { "*" } else { " " };
-            let upstream = if area.width >= 84 {
+            let upstream = if list.width >= 84 {
                 reference
                     .upstream
                     .as_ref()
@@ -827,12 +833,12 @@ fn render_refs(frame: &mut Frame<'_>, app: &App, area: Rect) {
             } else {
                 String::new()
             };
-            let oid = if area.width >= 54 {
+            let oid = if list.width >= 54 {
                 format!(" {}", reference.target.short(8))
             } else {
                 String::new()
             };
-            let subject = if area.width >= 70 {
+            let subject = if list.width >= 70 {
                 format!("  {}", reference.subject)
             } else {
                 String::new()
@@ -1156,13 +1162,27 @@ fn render_footer(frame: &mut Frame<'_>, app: &App, area: Rect) {
             format!("line {}", app.diff_scroll.saturating_add(1))
         }
     };
+    if let Some(notice) = &app.notice {
+        frame.render_widget(
+            Paragraph::new(Line::from(vec![
+                Span::styled(" Notice ", Style::default().fg(Color::Black).bg(accent())),
+                Span::raw(" "),
+                Span::styled(notice.clone(), Style::default().fg(muted())),
+            ])),
+            area,
+        );
+        return;
+    }
     let keys = match app.view {
-        View::Log => "j/k move  Enter inspect  c compare  / search  ? help  q quit",
-        View::Detail => "j/k scroll  [/] hunk  Tab file  P parent  b blame  q back",
-        View::Compare => "j/k scroll  [/] hunk  x swap  M mode  q back",
+        View::Log => "j/k move  Enter inspect  f files  c compare  / search  ? help  q quit",
+        View::Detail => "j/k scroll  f files  [/] hunk  Tab file  P parent  b blame  q back",
+        View::Compare => "j/k scroll  f files  [/] hunk  x swap  M mode  q back",
         View::Refs => "j/k move  Enter history/base  c compare  p preview  / search  q back",
-        View::Status => "j/k move  Enter inspect  d staged/unstaged  b blame  p preview  q back",
-        View::StatusDiff => "j/k scroll  [/] hunk  {/} file  b blame  q back",
+        View::Status if app.inspect.working_diff.is_some() => {
+            "diff ready  Enter inspect  j/k move  f files  d staged/unstaged  p preview  q back"
+        }
+        View::Status => "loading diff  j/k move  d staged/unstaged  p preview  q back",
+        View::StatusDiff => "j/k scroll  f files  [/] hunk  {/} file  b blame  q back",
         View::Tree => "j/k move  Enter open  Backspace up  b blame  q back",
         View::Blob => "j/k scroll  b blame  / search  q back",
         View::Blame => "j/k move  Enter commit  p preview  / search  q back",
@@ -1190,17 +1210,17 @@ fn render_footer(frame: &mut Frame<'_>, app: &App, area: Rect) {
 fn render_help(frame: &mut Frame<'_>, app: &App, area: Rect) {
     let popup = centered_rect(
         72.min(area.width.saturating_sub(4)),
-        18.min(area.height.saturating_sub(2)),
+        20.min(area.height.saturating_sub(2)),
         area,
     );
     frame.render_widget(Clear, popup);
     let context = match app.view {
         View::Log => "Log: Enter inspect · v mark · c compare · p preview",
-        View::Detail => "Diff: [/] hunks · Tab files · P merge parent · b blame",
-        View::Compare => "Compare: x swaps · M exact/merge-base · [/] hunks",
+        View::Detail => "Diff: f file picker · [/] hunks · Tab files · P merge parent",
+        View::Compare => "Compare: f file picker · x swap · M exact/merge-base",
         View::Refs => "Refs: Enter opens history or accepts comparison base",
         View::Status => "Status is read-only; Enter opens the selected working diff",
-        View::StatusDiff => "Working diff: [/] hunks · {/} files · q returns to status",
+        View::StatusDiff => "Working diff: f file picker · [/] hunks · q returns to status",
         View::Tree => "Tree: Enter descends/opens · Backspace ascends",
         View::Blob => "Blob: sanitized text or a safe binary summary",
         View::Blame => "Blame: Enter opens the selected line's commit",
@@ -1215,11 +1235,12 @@ fn render_help(frame: &mut Frame<'_>, app: &App, area: Rect) {
         Line::raw("Enter / q        open / back / quit"),
         Line::raw("/ · n/N          search · next/previous"),
         Line::raw(":                searchable command palette"),
+        Line::raw("f                searchable changed-file picker"),
         Line::raw("[ ] · { }        hunk · file"),
         Line::raw("m/r/s/t/b/z       history · refs · status · tree · blame · stash"),
         Line::raw("v · c · x · M      mark · compare · swap · compare mode"),
         Line::raw("Tab · p · P       section/file · preview · parent"),
-        Line::raw("Ctrl-l            redraw"),
+        Line::raw("y · Ctrl-l        OSC 52 copy · redraw"),
         Line::raw(""),
         Line::styled(context, Style::default().fg(muted())),
         Line::raw("Esc closes this help"),
@@ -1304,6 +1325,63 @@ fn render_palette(frame: &mut Frame<'_>, draft: &str, selected: usize, area: Rec
         Block::default()
             .borders(Borders::ALL)
             .title(" Commands · type to filter · Enter run · Esc close ")
+            .border_style(Style::default().fg(accent())),
+        popup,
+    );
+}
+
+fn render_file_picker(frame: &mut Frame<'_>, app: &App, draft: &str, selected: usize, area: Rect) {
+    let files = app.file_picker_entries(draft);
+    let height = (files.len().min(12) as u16).saturating_add(3);
+    let popup = centered_rect(
+        72.min(area.width.saturating_sub(4)),
+        height.min(area.height.saturating_sub(2)),
+        area,
+    );
+    frame.render_widget(Clear, popup);
+    let inner = Layout::vertical([Constraint::Length(1), Constraint::Min(1)]).split(popup.inner(
+        ratatui::layout::Margin {
+            horizontal: 1,
+            vertical: 1,
+        },
+    ));
+    frame.render_widget(
+        Paragraph::new(Line::from(vec![
+            Span::styled("file: ", Style::default().fg(accent()).bold()),
+            Span::raw(draft.to_owned()),
+        ])),
+        inner[0],
+    );
+    let visible = usize::from(inner[1].height.max(1));
+    let selected = selected.min(files.len().saturating_sub(1));
+    let start = selected
+        .saturating_sub(visible / 2)
+        .min(files.len().saturating_sub(visible));
+    let items = if files.is_empty() {
+        vec![ListItem::new("No matching changed files")]
+    } else {
+        files[start..]
+            .iter()
+            .take(visible)
+            .map(|(path, _)| ListItem::new(path.clone()))
+            .collect()
+    };
+    let mut state = ListState::default()
+        .with_selected((!files.is_empty()).then_some(selected.saturating_sub(start)));
+    frame.render_stateful_widget(
+        List::new(items).highlight_symbol("› ").highlight_style(
+            Style::default()
+                .fg(selection_fg())
+                .bg(selection_bg())
+                .bold(),
+        ),
+        inner[1],
+        &mut state,
+    );
+    frame.render_widget(
+        Block::default()
+            .borders(Borders::ALL)
+            .title(" Changed files · type to filter · Enter jump · Esc close ")
             .border_style(Style::default().fg(accent())),
         popup,
     );
@@ -1484,8 +1562,8 @@ mod tests {
                 ],
                 files: vec![DiffFile {
                     header_line: 0,
-                    old_path: None,
-                    new_path: None,
+                    old_path: Some(GitPath::new(b"src/main.rs".to_vec())),
+                    new_path: Some(GitPath::new(b"src/main.rs".to_vec())),
                     hunks: Vec::new(),
                 }],
                 truncated: false,
@@ -1771,12 +1849,43 @@ mod tests {
     }
 
     #[test]
-    fn inspection_preview_toggle_changes_page_height() {
+    fn inspection_preview_layout_and_page_size_follow_width_class() {
         let mut app = sample_app();
         app.view = View::Refs;
+        let narrow = Rect::new(0, 1, 60, 26);
+        let normal = Rect::new(0, 1, 100, 26);
+        let threshold = Rect::new(0, 1, 110, 26);
+        let wide = Rect::new(0, 1, 140, 26);
+        let (narrow_list, narrow_preview) = list_preview_areas(&app, narrow);
+        assert_eq!(narrow_list, narrow);
+        assert_eq!(narrow_preview, Rect::default());
+        assert_eq!(page_rows(&app, 60, 28), 26);
+        let (normal_list, normal_preview) = list_preview_areas(&app, normal);
+        assert!(
+            normal_preview.y > normal_list.y,
+            "normal preview must be stacked"
+        );
         assert_eq!(page_rows(&app, 100, 28), 13);
+        let (threshold_list, threshold_preview) = list_preview_areas(&app, threshold);
+        assert!(threshold_preview.x > threshold_list.x);
+        assert_eq!(page_rows(&app, 110, 28), 26);
+        let (wide_list, wide_preview) = list_preview_areas(&app, wide);
+        assert!(
+            wide_preview.x > wide_list.x,
+            "wide preview must be right-side"
+        );
+        assert_eq!(page_rows(&app, 140, 28), 26);
         app.show_preview = false;
         assert_eq!(page_rows(&app, 100, 28), 26);
+    }
+
+    #[test]
+    fn changed_file_picker_is_visible_and_filterable() {
+        let mut app = sample_app();
+        let _ = app.update(crate::app::Action::StartFilePicker, 20);
+        let output = screen(100, 28, &app);
+        assert!(output.contains("Changed files"));
+        assert!(output.contains("src/main.rs"));
     }
 
     #[test]

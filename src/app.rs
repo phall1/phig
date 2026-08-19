@@ -46,6 +46,11 @@ pub enum Overlay {
         draft: String,
         selected: usize,
     },
+    FilePicker {
+        draft: String,
+        selected: usize,
+        original_scroll: usize,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -61,6 +66,7 @@ pub enum Action {
     ToggleFocus,
     StartSearch,
     StartPalette,
+    StartFilePicker,
     ToggleHelp,
     SearchInput(char),
     SearchBackspace,
@@ -68,6 +74,8 @@ pub enum Action {
     CancelOverlay,
     PaletteMove(i32),
     ExecutePalette,
+    FilePickerMove(i32),
+    AcceptFilePicker,
     RetryFailed,
     DismissErrors,
     NextMatch,
@@ -219,6 +227,9 @@ pub struct App {
     pub marked_oid: Option<Oid>,
     pub selection_contract: Option<SelectionContract>,
     pub should_quit: bool,
+    pub notice: Option<String>,
+    pub copy_requested: bool,
+    pub redraw_requested: bool,
     pub dirty: bool,
 }
 
@@ -263,6 +274,9 @@ impl App {
             marked_oid: None,
             selection_contract: None,
             should_quit: false,
+            notice: None,
+            copy_requested: false,
+            redraw_requested: false,
             dirty: true,
         }
     }
@@ -342,6 +356,7 @@ impl App {
     }
 
     pub fn update(&mut self, action: Action, page_rows: usize) -> Vec<Effect> {
+        self.notice = None;
         self.dirty = true;
         if self.overlay != Overlay::None {
             return self.update_overlay(action, page_rows);
@@ -407,6 +422,21 @@ impl App {
                     draft: String::new(),
                     selected: 0,
                 };
+                Vec::new()
+            }
+            Action::StartFilePicker => {
+                if self
+                    .active_diff()
+                    .is_some_and(|diff| !diff.files.is_empty())
+                {
+                    self.overlay = Overlay::FilePicker {
+                        draft: String::new(),
+                        selected: 0,
+                        original_scroll: self.diff_scroll,
+                    };
+                } else {
+                    self.notice = Some("No changed files in this diff".into());
+                }
                 Vec::new()
             }
             Action::ToggleHelp => {
@@ -494,20 +524,34 @@ impl App {
                 }]
             }
             Action::Ascend => self.ascend_tree(),
-            Action::CopySelection | Action::Redraw => Vec::new(),
+            Action::CopySelection => {
+                self.copy_requested = true;
+                Vec::new()
+            }
+            Action::Redraw => {
+                self.redraw_requested = true;
+                Vec::new()
+            }
             Action::SearchInput(_)
             | Action::SearchBackspace
             | Action::AcceptSearch
             | Action::CancelOverlay
             | Action::PaletteMove(_)
-            | Action::ExecutePalette => Vec::new(),
+            | Action::ExecutePalette
+            | Action::FilePickerMove(_)
+            | Action::AcceptFilePicker => Vec::new(),
         }
     }
 
     fn update_overlay(&mut self, action: Action, page_rows: usize) -> Vec<Effect> {
+        let file_picker_count = match &self.overlay {
+            Overlay::FilePicker { draft, .. } => self.file_picker_entries(draft).len(),
+            _ => 0,
+        };
         let mut seek = false;
         let mut restore_preview = false;
         let mut palette_action = None;
+        let mut file_selection = None;
         match (&mut self.overlay, action) {
             (Overlay::Help, Action::CancelOverlay | Action::Back | Action::Quit) => {
                 self.overlay = Overlay::None;
@@ -577,11 +621,59 @@ impl App {
             (Overlay::Palette { .. }, Action::CancelOverlay | Action::Back | Action::Quit) => {
                 self.overlay = Overlay::None;
             }
+            (
+                Overlay::FilePicker {
+                    draft, selected, ..
+                },
+                Action::SearchInput(character),
+            ) => {
+                draft.push(character);
+                *selected = 0;
+            }
+            (
+                Overlay::FilePicker {
+                    draft, selected, ..
+                },
+                Action::SearchBackspace,
+            ) => {
+                draft.pop();
+                *selected = 0;
+            }
+            (Overlay::FilePicker { selected, .. }, Action::FilePickerMove(delta)) => {
+                if file_picker_count > 0 {
+                    *selected = ((*selected as i64 + i64::from(delta))
+                        .rem_euclid(file_picker_count as i64))
+                        as usize;
+                }
+            }
+            (
+                Overlay::FilePicker {
+                    draft, selected, ..
+                },
+                Action::AcceptFilePicker,
+            ) => {
+                file_selection = Some((draft.clone(), *selected));
+                self.overlay = Overlay::None;
+            }
+            (
+                Overlay::FilePicker {
+                    original_scroll, ..
+                },
+                Action::CancelOverlay | Action::Back | Action::Quit,
+            ) => {
+                self.diff_scroll = *original_scroll;
+                self.overlay = Overlay::None;
+            }
             (_, Action::CancelOverlay) => self.overlay = Overlay::None,
             _ => {}
         }
         if let Some(action) = palette_action {
             self.update(action, page_rows)
+        } else if let Some((query, selected)) = file_selection {
+            if let Some((_, header_line)) = self.file_picker_entries(&query).get(selected) {
+                self.diff_scroll = *header_line;
+            }
+            Vec::new()
         } else if seek {
             self.seek_match(true, true)
         } else if restore_preview {
@@ -925,6 +1017,47 @@ impl App {
             View::Compare => vec![Effect::LoadCompare],
             View::Detail | View::Blob => Vec::new(),
         }
+    }
+
+    pub fn take_copy_request(&mut self) -> bool {
+        std::mem::take(&mut self.copy_requested)
+    }
+
+    pub fn take_redraw_request(&mut self) -> bool {
+        std::mem::take(&mut self.redraw_requested)
+    }
+
+    pub fn set_notice(&mut self, message: impl Into<String>) {
+        self.notice = Some(message.into());
+        self.dirty = true;
+    }
+
+    pub fn active_diff(&self) -> Option<&Diff> {
+        match self.view {
+            View::Compare => self
+                .inspect
+                .comparison
+                .as_ref()
+                .map(|comparison| &comparison.diff),
+            View::Status | View::StatusDiff => self.inspect.working_diff.as_ref(),
+            View::Blob | View::Tree => None,
+            View::Log | View::Detail | View::Refs | View::Blame | View::Stash => {
+                self.preview.as_ref().map(|detail| &detail.diff)
+            }
+        }
+    }
+
+    pub fn file_picker_entries(&self, query: &str) -> Vec<(String, usize)> {
+        let needle = query.to_lowercase();
+        self.active_diff()
+            .into_iter()
+            .flat_map(|diff| &diff.files)
+            .filter_map(|file| {
+                let path = file.new_path.as_ref().or(file.old_path.as_ref())?;
+                (needle.is_empty() || path.display.to_lowercase().contains(&needle))
+                    .then(|| (path.display.clone(), file.header_line))
+            })
+            .collect()
     }
 
     pub fn copy_value(&self) -> Option<String> {
@@ -1611,6 +1744,8 @@ pub fn palette_commands(query: &str) -> Vec<PaletteCommand> {
         ("Toggle preview", Action::TogglePreview),
         ("Toggle focus", Action::ToggleFocus),
         ("Search", Action::StartSearch),
+        ("Open command palette", Action::StartPalette),
+        ("Open changed-file picker", Action::StartFilePicker),
         ("Show help", Action::ToggleHelp),
         ("Next search match", Action::NextMatch),
         ("Previous search match", Action::PreviousMatch),
@@ -1632,6 +1767,7 @@ pub fn palette_commands(query: &str) -> Vec<PaletteCommand> {
         ("Toggle staged/unstaged diff", Action::ToggleStatusDiff),
         ("Ascend tree", Action::Ascend),
         ("Copy selection", Action::CopySelection),
+        ("Redraw terminal", Action::Redraw),
         ("Retry failed request", Action::RetryFailed),
         ("Dismiss errors", Action::DismissErrors),
     ];
@@ -1648,8 +1784,8 @@ mod tests {
     use std::path::PathBuf;
 
     use crate::domain::{
-        ConflictStage, ConflictStages, DiffLine, DiffLineKind, ObjectFormat, RefInfo, RefKind,
-        RefName, Signature, StatusEntry,
+        ConflictStage, ConflictStages, DiffFile, DiffLine, DiffLineKind, ObjectFormat, RefInfo,
+        RefKind, RefName, Signature, StatusEntry,
     };
 
     use super::*;
@@ -1905,6 +2041,118 @@ mod tests {
         let _ = app.update(Action::ExecutePalette, 10);
         assert!(!app.show_preview);
         assert_eq!(app.overlay, Overlay::None);
+    }
+
+    #[test]
+    fn changed_file_picker_filters_and_jumps_on_every_diff_surface() {
+        let diff = Diff {
+            lines: (0..8)
+                .map(|index| DiffLine {
+                    kind: DiffLineKind::Metadata,
+                    text: format!("line {index}"),
+                })
+                .collect(),
+            files: vec![
+                DiffFile {
+                    header_line: 0,
+                    old_path: None,
+                    new_path: Some(GitPath::new(b"src/main.rs".to_vec())),
+                    hunks: Vec::new(),
+                },
+                DiffFile {
+                    header_line: 5,
+                    old_path: None,
+                    new_path: Some(GitPath::new(b"tests/main.rs".to_vec())),
+                    hunks: Vec::new(),
+                },
+            ],
+            truncated: false,
+        };
+        for view in [
+            View::Log,
+            View::Detail,
+            View::Compare,
+            View::Status,
+            View::StatusDiff,
+        ] {
+            let mut app = app();
+            app.view = view;
+            match view {
+                View::Log | View::Detail => {
+                    app.preview = Some(CommitDetail {
+                        commit: commit('a', "first"),
+                        diff: diff.clone(),
+                        selected_parent: None,
+                    });
+                }
+                View::Compare => {
+                    app.inspect.comparison = Some(Comparison {
+                        mode: ComparisonMode::Exact,
+                        requested_base: "main".into(),
+                        requested_head: "HEAD".into(),
+                        resolved_base: oid('a'),
+                        resolved_head: oid('b'),
+                        merge_base: None,
+                        ahead: 1,
+                        behind: 0,
+                        diff: diff.clone(),
+                    });
+                }
+                View::Status | View::StatusDiff => {
+                    app.inspect.working_diff = Some(diff.clone());
+                }
+                _ => unreachable!(),
+            }
+            let _ = app.update(Action::StartFilePicker, 10);
+            assert!(
+                matches!(app.overlay, Overlay::FilePicker { .. }),
+                "{view:?}"
+            );
+            for character in "tests".chars() {
+                let _ = app.update(Action::SearchInput(character), 10);
+            }
+            let _ = app.update(Action::AcceptFilePicker, 10);
+            assert_eq!(app.overlay, Overlay::None);
+            assert_eq!(app.diff_scroll, 5, "{view:?}");
+        }
+
+        let mut app = app();
+        let commands = palette_commands("");
+        assert!(
+            commands
+                .iter()
+                .any(|command| command.action == Action::StartFilePicker)
+        );
+        assert!(
+            commands
+                .iter()
+                .any(|command| command.action == Action::Redraw)
+        );
+        assert!(
+            commands
+                .iter()
+                .any(|command| command.action == Action::StartPalette)
+        );
+
+        let _ = app.update(Action::StartPalette, 10);
+        for character in "redraw".chars() {
+            let _ = app.update(Action::SearchInput(character), 10);
+        }
+        let _ = app.update(Action::ExecutePalette, 10);
+        assert!(
+            app.take_redraw_request(),
+            "palette redraw did not reach the terminal adapter"
+        );
+
+        let _ = app.update(Action::StartPalette, 10);
+        for character in "copy selection".chars() {
+            let _ = app.update(Action::SearchInput(character), 10);
+        }
+        let _ = app.update(Action::ExecutePalette, 10);
+        assert!(
+            app.take_copy_request(),
+            "palette copy did not reach the terminal adapter"
+        );
     }
 
     #[test]

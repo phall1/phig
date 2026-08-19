@@ -3,7 +3,8 @@
 ## Interactive commands
 
 ```text
-phig [log] [REV] [-- PATH…]
+phig                                # equivalent to phig log HEAD
+phig log [REV] [-- PATH…]
 phig show REV [-- PATH…]
 phig compare [BASE] [HEAD] [-- PATH…]   # merge-base semantics
 phig diff LEFT RIGHT [-- PATH…]         # exact endpoints

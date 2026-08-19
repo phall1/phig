@@ -6,7 +6,8 @@ an agent runtime, a daemon, or a network service.
 ## Modes
 
 ```text
-phig [log] [REV] [-- PATH…]
+phig
+phig log [REV] [-- PATH…]
 phig show REV [-- PATH…]
 phig compare [BASE] [HEAD] [-- PATH…]
 phig diff LEFT RIGHT [-- PATH…]
@@ -23,7 +24,8 @@ phig update [--check]
 phig version --json
 ```
 
-Bare `phig` is identical to `phig log`. UI and machine modes are explicit; phig
+Bare `phig` is identical to `phig log HEAD`; use `phig log [REV]` to browse a
+specific revision. UI and machine modes are explicit; phig
 never changes mode merely because stdout is redirected.
 
 ## Streams

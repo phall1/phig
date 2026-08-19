@@ -30,7 +30,7 @@ clean-installing `phig-cli` is a separate, explicit, required final release step
    dist plan
    cargo package --locked
    cargo publish --dry-run --allow-dirty
-   scripts/benchmark.sh /tmp/phig-benchmark 500
+   scripts/benchmark.sh /tmp/phig-benchmark 1000 --json
    ```
 
    On an ARM64 Mac, rehearse the real native archive and installer. The local
@@ -39,10 +39,15 @@ clean-installing `phig-cli` is a separate, explicit, required final release step
 
    ```sh
    mkdir -p target/distrib
+   local_manifest="$(mktemp)"
+   global_manifest="$(mktemp)"
    dist build --allow-dirty --artifacts=local --target=aarch64-apple-darwin \
-     --output-format=json >target/distrib/aarch64-apple-darwin-dist-manifest.json
+     --output-format=json >"$local_manifest"
+   cp "$local_manifest" target/distrib/aarch64-apple-darwin-dist-manifest.json
    dist build --allow-dirty --artifacts=global --output-format=json \
-     >target/distrib/global-dist-manifest.json
+     >"$global_manifest"
+   cp "$global_manifest" target/distrib/global-dist-manifest.json
+   rm -f "$local_manifest" "$global_manifest"
    prefix="$(mktemp -d)"
    PHIG_CLI_UNMANAGED_INSTALL="$prefix/bin" \
      PHIG_CLI_DOWNLOAD_URL="file://$PWD/target/distrib" \

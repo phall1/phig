@@ -145,13 +145,6 @@ fn run_loop(
         if event::poll(Duration::from_millis(50))? {
             match event::read()? {
                 Event::Key(key) if key.kind != KeyEventKind::Release => {
-                    if key.code == KeyCode::Char('l')
-                        && key.modifiers.contains(KeyModifiers::CONTROL)
-                    {
-                        session.force_redraw()?;
-                        app.dirty = true;
-                        continue;
-                    }
                     if key.code == KeyCode::Char('c')
                         && key.modifiers.contains(KeyModifiers::CONTROL)
                     {
@@ -179,17 +172,27 @@ fn run_loop(
                         }
                     }
                     if let Some(action) = action {
-                        if action == Action::CopySelection {
-                            if options.clipboard_osc52
-                                && let Some(value) = app.copy_value()
-                            {
-                                session.copy_osc52(&value)?;
-                            }
-                            continue;
-                        }
                         let size = session.terminal_mut().size()?;
                         let rows = render::page_rows(&app, size.width, size.height);
                         let effects = app.update(action, rows);
+                        if app.take_copy_request() {
+                            if options.clipboard_osc52 {
+                                if let Some(value) = app.copy_value() {
+                                    session.copy_osc52(&value)?;
+                                    app.set_notice("Copied selection with OSC 52");
+                                } else {
+                                    app.set_notice("Nothing stable to copy here");
+                                }
+                            } else {
+                                app.set_notice(
+                                    "Clipboard copy is disabled by ui.clipboard = \"off\"",
+                                );
+                            }
+                        }
+                        if app.take_redraw_request() {
+                            session.force_redraw()?;
+                            app.dirty = true;
+                        }
                         dispatch_effects(&coordinator, &app, effects, &mut pending)?;
                     }
                 }
@@ -479,6 +482,23 @@ fn key_action(app: &App, key: KeyEvent) -> Option<Action> {
                 _ => None,
             };
         }
+        Overlay::FilePicker { .. } => {
+            return match key.code {
+                KeyCode::Esc => Some(Action::CancelOverlay),
+                KeyCode::Enter => Some(Action::AcceptFilePicker),
+                KeyCode::Down => Some(Action::FilePickerMove(1)),
+                KeyCode::Up => Some(Action::FilePickerMove(-1)),
+                KeyCode::Backspace => Some(Action::SearchBackspace),
+                KeyCode::Char(character)
+                    if !key
+                        .modifiers
+                        .intersects(KeyModifiers::CONTROL | KeyModifiers::ALT) =>
+                {
+                    Some(Action::SearchInput(character))
+                }
+                _ => None,
+            };
+        }
         Overlay::None => {}
     }
 
@@ -498,6 +518,7 @@ fn key_action(app: &App, key: KeyEvent) -> Option<Action> {
         KeyCode::Char('d') if key.modifiers.contains(KeyModifiers::CONTROL) => {
             Some(Action::Page(1))
         }
+        KeyCode::Char('l') if key.modifiers.contains(KeyModifiers::CONTROL) => Some(Action::Redraw),
         KeyCode::Char('u') if key.modifiers.contains(KeyModifiers::CONTROL) => {
             Some(Action::Page(-1))
         }
@@ -520,6 +541,7 @@ fn key_action(app: &App, key: KeyEvent) -> Option<Action> {
         KeyCode::Char('d') if app.view == View::Status => Some(Action::ToggleStatusDiff),
         KeyCode::Char('/') => Some(Action::StartSearch),
         KeyCode::Char(':') => Some(Action::StartPalette),
+        KeyCode::Char('f') => Some(Action::StartFilePicker),
         KeyCode::Char('n') => Some(Action::NextMatch),
         KeyCode::Char('N') => Some(Action::PreviousMatch),
         KeyCode::Tab if app.view == View::Detail => Some(Action::NextFile(1)),
@@ -765,6 +787,13 @@ mod tests {
         assert_eq!(
             key_action(&app, KeyEvent::new(KeyCode::Char(':'), KeyModifiers::NONE)),
             Some(Action::StartPalette)
+        );
+        assert_eq!(
+            key_action(
+                &app,
+                KeyEvent::new(KeyCode::Char('l'), KeyModifiers::CONTROL)
+            ),
+            Some(Action::Redraw)
         );
         for (key, expected) in [
             ('m', Action::ViewLog),

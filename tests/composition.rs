@@ -221,7 +221,7 @@ fn version_completions_and_manpage_are_pipe_clean() {
     }
     let binary = assert_cmd::cargo::cargo_bin!("phig");
     let pipeline = format!(
-        "set -o pipefail; '{}' manpage | head -c 0",
+        "set -o pipefail; '{}' manpage | head -n 0",
         binary.display()
     );
     let status = Command::new("bash")
