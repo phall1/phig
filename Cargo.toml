@@ -1,6 +1,6 @@
 [package]
 name = "phig-cli"
-version = "0.1.0"
+version = "1.0.0"
 edition = "2024"
 rust-version = "1.88"
 description = "A fast, focused terminal Git history and diff browser"
@@ -10,7 +10,20 @@ homepage = "https://github.com/phall1/phig"
 readme = "README.md"
 keywords = ["git", "tui", "terminal", "diff", "tig"]
 categories = ["command-line-utilities", "development-tools"]
-exclude = [".beads/**", ".claude/**", ".codex/**", ".cursor/**"]
+exclude = [
+  ".agents/**",
+  ".beads/**",
+  ".claude/**",
+  ".codex/**",
+  ".cursor/**",
+  ".github/**",
+  "AGENTS.md",
+  "CLAUDE.md",
+  "deny.toml",
+  "dist-workspace.toml",
+  "justfile",
+  "rustfmt.toml",
+]
 
 [[bin]]
 name = "phig"

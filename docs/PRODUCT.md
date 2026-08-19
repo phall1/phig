@@ -82,8 +82,8 @@ mutation release requires a separate authority, recovery, and conflict design.
 
 ## Supported environments
 
-- macOS on Apple Silicon and x86_64
-- Linux on x86_64 and aarch64, including WSL
+- macOS 12 or newer on Apple Silicon and x86_64
+- glibc-based Linux 2.31 or newer on x86_64 and aarch64, including WSL
 - Git 2.45.1 or newer, required for enforceable no-lazy-fetch inspection; building from source requires Rust 1.88 or newer
 - terminals supporting standard ANSI control sequences; true color is optional
 - no Nerd Font or patched font requirement
@@ -121,4 +121,4 @@ A user unfamiliar with the project can install phig in one command, enter a Git
 repository, browse commits, understand and inspect a diff, compare their branch
 to its base, discover the keymap, emit a selection for another command, and
 recover their terminal after every exit path without reading source or writing
-configuration. The separate release milestone adds installer-aware updates.
+configuration, and explicitly check for or install a verified update.

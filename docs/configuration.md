@@ -44,7 +44,9 @@ is the canonical complete example. Main sections are:
   `off` never emits clipboard control sequences.
 - `[diff]`: context lines, Git's `myers|minimal|patience|histogram` algorithm,
   and whitespace visibility/ignore policy.
-- `[compare]`: `merge-base` or `exact`, plus an optional preferred base.
+- `[compare]`: the default `merge-base` or `exact` mode for comparisons started
+  inside the TUI, plus an optional preferred base. Explicit `phig compare` is
+  always merge-base; explicit `phig diff` is always exact.
 - `[limits]`: bounded history pages, patch/blob bytes, and snapshot items.
 - `[theme]`: named ANSI colors for accent, muted text, additions, removals,
   warnings, errors, and selection foreground/background.

@@ -138,6 +138,27 @@ fn all_daily_inspection_views_render_through_a_real_pty() {
             "view {args:?} did not restore cursor"
         );
     }
+
+    let config = repo.path().join("exact.toml");
+    fs::write(&config, "version = 1\n[compare]\nmode = \"exact\"\n").unwrap();
+    let output = run_view(
+        repo.path(),
+        &[
+            "--config",
+            config.to_str().unwrap(),
+            "compare",
+            "main",
+            "feature",
+        ],
+    );
+    assert!(
+        output.contains("merge-base"),
+        "explicit compare honored config: {output}"
+    );
+    assert!(
+        !output.contains("COMPARE  exact"),
+        "explicit compare became exact: {output}"
+    );
 }
 
 #[test]

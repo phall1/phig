@@ -1279,7 +1279,6 @@ impl App {
                         .clone()
                         .unwrap_or_else(|| "HEAD".into()),
                 );
-                self.inspect.compare_mode = ComparisonMode::MergeBase;
                 self.view_stack.push(View::Refs);
                 self.view = View::Compare;
                 self.inspect.comparison = None;
@@ -1940,6 +1939,28 @@ mod tests {
         assert_eq!(app.view, View::Compare);
         assert_eq!(app.inspect.compare_mode, ComparisonMode::Exact);
         assert!(matches!(effects.as_slice(), [Effect::LoadCompare]));
+    }
+
+    #[test]
+    fn configured_compare_mode_survives_in_tui_ref_comparison() {
+        let mut app = app();
+        app.inspect.compare_mode = ComparisonMode::Exact;
+        app.view = View::Refs;
+        app.inspect.refs = vec![RefInfo {
+            full_name: RefName::new(b"refs/heads/main".to_vec()),
+            short_name: RefName::new(b"main".to_vec()),
+            kind: RefKind::LocalBranch,
+            target: oid('a'),
+            peeled: None,
+            upstream: None,
+            subject: "base".into(),
+            timestamp: None,
+            is_head: false,
+        }];
+        let effects = app.update(Action::StartCompare, 10);
+        assert_eq!(app.view, View::Compare);
+        assert_eq!(app.inspect.compare_mode, ComparisonMode::Exact);
+        assert_eq!(effects, [Effect::LoadCompare]);
     }
 
     #[test]

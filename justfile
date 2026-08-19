@@ -29,4 +29,11 @@ package:
 security:
     cargo deny check
 
-ci: check security
+release-check: check security
+    shellcheck install.sh scripts/*.sh
+    cargo build --release --locked
+    dist generate --check
+    dist plan --allow-dirty
+    cargo package --locked --allow-dirty
+
+ci: release-check

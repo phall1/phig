@@ -5,6 +5,11 @@ use base64::{Engine as _, engine::general_purpose::STANDARD};
 use predicates::prelude::*;
 use serde_json::Value;
 
+#[test]
+fn release_build_environment_keeps_macos_12_floor() {
+    assert_eq!(option_env!("MACOSX_DEPLOYMENT_TARGET"), Some("12.0"));
+}
+
 fn git(repo: &Path, args: &[&str]) {
     let out = Command::new("git")
         .arg("-C")
