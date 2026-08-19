@@ -63,11 +63,41 @@ fn a_full_worker_queue_coalesces_instead_of_failing_the_tui() {
         std::thread::sleep(Duration::from_millis(10));
     }
     assert!(marker.exists());
-    coordinator.submit(RequestKey::History, query()).unwrap();
+    let stale_generation = coordinator.submit(RequestKey::Preview, query()).unwrap();
 
     let mut pending = HashMap::new();
     submit_or_defer(&coordinator, &mut pending, RequestKey::Preview, query()).unwrap();
     assert!(pending.contains_key(&RequestKey::Preview));
+    assert!(
+        !coordinator.is_current(RequestKey::Preview, stale_generation),
+        "queue-full deferral left the prior generation current"
+    );
+    let mut state = app();
+    apply_response(
+        &mut state,
+        &coordinator,
+        Response {
+            key: RequestKey::Preview,
+            generation: stale_generation,
+            result: Err(GitError::Timeout("stale preview")),
+        },
+        &mut pending,
+    )
+    .unwrap();
+    assert!(state.preview_error.is_none(), "stale response was applied");
+
+    coordinator.cancel(RequestKey::Custom(1));
+    let deadline = std::time::Instant::now() + Duration::from_secs(3);
+    while pending.contains_key(&RequestKey::Preview) && std::time::Instant::now() < deadline {
+        while coordinator.try_recv().is_some() {}
+        retry_pending(&coordinator, &mut pending).unwrap();
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    assert!(
+        !pending.contains_key(&RequestKey::Preview),
+        "newest deferred query was never accepted"
+    );
+    assert!(!coordinator.is_current(RequestKey::Preview, stale_generation));
 }
 
 #[test]
@@ -222,6 +252,48 @@ fn help_overlay_honors_semantic_remaps_and_keeps_escape_modal() {
     );
     let _ = app.update(Action::ToggleHelp, 10);
     assert_eq!(app.overlay, Overlay::None);
+}
+
+#[test]
+fn modal_recovery_keys_override_conflicting_global_bindings() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("config.toml");
+    std::fs::write(
+        &path,
+        "version = 1\n[keys]\nopen = \"r\"\nview-refs = \"esc\"\n",
+    )
+    .unwrap();
+    let bindings = config::load(Some(&path), false).unwrap().bindings;
+    let mut app = app();
+    app.apply_error(RequestKind::History, &GitError::Timeout("history"));
+
+    assert_eq!(
+        resolve_action(
+            &app,
+            &bindings,
+            KeyEvent::new(KeyCode::Char('r'), KeyModifiers::NONE)
+        ),
+        Some(Action::RetryFailed)
+    );
+    assert_eq!(
+        resolve_action(
+            &app,
+            &bindings,
+            KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE)
+        ),
+        Some(Action::DismissErrors)
+    );
+
+    app.history_error = None;
+    app.overlay = Overlay::Help;
+    assert_eq!(
+        resolve_action(
+            &app,
+            &bindings,
+            KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE)
+        ),
+        Some(Action::CancelOverlay)
+    );
 }
 
 #[test]

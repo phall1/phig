@@ -186,6 +186,8 @@ fn command_substitution_reserves_stdout_for_exact_selection() {
     );
     let output = run_script(d.path(), &script, "two (HEAD", b'\r');
     assert_selection_prompt(&output, "COMMIT", "Enter", "Esc/q");
+    assert!(output.contains("\u{1b}[?2004h"));
+    assert!(output.contains("\u{1b}[?2004l"));
     let marker = output.rsplit("RESULT:").next().unwrap();
     let mut fields = marker.lines().next().unwrap().split(':');
     assert_eq!(fields.next(), Some("0"));

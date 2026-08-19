@@ -34,7 +34,9 @@ installed executable and product are `phig`.
 
 ## Source seams
 
-- `cli`: syntax, validation, mode dispatch, completions, and exit mapping
+- `cli`: command syntax and argument validation
+- `main`: composition root, mode dispatch, completions/manpage generation, and
+  process exit mapping
 - `config`: XDG discovery, TOML decoding, defaults, themes, and key overrides.
   Its façade separates the persisted model, compiled semantic bindings, and
   source discovery/loading/validation paths.
@@ -103,10 +105,10 @@ Each terminal driver owns an immutable render context containing the resolved
 color and glyph policy, theme, date mode, and effective semantic key labels.
 Normal rendering therefore has no process-global style lookup or color-stripping
 post-pass; compatibility wrappers retain the original public setter API. A
-terminal guard owns raw mode, alternate-screen state, mouse/focus modes, cursor
-visibility, and panic restoration. External interactive commands temporarily
-restore the real terminal, inherit the TTY, then force a complete redraw.
-`--no-alt-screen` renders in place and remains compatible with phux/tmux scrollback.
+terminal guard owns raw mode, alternate-screen state, bracketed-paste and optional
+mouse modes, cursor visibility, and panic restoration. Phig 1.1 does not launch
+editors or other external interactive commands. `--no-alt-screen` renders in
+place and remains compatible with phux/tmux scrollback.
 
 Selection mode reserves stdout for the result. Its UI opens `/dev/tty` on Unix;
 if no controlling terminal exists, it exits with a clear unsupported-context

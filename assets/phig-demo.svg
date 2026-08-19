@@ -8,31 +8,26 @@
   <circle cx="26" cy="24" r="6" fill="#f07178"/><circle cx="47" cy="24" r="6" fill="#ffcb6b"/><circle cx="68" cy="24" r="6" fill="#c3e88d"/>
   <g font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="18">
     <text x="94" y="30" fill="#80cbc4" font-weight="700">phig  LOG</text><text x="207" y="30" fill="#d7deef">example</text><text x="294" y="30" fill="#74819c">/ main  HEAD</text>
-    <line x1="472" y1="61" x2="472" y2="655" stroke="#38425a" stroke-width="1"/>
-    <text x="22" y="101" fill="#80cbc4" font-weight="700">›</text><text x="42" y="101" fill="#80cbc4">●</text><text x="68" y="101" fill="#80cbc4" font-weight="700">5f5eb699</text><text x="184" y="101" fill="#74819c">2m</text>
-    <text x="68" y="124" fill="#f4f7ff">add gamma feature</text>
-    <text x="42" y="162" fill="#82aaff">●</text><text x="68" y="162" fill="#c9d2e6">a1cc260d</text><text x="184" y="162" fill="#74819c">14m</text>
-    <text x="68" y="185" fill="#9aa7c2">refine preview layout</text>
-    <text x="42" y="223" fill="#82aaff">●</text><text x="68" y="223" fill="#c9d2e6">0d39c1a4</text><text x="184" y="223" fill="#74819c">1h</text>
-    <text x="68" y="246" fill="#9aa7c2">bound async history loading</text>
-    <text x="42" y="284" fill="#c792ea">●</text><text x="68" y="284" fill="#c9d2e6">72b612fd</text><text x="184" y="284" fill="#74819c">3h</text>
-    <text x="68" y="307" fill="#9aa7c2">render graph lanes</text>
-    <text x="42" y="345" fill="#82aaff">●</text><text x="68" y="345" fill="#c9d2e6">21291f6a</text><text x="184" y="345" fill="#74819c">1d</text>
-    <text x="68" y="368" fill="#9aa7c2">initial history browser</text>
-    <text x="500" y="91" fill="#f4f7ff">5f5eb699be24 · add gamma feature</text>
-    <text x="500" y="121" fill="#74819c">Demo User &lt;demo@example.invalid&gt; · 2 minutes ago</text>
-    <text x="500" y="157" fill="#c9d2e6">diff --git a/src/app.rs b/src/app.rs</text>
-    <text x="500" y="187" fill="#74819c">index fbbee86..85c3040 100644</text>
-    <text x="500" y="217" fill="#f07178">--- a/src/app.rs</text>
-    <text x="500" y="247" fill="#c3e88d">+++ b/src/app.rs</text>
-    <text x="500" y="288" fill="#89ddff" font-weight="700">@@ -1,4 +1,6 @@</text>
-    <text x="500" y="326" fill="#c9d2e6"> pub fn open(repository: &amp;Path) {</text>
-    <text x="500" y="356" fill="#c9d2e6">     let history = load(repository);</text>
-    <text x="500" y="386" fill="#c3e88d">+    let preview = history.selected_diff();</text>
-    <text x="500" y="416" fill="#c3e88d">+    render(history, preview);</text>
-    <text x="500" y="446" fill="#c9d2e6"> }</text>
-    <text x="500" y="496" fill="#ffcb6b">src/app.rs</text><text x="628" y="496" fill="#74819c">+2 −0</text>
-    <text x="500" y="536" fill="#9aa7c2">Read-only inspection · Git is the authority</text>
+    <line x1="510" y1="61" x2="510" y2="655" stroke="#38425a" stroke-width="1"/>
+    <text x="22" y="101" fill="#80cbc4" font-weight="700">›</text><text x="42" y="101" fill="#80cbc4">●</text><text x="68" y="101" fill="#80cbc4" font-weight="700">5f5eb699</text><text x="174" y="101" fill="#74819c">2m</text><text x="216" y="101" fill="#74819c">Demo User</text><text x="326" y="101" fill="#f4f7ff">add gamma feature</text>
+    <text x="42" y="143" fill="#82aaff">●</text><text x="68" y="143" fill="#c9d2e6">a1cc260d</text><text x="174" y="143" fill="#74819c">14m</text><text x="216" y="143" fill="#74819c">Demo User</text><text x="326" y="143" fill="#9aa7c2">refine preview</text>
+    <text x="42" y="185" fill="#82aaff">●</text><text x="68" y="185" fill="#c9d2e6">0d39c1a4</text><text x="174" y="185" fill="#74819c">1h</text><text x="216" y="185" fill="#74819c">A. Chen</text><text x="326" y="185" fill="#9aa7c2">bound async load</text>
+    <text x="42" y="227" fill="#c792ea">●</text><text x="68" y="227" fill="#c9d2e6">72b612fd</text><text x="174" y="227" fill="#74819c">3h</text><text x="216" y="227" fill="#74819c">Demo User</text><text x="326" y="227" fill="#9aa7c2">render graph lanes</text>
+    <text x="42" y="269" fill="#82aaff">●</text><text x="68" y="269" fill="#c9d2e6">21291f6a</text><text x="174" y="269" fill="#74819c">1d</text><text x="216" y="269" fill="#74819c">A. Chen</text><text x="326" y="269" fill="#9aa7c2">initial browser</text>
+    <text x="538" y="91" fill="#f4f7ff">5f5eb699be24 · add gamma feature</text>
+    <text x="538" y="121" fill="#74819c">Demo User &lt;demo@example.invalid&gt; · 2 minutes ago</text>
+    <text x="538" y="157" fill="#c9d2e6">diff --git a/src/app.rs b/src/app.rs</text>
+    <text x="538" y="187" fill="#74819c">index fbbee86..85c3040 100644</text>
+    <text x="538" y="217" fill="#f07178">--- a/src/app.rs</text>
+    <text x="538" y="247" fill="#c3e88d">+++ b/src/app.rs</text>
+    <text x="538" y="288" fill="#89ddff" font-weight="700">@@ -1,4 +1,6 @@</text>
+    <text x="538" y="326" fill="#c9d2e6"> pub fn open(repository: &amp;Path) {</text>
+    <text x="538" y="356" fill="#c9d2e6">     let history = load(repository);</text>
+    <text x="538" y="386" fill="#c3e88d">+    let preview = history.selected_diff();</text>
+    <text x="538" y="416" fill="#c3e88d">+    render(history, preview);</text>
+    <text x="538" y="446" fill="#c9d2e6"> }</text>
+    <text x="538" y="496" fill="#ffcb6b">src/app.rs</text><text x="666" y="496" fill="#74819c">+2 −0</text>
+    <text x="538" y="536" fill="#9aa7c2">Read-only inspection · Git is the authority</text>
     <line x1="18" y1="668" x2="1182" y2="668" stroke="#29324a" stroke-width="1"/>
     <text x="32" y="692" fill="#74819c">j/k move · Enter open · / search</text>
     <text x="1110" y="692" fill="#74819c">1/5</text>

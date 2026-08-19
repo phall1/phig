@@ -15,10 +15,17 @@ pub(super) fn resolve_action(app: &App, bindings: &KeyBindings, key: KeyEvent) -
     ) {
         // Text-entry overlays are modal: printable text must not be
         // intercepted by a global semantic remap.
-        default
-    } else {
-        bindings.resolve(key, default)
+        return default;
     }
+    if (matches!(app.overlay, Overlay::Help) && key.code == KeyCode::Esc)
+        || (app.has_errors() && matches!(key.code, KeyCode::Esc | KeyCode::Char('r')))
+    {
+        // Escape and request recovery are invariant modal controls. A global
+        // remap may claim these keys in normal views, but cannot trap a user
+        // inside help or a failed request panel.
+        return default;
+    }
+    bindings.resolve(key, default)
 }
 
 pub(super) fn key_action(app: &App, key: KeyEvent) -> Option<Action> {

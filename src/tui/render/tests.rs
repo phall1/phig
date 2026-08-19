@@ -413,6 +413,19 @@ fn command_palette_is_searchable_and_error_panel_is_actionable() {
     assert!(error.contains("Failed to load commit detail"));
     assert!(error.contains("timed out"));
     assert!(error.contains("r retry · Esc dismiss"));
+
+    let mut overrides = std::collections::BTreeMap::new();
+    overrides.insert("back".into(), "x".into());
+    overrides.insert("open".into(), "r".into());
+    let context = RenderContext::with_bindings(
+        deterministic_config(),
+        crate::config::KeyBindings::from_config(&overrides).unwrap(),
+    );
+    let error = screen_with_context(52, 20, &app, &context);
+    assert!(
+        error.contains("r retry · Esc dismiss"),
+        "modal recovery hint followed displaced normal-view bindings: {error}"
+    );
 }
 
 #[test]
@@ -874,6 +887,19 @@ fn footer_and_help_use_effective_remapped_keys() {
     assert!(overlay.contains("Ctrl+x"));
     assert!(overlay.contains("Alt+s"));
     assert!(overlay.contains("h close"));
+
+    let mut displaced = std::collections::BTreeMap::new();
+    displaced.insert("open".into(), "r".into());
+    let displaced_context = RenderContext::with_bindings(
+        deterministic_config(),
+        crate::config::KeyBindings::from_config(&displaced).unwrap(),
+    );
+    let mut displaced_help = sample_app();
+    displaced_help.show_help();
+    let overlay = screen_with_context(60, 16, &displaced_help, &displaced_context);
+    assert!(overlay.contains("r"));
+    assert!(overlay.contains("unbound refs"));
+    assert!(!overlay.contains("r refs"));
 
     let mut wide_override = std::collections::BTreeMap::new();
     wide_override.insert("open".into(), "界".into());

@@ -54,46 +54,14 @@ impl KeyBindings {
                 .find_map(|(key, candidate)| (candidate == action).then(|| key.label()))
                 .unwrap_or_else(|| "unbound".into());
         }
-        match action {
-            Action::Move(1) => "j",
-            Action::Move(-1) => "k",
-            Action::Page(1) => "Ctrl+d",
-            Action::Page(-1) => "Ctrl+u",
-            Action::First => "g",
-            Action::Last => "G",
-            Action::Open => "Enter",
-            Action::Back => "Esc",
-            Action::Quit => "q",
-            Action::TogglePreview => "p",
-            Action::ToggleFocus => "Tab",
-            Action::StartSearch => "/",
-            Action::StartPalette => ":",
-            Action::StartFilePicker => "f",
-            Action::ToggleHelp => "?",
-            Action::NextMatch => "n",
-            Action::PreviousMatch => "N",
-            Action::NextHunk(1) => "]",
-            Action::NextHunk(-1) => "[",
-            Action::NextFile(1) => "}",
-            Action::NextFile(-1) => "{",
-            Action::NextParent => "P",
-            Action::ViewLog => "m",
-            Action::ViewRefs => "r",
-            Action::ViewStatus => "s",
-            Action::ViewTree => "t",
-            Action::ViewBlame => "b",
-            Action::ViewStash => "z",
-            Action::Mark => "v",
-            Action::StartCompare => "c",
-            Action::SwapCompare => "x",
-            Action::ToggleCompareMode => "M",
-            Action::ToggleStatusDiff => "d",
-            Action::Ascend => "Backspace",
-            Action::CopySelection => "y",
-            Action::Redraw => "Ctrl+l",
-            _ => "unbound",
+        let Some((default_key, default_label)) = default_binding(action) else {
+            return "unbound".into();
+        };
+        if self.by_key.contains_key(&default_key) {
+            "unbound".into()
+        } else {
+            default_label.into()
         }
-        .into()
     }
 
     pub fn selection_key_labels(&self) -> (String, String) {
@@ -182,6 +150,49 @@ impl KeyBindings {
         }
         Ok(Self { by_key, overridden })
     }
+}
+
+fn default_binding(action: &Action) -> Option<(KeySpec, &'static str)> {
+    let (code, modifiers, label) = match action {
+        Action::Move(1) => (KeyCodeSpec::Char('j'), 0, "j"),
+        Action::Move(-1) => (KeyCodeSpec::Char('k'), 0, "k"),
+        Action::Page(1) => (KeyCodeSpec::Char('d'), 1, "Ctrl+d"),
+        Action::Page(-1) => (KeyCodeSpec::Char('u'), 1, "Ctrl+u"),
+        Action::First => (KeyCodeSpec::Char('g'), 0, "g"),
+        Action::Last => (KeyCodeSpec::Char('g'), 4, "G"),
+        Action::Open => (KeyCodeSpec::Enter, 0, "Enter"),
+        Action::Back => (KeyCodeSpec::Esc, 0, "Esc"),
+        Action::Quit => (KeyCodeSpec::Char('q'), 0, "q"),
+        Action::TogglePreview => (KeyCodeSpec::Char('p'), 0, "p"),
+        Action::ToggleFocus => (KeyCodeSpec::Tab, 0, "Tab"),
+        Action::StartSearch => (KeyCodeSpec::Char('/'), 0, "/"),
+        Action::StartPalette => (KeyCodeSpec::Char(':'), 0, ":"),
+        Action::StartFilePicker => (KeyCodeSpec::Char('f'), 0, "f"),
+        Action::ToggleHelp => (KeyCodeSpec::Char('?'), 0, "?"),
+        Action::NextMatch => (KeyCodeSpec::Char('n'), 0, "n"),
+        Action::PreviousMatch => (KeyCodeSpec::Char('n'), 4, "N"),
+        Action::NextHunk(1) => (KeyCodeSpec::Char(']'), 0, "]"),
+        Action::NextHunk(-1) => (KeyCodeSpec::Char('['), 0, "["),
+        Action::NextFile(1) => (KeyCodeSpec::Char('}'), 0, "}"),
+        Action::NextFile(-1) => (KeyCodeSpec::Char('{'), 0, "{"),
+        Action::NextParent => (KeyCodeSpec::Char('p'), 4, "P"),
+        Action::ViewLog => (KeyCodeSpec::Char('m'), 0, "m"),
+        Action::ViewRefs => (KeyCodeSpec::Char('r'), 0, "r"),
+        Action::ViewStatus => (KeyCodeSpec::Char('s'), 0, "s"),
+        Action::ViewTree => (KeyCodeSpec::Char('t'), 0, "t"),
+        Action::ViewBlame => (KeyCodeSpec::Char('b'), 0, "b"),
+        Action::ViewStash => (KeyCodeSpec::Char('z'), 0, "z"),
+        Action::Mark => (KeyCodeSpec::Char('v'), 0, "v"),
+        Action::StartCompare => (KeyCodeSpec::Char('c'), 0, "c"),
+        Action::SwapCompare => (KeyCodeSpec::Char('x'), 0, "x"),
+        Action::ToggleCompareMode => (KeyCodeSpec::Char('m'), 4, "M"),
+        Action::ToggleStatusDiff => (KeyCodeSpec::Char('d'), 0, "d"),
+        Action::Ascend => (KeyCodeSpec::Backspace, 0, "Backspace"),
+        Action::CopySelection => (KeyCodeSpec::Char('y'), 0, "y"),
+        Action::Redraw => (KeyCodeSpec::Char('l'), 1, "Ctrl+l"),
+        _ => return None,
+    };
+    Some((KeySpec { code, modifiers }, label))
 }
 
 impl KeySpec {

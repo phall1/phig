@@ -233,8 +233,10 @@ pub(super) fn submit_or_defer(
             Ok(())
         }
         Err(CoordinatorError::Busy) => {
-            // Same-key work is coalesced: only the newest desired query is
-            // retained and retried after workers drain cancelled generations.
+            // Same-key work is coalesced: invalidate the prior accepted
+            // generation before retaining only the newest desired query. A
+            // response racing queue saturation must not repopulate stale data.
+            coordinator.invalidate(key);
             pending.insert(key, query);
             Ok(())
         }

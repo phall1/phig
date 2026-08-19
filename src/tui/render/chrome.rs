@@ -506,17 +506,12 @@ pub(super) fn render_errors(frame: &mut Frame<'_>, app: &App, area: Rect, contex
         .any(|failure| failure.operation == "open blame")
     {
         format!(
-            "{} dismiss {s} select a path, then {}",
-            context.key(&Action::Back),
+            "Esc dismiss {s} select a path, then {}",
             context.key(&Action::ViewBlame),
             s = context.glyphs().separator,
         )
     } else {
-        format!(
-            "r retry {} {} dismiss",
-            context.glyphs().separator,
-            context.key(&Action::Back)
-        )
+        format!("r retry {} Esc dismiss", context.glyphs().separator,)
     };
     frame.render_widget(
         Paragraph::new(recovery).style(context.style(context.warning())),

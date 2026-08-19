@@ -319,18 +319,6 @@ fn narrow_log_cannot_focus_an_invisible_preview() {
     git(repo.path(), &["commit", "-qm", "first commit"]);
     fs::write(repo.path().join("file.txt"), "one\ntwo\n").unwrap();
     git(repo.path(), &["commit", "-qam", "second commit"]);
-    let first_oid = Command::new("git")
-        .args([
-            "-C",
-            repo.path().to_str().unwrap(),
-            "rev-parse",
-            "--short=8",
-            "HEAD~1",
-        ])
-        .output()
-        .unwrap();
-    let first_oid = String::from_utf8(first_oid.stdout).unwrap();
-
     let pair = native_pty_system()
         .openpty(PtySize {
             rows: 16,
@@ -353,7 +341,9 @@ fn narrow_log_cannot_focus_an_invisible_preview() {
     writer.write_all(b"\tj\r").unwrap();
     writer.flush().unwrap();
     wait_for_marker(&output, "SHOW", Duration::from_secs(5));
-    wait_for_marker(&output, first_oid.trim(), Duration::from_secs(5));
+    // Crossterm may position each styled span separately, so wait on the
+    // selected commit's unique first word rather than a contiguous row.
+    wait_for_marker(&output, "first", Duration::from_secs(5));
     let status = retry_key_until_exit(&mut child, &mut writer, b"q", Duration::from_secs(8));
     drop(writer);
     drop(pair.master);
@@ -463,6 +453,14 @@ fn real_pty_exercises_navigation_overlays_resize_and_cleanup() {
     );
     assert!(screen.contains("+side"), "commit diff was not rendered");
     assert!(screen.contains("Help"), "help overlay was not rendered");
+    assert!(
+        screen.contains("\u{1b}[?2004h"),
+        "bracketed paste was not enabled"
+    );
+    assert!(
+        screen.contains("\u{1b}[?2004l"),
+        "bracketed paste was not restored"
+    );
     assert!(screen.contains("\u{1b}[?25h"), "cursor was not restored");
     assert!(
         screen.contains("\u{1b}[?1049l"),
@@ -781,6 +779,14 @@ fn external_termination_signal_restores_the_terminal() {
         assert!(
             screen.matches("\u{1b}[?1049l").count() >= minimum,
             "alternate screen was not restored for {signal_name}"
+        );
+        assert!(
+            screen.matches("\u{1b}[?2004h").count() >= minimum,
+            "bracketed paste was not enabled after entry/resume for {signal_name}"
+        );
+        assert!(
+            screen.matches("\u{1b}[?2004l").count() >= minimum,
+            "bracketed paste was not restored for {signal_name}"
         );
         if exercise_suspend {
             assert!(

@@ -64,7 +64,11 @@ Key names accept one character or `enter`, `esc`, `tab`, `backtab`,
 `ctrl+`, `alt+`, or `shift+`. Every component is strict; unknown or duplicate
 modifiers are errors. Assignments are remaps, not aliases: remapping `help`
 disables `?`, and remapping `open` disables Enter until explicitly assigned.
-Phig rejects two overrides that claim the same key. The documented semantic
+Phig rejects two overrides that claim the same key. If an override claims
+another action's built-in key, that displaced action is shown as unbound rather
+than advertising a key it no longer owns. Modal recovery remains invariant:
+`Esc` closes text/help overlays, and `r`/`Esc` retry or dismiss a visible request
+error even when those keys have normal-view remaps. The documented semantic
 navigation and view actions—including `file-picker` and `redraw`—are remappable;
 internal overlay editing operations are intentionally not configuration keys.
 

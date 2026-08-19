@@ -76,6 +76,26 @@ fn selection_labels_follow_effective_semantic_bindings() {
 }
 
 #[test]
+fn labels_drop_defaults_claimed_by_other_actions() {
+    let mut keys = BTreeMap::new();
+    keys.insert("open".into(), "r".into());
+    let bindings = KeyBindings::from_config(&keys).unwrap();
+    assert_eq!(bindings.action_key_label(&Action::Open), "r");
+    assert_eq!(bindings.action_key_label(&Action::ViewRefs), "unbound");
+
+    keys.clear();
+    keys.insert("open".into(), "esc".into());
+    let bindings = KeyBindings::from_config(&keys).unwrap();
+    assert_eq!(bindings.action_key_label(&Action::Open), "Esc");
+    assert_eq!(bindings.action_key_label(&Action::Back), "unbound");
+    assert_eq!(
+        bindings.selection_key_labels(),
+        ("Esc".into(), "q".into()),
+        "selection labels advertised a displaced cancel binding"
+    );
+}
+
+#[test]
 fn uppercase_bindings_normalize_and_ctrl_c_is_reserved() {
     let mut keys = BTreeMap::new();
     keys.insert("last".into(), "G".into());
