@@ -1,0 +1,29 @@
+---
+source: src/tui/render/tests.rs
+expression: "styled_screen(60, 16, &sample_app())"
+---
+TEXT
+ phig  phig-demo  LOG  HEAD  main
+›   ● aaaaaaaa 1700000000 Pat Examp…         make history pl
+
+
+
+
+
+
+
+
+
+
+
+
+
+ 1/1  j/k move  Enter inspect  f files  c compare  / search
+STYLES
+0:0-5 fg=Black bg=Cyan mod=BOLD text=" phig "
+0:7-15 fg=Reset bg=Reset mod=BOLD text="phig-demo"
+0:16-22 fg=Cyan bg=Reset mod=NONE text="  LOG  "
+0:27-32 fg=DarkGray bg=Reset mod=NONE text="  main"
+1:0-59 fg=Black bg=Cyan mod=BOLD text="›   ● aaaaaaaa 1700000000 Pat Examp…         make history pl"
+15:0-4 fg=Black bg=DarkGray mod=NONE text=" 1/1 "
+15:6-59 fg=DarkGray bg=Reset mod=NONE text="j/k move  Enter inspect  f files  c compare  / search "

@@ -1,0 +1,125 @@
+---
+source: src/tui/render/tests.rs
+expression: "format!(\"109x28\\n{}\\n110x28\\n{}\", styled_screen(109, 28, &app),\nstyled_screen(110, 28, &app))"
+---
+109x28
+TEXT
+ phig  phig-demo  LOG  HEAD  main
+›   ● aaaaaaaa 1700000000 Pat Example        make history pleasant (HEAD -> main)
+
+
+
+
+
+
+
+
+
+
+
+aaaaaaaaaaaa
+make history pleasant
+Author: Pat Example <pat@example.invalid>
+Date: 2023-11-14 18:13:20 -04:00
+Parents: root · Files: 1 (+1 -1)
+Explain the change safely.
+Second body paragraph.
+diff --git a/src/main.rs b/src/main.rs
+@@ -1 +1 @@
+-old
++new
+
+
+
+ 1/1  j/k move  Enter inspect  f files  c compare  / search  ? help  q quit
+STYLES
+0:0-5 fg=Black bg=Cyan mod=BOLD text=" phig "
+0:7-15 fg=Reset bg=Reset mod=BOLD text="phig-demo"
+0:16-22 fg=Cyan bg=Reset mod=NONE text="  LOG  "
+0:27-32 fg=DarkGray bg=Reset mod=NONE text="  main"
+1:0-108 fg=Black bg=Cyan mod=BOLD text="›   ● aaaaaaaa 1700000000 Pat Example        make history pleasant (HEAD -> main)                            "
+13:0-11 fg=Yellow bg=Reset mod=NONE text="aaaaaaaaaaaa"
+14:0-20 fg=Reset bg=Reset mod=BOLD text="make history pleasant"
+15:0-40 fg=DarkGray bg=Reset mod=NONE text="Author: Pat Example <pat@example.invalid>"
+16:0-31 fg=DarkGray bg=Reset mod=NONE text="Date: 2023-11-14 18:13:20 -04:00"
+17:0-31 fg=DarkGray bg=Reset mod=NONE text="Parents: root · Files: 1 (+1 -1)"
+20:0-37 fg=Yellow bg=Reset mod=BOLD text="diff --git a/src/main.rs b/src/main.rs"
+20:38-108 fg=Gray bg=Reset mod=NONE text="                                                                       "
+21:0-10 fg=Cyan bg=Reset mod=BOLD text="@@ -1 +1 @@"
+21:11-108 fg=Gray bg=Reset mod=NONE text="                                                                                                  "
+22:0-3 fg=Red bg=Reset mod=NONE text="-old"
+22:4-108 fg=Gray bg=Reset mod=NONE text="                                                                                                         "
+23:0-3 fg=Green bg=Reset mod=NONE text="+new"
+23:4-108 fg=Gray bg=Reset mod=NONE text="                                                                                                         "
+24:0-108 fg=Gray bg=Reset mod=NONE text="                                                                                                             "
+25:0-108 fg=Gray bg=Reset mod=NONE text="                                                                                                             "
+26:0-108 fg=Gray bg=Reset mod=NONE text="                                                                                                             "
+27:0-4 fg=Black bg=DarkGray mod=NONE text=" 1/1 "
+27:6-74 fg=DarkGray bg=Reset mod=NONE text="j/k move  Enter inspect  f files  c compare  / search  ? help  q quit"
+
+110x28
+TEXT
+ phig  phig-demo  LOG  HEAD  main
+›   ● aaaaaaaa 1700000000 make history pleasanaaaaaaaaaaaa
+                                              make history pleasant
+                                              Author: Pat Example <pat@example.invalid>
+                                              Date: 2023-11-14 18:13:20 -04:00
+                                              Parents: root · Files: 1 (+1 -1)
+                                              Explain the change safely.
+                                              Second body paragraph.
+                                              diff --git a/src/main.rs b/src/main.rs
+                                              @@ -1 +1 @@
+                                              -old
+                                              +new
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+ 1/1  j/k move  Enter inspect  f files  c compare  / search  ? help  q quit
+STYLES
+0:0-5 fg=Black bg=Cyan mod=BOLD text=" phig "
+0:7-15 fg=Reset bg=Reset mod=BOLD text="phig-demo"
+0:16-22 fg=Cyan bg=Reset mod=NONE text="  LOG  "
+0:27-32 fg=DarkGray bg=Reset mod=NONE text="  main"
+1:0-45 fg=Black bg=Cyan mod=BOLD text="›   ● aaaaaaaa 1700000000 make history pleasan"
+1:46-57 fg=Yellow bg=Reset mod=NONE text="aaaaaaaaaaaa"
+2:46-66 fg=Reset bg=Reset mod=BOLD text="make history pleasant"
+3:46-86 fg=DarkGray bg=Reset mod=NONE text="Author: Pat Example <pat@example.invalid>"
+4:46-77 fg=DarkGray bg=Reset mod=NONE text="Date: 2023-11-14 18:13:20 -04:00"
+5:46-77 fg=DarkGray bg=Reset mod=NONE text="Parents: root · Files: 1 (+1 -1)"
+8:46-83 fg=Yellow bg=Reset mod=BOLD text="diff --git a/src/main.rs b/src/main.rs"
+8:84-109 fg=Gray bg=Reset mod=NONE text="                          "
+9:46-56 fg=Cyan bg=Reset mod=BOLD text="@@ -1 +1 @@"
+9:57-109 fg=Gray bg=Reset mod=NONE text="                                                     "
+10:46-49 fg=Red bg=Reset mod=NONE text="-old"
+10:50-109 fg=Gray bg=Reset mod=NONE text="                                                            "
+11:46-49 fg=Green bg=Reset mod=NONE text="+new"
+11:50-109 fg=Gray bg=Reset mod=NONE text="                                                            "
+12:46-109 fg=Gray bg=Reset mod=NONE text="                                                                "
+13:46-109 fg=Gray bg=Reset mod=NONE text="                                                                "
+14:46-109 fg=Gray bg=Reset mod=NONE text="                                                                "
+15:46-109 fg=Gray bg=Reset mod=NONE text="                                                                "
+16:46-109 fg=Gray bg=Reset mod=NONE text="                                                                "
+17:46-109 fg=Gray bg=Reset mod=NONE text="                                                                "
+18:46-109 fg=Gray bg=Reset mod=NONE text="                                                                "
+19:46-109 fg=Gray bg=Reset mod=NONE text="                                                                "
+20:46-109 fg=Gray bg=Reset mod=NONE text="                                                                "
+21:46-109 fg=Gray bg=Reset mod=NONE text="                                                                "
+22:46-109 fg=Gray bg=Reset mod=NONE text="                                                                "
+23:46-109 fg=Gray bg=Reset mod=NONE text="                                                                "
+24:46-109 fg=Gray bg=Reset mod=NONE text="                                                                "
+25:46-109 fg=Gray bg=Reset mod=NONE text="                                                                "
+26:46-109 fg=Gray bg=Reset mod=NONE text="                                                                "
+27:0-4 fg=Black bg=DarkGray mod=NONE text=" 1/1 "
+27:6-74 fg=DarkGray bg=Reset mod=NONE text="j/k move  Enter inspect  f files  c compare  / search  ? help  q quit"

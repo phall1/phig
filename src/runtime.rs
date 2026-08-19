@@ -197,6 +197,17 @@ impl Coordinator {
         }
     }
 
+    /// Cancel a request slot and make every response from its current
+    /// generation stale, even if the process races cancellation.
+    pub fn invalidate(&self, key: RequestKey) {
+        if let Ok(mut active) = self.active.lock()
+            && let Some((generation, token)) = active.get_mut(&key)
+        {
+            token.cancel();
+            *generation = generation.saturating_add(1);
+        }
+    }
+
     pub fn responses(&self) -> &Receiver<Response> {
         &self.responses
     }
@@ -370,6 +381,33 @@ mod tests {
         assert_eq!(second, 2);
         assert!(!coordinator.is_current(RequestKey::Refs, first));
         assert!(coordinator.is_current(RequestKey::Refs, second));
+    }
+
+    #[test]
+    fn invalidation_makes_an_in_flight_generation_stale() {
+        let coordinator = Coordinator::new(GitClient::default(), 1, 2);
+        let repository = Repository {
+            root: "/definitely/missing".into(),
+            worktree: None,
+            git_dir: "/definitely/missing".into(),
+            bare: true,
+            object_format: crate::domain::ObjectFormat::Sha1,
+            git_version: "2.45.1".into(),
+            head: None,
+            branch: None,
+        };
+        let generation = coordinator
+            .submit(
+                RequestKey::Status,
+                GitQuery::Status {
+                    repository,
+                    include_ignored: false,
+                },
+            )
+            .unwrap();
+        assert!(coordinator.is_current(RequestKey::Status, generation));
+        coordinator.invalidate(RequestKey::Status);
+        assert!(!coordinator.is_current(RequestKey::Status, generation));
     }
 
     #[cfg(unix)]

@@ -89,6 +89,17 @@ fn retry_key_until_exit(
     }
 }
 
+fn assert_running_for(child: &mut Box<dyn Child + Send + Sync>, duration: Duration, context: &str) {
+    let deadline = Instant::now() + duration;
+    while Instant::now() < deadline {
+        assert!(
+            child.try_wait().unwrap().is_none(),
+            "phig exited while {context}"
+        );
+        thread::sleep(Duration::from_millis(10));
+    }
+}
+
 fn wait_bounded(
     child: &mut Box<dyn Child + Send + Sync>,
     timeout: Duration,
@@ -398,6 +409,111 @@ fn real_pty_exercises_navigation_overlays_resize_and_cleanup() {
         screen.contains("\u{1b}[?1049l"),
         "alternate screen was not restored"
     );
+}
+
+#[test]
+fn remapped_printable_key_still_types_in_every_text_overlay() {
+    let _guard = PTY_LOCK
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    let repo = tempfile::tempdir().unwrap();
+    git(repo.path(), &["init", "-q", "-b", "main"]);
+    git(repo.path(), &["config", "user.name", "Phig PTY"]);
+    git(
+        repo.path(),
+        &["config", "user.email", "pty@example.invalid"],
+    );
+    fs::write(repo.path().join("file.txt"), "one\n").unwrap();
+    git(repo.path(), &["add", "file.txt"]);
+    git(repo.path(), &["commit", "-qm", "overlay input"]);
+    let config = repo.path().join("remap.toml");
+    fs::write(&config, "version = 1\n[keys]\nquit = \"x\"\n").unwrap();
+
+    let pty = native_pty_system();
+    let pair = pty
+        .openpty(PtySize {
+            rows: 28,
+            cols: 100,
+            pixel_width: 0,
+            pixel_height: 0,
+        })
+        .unwrap();
+    let mut command = CommandBuilder::new(assert_cmd::cargo::cargo_bin!("phig"));
+    command.args(["--config", config.to_str().unwrap()]);
+    command.cwd(repo.path());
+    command.env("TERM", "xterm-256color");
+    command.env("NO_COLOR", "1");
+    let mut child = pair.slave.spawn_command(command).unwrap();
+    drop(pair.slave);
+    let reader = pair.master.try_clone_reader().unwrap();
+    let (output, reader_thread) = read_live(reader);
+    let mut writer = pair.master.take_writer().unwrap();
+
+    wait_for_marker(&output, "a/file.txt", Duration::from_secs(5));
+    writer.write_all(b"/").unwrap();
+    writer.flush().unwrap();
+    wait_for_marker(&output, "cancel", Duration::from_secs(3));
+    writer.write_all(b"x").unwrap();
+    writer.flush().unwrap();
+    assert_running_for(
+        &mut child,
+        Duration::from_millis(150),
+        "remapped x quit instead of typing in search",
+    );
+    writer.write_all(b"\x1b").unwrap();
+    writer.flush().unwrap();
+    thread::sleep(Duration::from_millis(100));
+
+    writer.write_all(b":").unwrap();
+    writer.flush().unwrap();
+    wait_for_marker(&output, "Commands", Duration::from_secs(3));
+    writer.write_all(b"x").unwrap();
+    writer.flush().unwrap();
+    assert_running_for(
+        &mut child,
+        Duration::from_millis(150),
+        "remapped x quit instead of typing in palette",
+    );
+    writer.write_all(b"\x1b").unwrap();
+    writer.flush().unwrap();
+    thread::sleep(Duration::from_millis(100));
+
+    writer.write_all(b"\r").unwrap();
+    writer.flush().unwrap();
+    wait_for_marker(&output, "SHOW", Duration::from_secs(5));
+    writer.write_all(b"f").unwrap();
+    writer.flush().unwrap();
+    wait_for_marker(&output, "Changed", Duration::from_secs(3));
+    writer.write_all(b"x").unwrap();
+    writer.flush().unwrap();
+    assert_running_for(
+        &mut child,
+        Duration::from_millis(150),
+        "remapped x quit instead of typing in file picker",
+    );
+    writer.write_all(b"\x7f\x1b[200~x\x1b[201~").unwrap();
+    writer.flush().unwrap();
+    assert_running_for(
+        &mut child,
+        Duration::from_millis(150),
+        "bracketed paste failed in file picker",
+    );
+    writer.write_all(b"\x1b").unwrap();
+    writer.flush().unwrap();
+    thread::sleep(Duration::from_millis(100));
+
+    let status = retry_key_until_exit(&mut child, &mut writer, b"x", Duration::from_secs(8));
+    drop(writer);
+    drop(pair.master);
+    reader_thread.join().unwrap();
+    assert!(status.success());
+    let screen = output_text(&output);
+    for marker in ["cancel", "Commands", "Changed"] {
+        assert!(
+            screen.contains(marker),
+            "overlay omitted {marker:?}: {screen}"
+        );
+    }
 }
 
 #[test]

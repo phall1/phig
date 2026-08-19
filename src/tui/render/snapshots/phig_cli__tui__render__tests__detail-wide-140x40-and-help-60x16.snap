@@ -1,0 +1,117 @@
+---
+source: src/tui/render/tests.rs
+expression: "format!(\"DETAIL 140x40\\n{}\\nHELP 60x16\\n{}\", styled_screen(140, 40, &detail),\nstyled_screen(60, 16, &help))"
+---
+DETAIL 140x40
+TEXT
+ phig  phig-demo  SHOW  HEAD  main
+aaaaaaaaaaaa
+make history pleasant
+Author: Pat Example <pat@example.invalid>
+Date: 2023-11-14 18:13:20 -04:00
+Parents: root · Files: 1 (+1 -1)
+Explain the change safely.
+Second body paragraph.
+diff --git a/src/main.rs b/src/main.rs
+@@ -1 +1 @@
+-old
++new
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+ line 1  j/k scroll  f files  [/] hunk  Tab file  P parent  b blame  q back
+STYLES
+0:0-5 fg=Black bg=Cyan mod=BOLD text=" phig "
+0:7-15 fg=Reset bg=Reset mod=BOLD text="phig-demo"
+0:16-23 fg=Cyan bg=Reset mod=NONE text="  SHOW  "
+0:28-33 fg=DarkGray bg=Reset mod=NONE text="  main"
+1:0-11 fg=Yellow bg=Reset mod=NONE text="aaaaaaaaaaaa"
+2:0-20 fg=Reset bg=Reset mod=BOLD text="make history pleasant"
+3:0-40 fg=DarkGray bg=Reset mod=NONE text="Author: Pat Example <pat@example.invalid>"
+4:0-31 fg=DarkGray bg=Reset mod=NONE text="Date: 2023-11-14 18:13:20 -04:00"
+5:0-31 fg=DarkGray bg=Reset mod=NONE text="Parents: root · Files: 1 (+1 -1)"
+8:0-37 fg=Yellow bg=Reset mod=BOLD text="diff --git a/src/main.rs b/src/main.rs"
+9:0-10 fg=Cyan bg=Reset mod=BOLD text="@@ -1 +1 @@"
+10:0-3 fg=Red bg=Reset mod=NONE text="-old"
+11:0-3 fg=Green bg=Reset mod=NONE text="+new"
+39:0-7 fg=Black bg=DarkGray mod=NONE text=" line 1 "
+39:9-74 fg=DarkGray bg=Reset mod=NONE text="j/k scroll  f files  [/] hunk  Tab file  P parent  b blame  q back"
+
+HELP 60x16
+TEXT
+ phig  phig-demo  LOG  HEAD  main
+› ┌ Help ────────────────────────────────────────────────┐pl
+  │phig keys                                             │
+  │                                                      │
+  │j/k or ↑/↓       move / scroll                        │
+  │Ctrl-d/u PgDn/Up page                                 │
+  │g/G Home/End     first / last                         │
+  │Enter / q        open / back / quit                   │
+  │/ · n/N          search · next/previous               │
+  │:                searchable command palette           │
+  │f                searchable changed-file picker       │
+  │[ ] · { }        hunk · file                          │
+  │m/r/s/t/b/z       history · refs · status · tree ·    │
+  │blame · stash                                         │
+  └──────────────────────────────────────────────────────┘
+ 1/1  j/k move  Enter inspect  f files  c compare  / search
+STYLES
+0:0-5 fg=Black bg=Cyan mod=BOLD text=" phig "
+0:7-15 fg=Reset bg=Reset mod=BOLD text="phig-demo"
+0:16-22 fg=Cyan bg=Reset mod=NONE text="  LOG  "
+0:27-32 fg=DarkGray bg=Reset mod=NONE text="  main"
+1:0-1 fg=Black bg=Cyan mod=BOLD text="› "
+1:2-57 fg=Cyan bg=Reset mod=NONE text="┌ Help ────────────────────────────────────────────────┐"
+1:58-59 fg=Black bg=Cyan mod=BOLD text="pl"
+2:2-2 fg=Cyan bg=Reset mod=NONE text="│"
+2:3-11 fg=Cyan bg=Reset mod=BOLD text="phig keys"
+2:57-57 fg=Cyan bg=Reset mod=NONE text="│"
+3:2-2 fg=Cyan bg=Reset mod=NONE text="│"
+3:57-57 fg=Cyan bg=Reset mod=NONE text="│"
+4:2-2 fg=Cyan bg=Reset mod=NONE text="│"
+4:57-57 fg=Cyan bg=Reset mod=NONE text="│"
+5:2-2 fg=Cyan bg=Reset mod=NONE text="│"
+5:57-57 fg=Cyan bg=Reset mod=NONE text="│"
+6:2-2 fg=Cyan bg=Reset mod=NONE text="│"
+6:57-57 fg=Cyan bg=Reset mod=NONE text="│"
+7:2-2 fg=Cyan bg=Reset mod=NONE text="│"
+7:57-57 fg=Cyan bg=Reset mod=NONE text="│"
+8:2-2 fg=Cyan bg=Reset mod=NONE text="│"
+8:57-57 fg=Cyan bg=Reset mod=NONE text="│"
+9:2-2 fg=Cyan bg=Reset mod=NONE text="│"
+9:57-57 fg=Cyan bg=Reset mod=NONE text="│"
+10:2-2 fg=Cyan bg=Reset mod=NONE text="│"
+10:57-57 fg=Cyan bg=Reset mod=NONE text="│"
+11:2-2 fg=Cyan bg=Reset mod=NONE text="│"
+11:57-57 fg=Cyan bg=Reset mod=NONE text="│"
+12:2-2 fg=Cyan bg=Reset mod=NONE text="│"
+12:57-57 fg=Cyan bg=Reset mod=NONE text="│"
+13:2-2 fg=Cyan bg=Reset mod=NONE text="│"
+13:57-57 fg=Cyan bg=Reset mod=NONE text="│"
+14:2-57 fg=Cyan bg=Reset mod=NONE text="└──────────────────────────────────────────────────────┘"
+15:0-4 fg=Black bg=DarkGray mod=NONE text=" 1/1 "
+15:6-59 fg=DarkGray bg=Reset mod=NONE text="j/k move  Enter inspect  f files  c compare  / search "

@@ -40,9 +40,13 @@ installed executable and product are `phig`.
 - `git`: repository discovery, command construction, parsers, bounds, errors,
   capability detection, and cancellation
 - `app`: view-independent state, actions, reducer, selection, search, and effect
-  generation
+  generation. Its module tree separates the model and command catalog from
+  navigation, overlays, reducer transitions, and inspection state.
 - `tui`: terminal lifecycle, event translation, layout, widgets, styles, help,
-  and controlling-terminal selection rendering
+  and controlling-terminal selection rendering. The adapter keeps its driver,
+  input translation, request bridge, signal ownership, session guard, and
+  renderer independent; rendering further separates pure layout, chrome,
+  history, diffs, inspection views, formatting, and theme policy.
 - `protocol`: stable JSON envelopes and byte-clean writers
 
 TUI row numbers, split geometry, and cursor coordinates must not leak into the

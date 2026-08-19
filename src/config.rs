@@ -219,7 +219,7 @@ impl KeyBindings {
         {
             return Some(action.clone());
         }
-        default.filter(|action| !self.overridden.contains(action_name(action)))
+        default.filter(|action| !self.overridden.contains(action.semantic_name()))
     }
 
     pub fn selection_key_labels(&self) -> (String, String) {
@@ -269,7 +269,7 @@ impl KeyBindings {
         default_key: KeySpec,
         default_label: &str,
     ) -> Option<String> {
-        if self.overridden.contains(action_name(action)) {
+        if self.overridden.contains(action.semantic_name()) {
             self.by_key
                 .iter()
                 .find_map(|(key, candidate)| (candidate == action).then(|| key.label()))
@@ -284,17 +284,27 @@ impl KeyBindings {
         let mut by_key = HashMap::new();
         let mut overridden = HashSet::new();
         for (requested_action, key_name) in values {
-            let action = parse_action(requested_action)
+            let action = Action::from_semantic_name(requested_action)
                 .ok_or_else(|| format!("unknown semantic action `{requested_action}` in [keys]"))?;
             let key = parse_key(key_name).ok_or_else(|| {
                 format!("invalid key `{key_name}` for action `{requested_action}`")
             })?;
+            if key
+                == (KeySpec {
+                    code: KeyCodeSpec::Char('c'),
+                    modifiers: 1,
+                })
+            {
+                return Err(format!(
+                    "key `ctrl+c` is reserved for interrupt and cannot bind `{requested_action}`"
+                ));
+            }
             if let Some(previous) = by_key.insert(key, action.clone()) {
                 return Err(format!(
                     "key `{key_name}` conflicts with another override ({previous:?})"
                 ));
             }
-            overridden.insert(action_name(&action));
+            overridden.insert(action.semantic_name());
         }
         Ok(Self { by_key, overridden })
     }
@@ -331,8 +341,12 @@ impl KeySpec {
     }
 
     fn from_event(event: KeyEvent) -> Option<Self> {
+        let mut implied_shift = false;
         let code = match event.code {
-            KeyCode::Char(v) => KeyCodeSpec::Char(v),
+            KeyCode::Char(value) => {
+                implied_shift = value.is_ascii_uppercase();
+                KeyCodeSpec::Char(value.to_ascii_lowercase())
+            }
             KeyCode::Enter => KeyCodeSpec::Enter,
             KeyCode::Esc => KeyCodeSpec::Esc,
             KeyCode::Tab => KeyCodeSpec::Tab,
@@ -355,7 +369,7 @@ impl KeySpec {
         if event.modifiers.contains(KeyModifiers::ALT) {
             modifiers |= 2
         };
-        if event.modifiers.contains(KeyModifiers::SHIFT) {
+        if event.modifiers.contains(KeyModifiers::SHIFT) || implied_shift {
             modifiers |= 4
         };
         Some(Self { code, modifiers })
@@ -394,95 +408,17 @@ fn parse_key(input: &str) -> Option<KeySpec> {
         "pagedown" => KeyCodeSpec::PageDown,
         "home" => KeyCodeSpec::Home,
         "end" => KeyCodeSpec::End,
-        _ if key_name.chars().count() == 1 => KeyCodeSpec::Char(key_name.chars().next()?),
+        _ if key_name.chars().count() == 1 => {
+            let value = key_name.chars().next()?;
+            if value.is_ascii_uppercase() {
+                modifiers |= 4;
+            }
+            KeyCodeSpec::Char(value.to_ascii_lowercase())
+        }
         _ => return None,
     };
     Some(KeySpec { code, modifiers })
 }
-fn action_name(action: &Action) -> &'static str {
-    match action {
-        Action::Move(1) => "move-down",
-        Action::Move(_) => "move-up",
-        Action::Page(1) => "page-down",
-        Action::Page(_) => "page-up",
-        Action::First => "first",
-        Action::Last => "last",
-        Action::Open => "open",
-        Action::Back => "back",
-        Action::Quit => "quit",
-        Action::TogglePreview => "toggle-preview",
-        Action::ToggleFocus => "toggle-focus",
-        Action::StartSearch => "search",
-        Action::StartPalette => "palette",
-        Action::StartFilePicker => "file-picker",
-        Action::ToggleHelp => "help",
-        Action::NextMatch => "next-match",
-        Action::PreviousMatch => "previous-match",
-        Action::NextHunk(1) => "next-hunk",
-        Action::NextHunk(_) => "previous-hunk",
-        Action::NextFile(1) => "next-file",
-        Action::NextFile(_) => "previous-file",
-        Action::NextParent => "next-parent",
-        Action::ViewLog => "view-log",
-        Action::ViewRefs => "view-refs",
-        Action::ViewStatus => "view-status",
-        Action::ViewTree => "view-tree",
-        Action::ViewBlame => "view-blame",
-        Action::ViewStash => "view-stash",
-        Action::Mark => "mark",
-        Action::StartCompare => "compare",
-        Action::SwapCompare => "swap-compare",
-        Action::ToggleCompareMode => "toggle-compare-mode",
-        Action::ToggleStatusDiff => "toggle-status-diff",
-        Action::Ascend => "ascend",
-        Action::CopySelection => "copy-selection",
-        Action::Redraw => "redraw",
-        _ => "internal",
-    }
-}
-
-fn parse_action(value: &str) -> Option<Action> {
-    Some(match value {
-        "move-down" => Action::Move(1),
-        "move-up" => Action::Move(-1),
-        "page-down" => Action::Page(1),
-        "page-up" => Action::Page(-1),
-        "first" => Action::First,
-        "last" => Action::Last,
-        "open" => Action::Open,
-        "back" => Action::Back,
-        "quit" => Action::Quit,
-        "toggle-preview" => Action::TogglePreview,
-        "toggle-focus" => Action::ToggleFocus,
-        "search" => Action::StartSearch,
-        "palette" => Action::StartPalette,
-        "file-picker" => Action::StartFilePicker,
-        "help" => Action::ToggleHelp,
-        "next-match" => Action::NextMatch,
-        "previous-match" => Action::PreviousMatch,
-        "next-hunk" => Action::NextHunk(1),
-        "previous-hunk" => Action::NextHunk(-1),
-        "next-file" => Action::NextFile(1),
-        "previous-file" => Action::NextFile(-1),
-        "next-parent" => Action::NextParent,
-        "view-log" => Action::ViewLog,
-        "view-refs" => Action::ViewRefs,
-        "view-status" => Action::ViewStatus,
-        "view-tree" => Action::ViewTree,
-        "view-blame" => Action::ViewBlame,
-        "view-stash" => Action::ViewStash,
-        "mark" => Action::Mark,
-        "compare" => Action::StartCompare,
-        "swap-compare" => Action::SwapCompare,
-        "toggle-compare-mode" => Action::ToggleCompareMode,
-        "toggle-status-diff" => Action::ToggleStatusDiff,
-        "ascend" => Action::Ascend,
-        "copy-selection" => Action::CopySelection,
-        "redraw" => Action::Redraw,
-        _ => return None,
-    })
-}
-
 pub fn default_path() -> Result<PathBuf, ConfigError> {
     if let Some(base) = env::var_os("XDG_CONFIG_HOME").filter(|value| !value.is_empty()) {
         return Ok(PathBuf::from(base).join("phig/config.toml"));
@@ -700,6 +636,32 @@ mod tests {
                 .selection_key_labels(),
             ("q".into(), "Esc".into()),
             "an override that claims q must remove q from the cancel hint"
+        );
+    }
+
+    #[test]
+    fn uppercase_bindings_normalize_and_ctrl_c_is_reserved() {
+        let mut keys = BTreeMap::new();
+        keys.insert("last".into(), "G".into());
+        let bindings = KeyBindings::from_config(&keys).unwrap();
+        assert_eq!(
+            bindings.resolve(KeyEvent::new(KeyCode::Char('G'), KeyModifiers::SHIFT), None,),
+            Some(Action::Last)
+        );
+
+        keys.insert("last".into(), "shift+g".into());
+        let bindings = KeyBindings::from_config(&keys).unwrap();
+        assert_eq!(
+            bindings.resolve(KeyEvent::new(KeyCode::Char('G'), KeyModifiers::SHIFT), None,),
+            Some(Action::Last)
+        );
+
+        keys.clear();
+        keys.insert("quit".into(), "ctrl+c".into());
+        assert!(
+            KeyBindings::from_config(&keys)
+                .unwrap_err()
+                .contains("reserved for interrupt")
         );
     }
 
