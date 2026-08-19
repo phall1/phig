@@ -125,3 +125,31 @@ bd prime                # Refresh Beads context
 
 **Architecture in one line:** issues live in a local Dolt DB; sync uses `refs/dolt/data` on your git remote; `.beads/issues.jsonl` is a passive export. See https://github.com/gastownhall/beads/blob/main/docs/core-concepts/sync-concepts.md for details and anti-patterns.
 <!-- END BEADS CODEX SETUP -->
+
+## Build and validation
+
+```bash
+just check      # format, clippy, tests, and doc tests
+just security   # dependency advisory/license/source policy
+just run --help # run the development binary
+```
+
+## Architecture
+
+Phig is a Rust/Ratatui terminal Git browser. The terminal thread owns a
+functional app reducer and never blocks on Git. A bounded worker layer invokes
+the installed Git with explicit argv and returns typed domain records. TUI,
+configuration, and machine JSON are adapters around the same core. Read
+`docs/PRODUCT.md`, `docs/ARCHITECTURE.md`, and `docs/UX.md` before changing
+product or architectural boundaries.
+
+## Project rules
+
+- Preserve the small read-only inspection product boundary; do not add Git
+  mutation or embedded agent behavior without a new approved design.
+- Never invoke Git through a shell or render repository control characters
+  directly.
+- Keep machine-mode stdout byte-clean; diagnostics belong on stderr.
+- Keep TUI coordinates out of domain and protocol types.
+- Add parser/reducer tests and an integration or UI-path test for behavior.
+- Use semantic actions for keybindings and command-palette entries.

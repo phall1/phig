@@ -60,18 +60,28 @@ This protocol applies when ending a Beads implementation workflow. It is subordi
 
 ## Build & Test
 
-_Add your build and test commands here_
-
 ```bash
-# Example:
-# npm install
-# npm test
+just check      # format, clippy, tests, and doc tests
+just security   # dependency advisory/license/source policy
+just run --help # run the development binary
 ```
 
 ## Architecture Overview
 
-_Add a brief overview of your project architecture_
+Phig is a Rust/Ratatui terminal Git browser. The terminal thread owns a
+functional app reducer and never blocks on Git. A bounded worker layer invokes
+the installed Git with explicit argv and returns typed domain records. TUI,
+configuration, and machine JSON are adapters around the same core. Read
+`docs/PRODUCT.md`, `docs/ARCHITECTURE.md`, and `docs/UX.md` before changing
+product or architectural boundaries.
 
 ## Conventions & Patterns
 
-_Add your project-specific conventions here_
+- Preserve the small read-only inspection product boundary; do not add Git
+  mutation or embedded agent behavior without a new approved design.
+- Never invoke Git through a shell or render repository control characters
+  directly.
+- Keep machine-mode stdout byte-clean; diagnostics belong on stderr.
+- Keep TUI coordinates out of domain and protocol types.
+- Add parser/reducer tests and an integration or UI-path test for behavior.
+- Use semantic actions for keybindings and command-palette entries.

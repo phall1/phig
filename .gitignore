@@ -5,3 +5,20 @@
 .beads-credential-key
 .beads/proxieddb/
 *.gate.lock*
+
+
+# Rust build and local release output
+/target
+/dist
+*.profraw
+lcov.info
+
+# Editor and operating-system noise
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# Local phig configuration and recordings
+/config.local.toml
+/demo.cast
