@@ -26,7 +26,9 @@ without decorative borders at larger sizes.
 | `/` | search active view |
 | `n`, `N` | next/previous search match |
 | `Tab`, `Shift-Tab` | next/previous file or logical section |
-| `]`, `[` | next/previous hunk or parent |
+| `]`, `[` | next/previous hunk |
+| `}`, `{` | next/previous changed file |
+| `P` | cycle merge parent in commit detail |
 | `r` | refs view |
 | `s` | status view |
 | `t` | tree view |
@@ -40,8 +42,13 @@ without decorative borders at larger sizes.
 | `?` | contextual help |
 | `Ctrl-l` | redraw |
 
-Printable keys in search or command overlays edit their query. Key overrides are
-resolved to semantic actions and conflict diagnostics name both actions.
+Printable keys in search or command overlays edit their query. `:` opens a
+searchable palette that lists the semantic actions implemented in the current
+build, providing a universal discovery fallback even when a shortcut is unknown.
+When a request fails, an actionable wrapped error panel identifies the failed
+operation; `r` retries failed requests and `Esc` dismisses the panel. Key
+overrides are resolved to semantic actions and conflict diagnostics name both
+actions.
 
 ## Views
 

@@ -122,7 +122,11 @@ fn parse_commit_fields(
         decorations,
         subject: sanitize_bytes(fields[11]),
         body: if with_body {
-            sanitize_bytes(fields[12])
+            fields[12]
+                .split(|byte| *byte == b'\n')
+                .map(sanitize_bytes)
+                .collect::<Vec<_>>()
+                .join("\n")
         } else {
             String::new()
         },
@@ -993,6 +997,33 @@ mod tests {
         assert!(refs[0].short_name.display().contains("\\e"));
         assert!(refs[0].upstream.as_ref().unwrap().display().contains("\\e"));
         assert!(refs[0].subject.contains("\\e"));
+    }
+
+    #[test]
+    fn commit_body_preserves_safe_line_boundaries() {
+        let fields: [&[u8]; 13] = [
+            b"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            b"",
+            b"Pat",
+            b"pat@example.invalid",
+            b"1700000000",
+            b"2023-11-14T22:13:20+00:00",
+            b"Pat",
+            b"pat@example.invalid",
+            b"1700000000",
+            b"2023-11-14T22:13:20+00:00",
+            b"",
+            b"subject",
+            b"first line\nsecond\x1bline",
+        ];
+        let mut input = Vec::new();
+        for field in fields {
+            input.extend_from_slice(field);
+            input.push(0);
+        }
+        input.push(0);
+        let commit = parse_commit(&input, ObjectFormat::Sha1).unwrap();
+        assert_eq!(commit.body, "first line\nsecond\\eline");
     }
 
     #[test]
