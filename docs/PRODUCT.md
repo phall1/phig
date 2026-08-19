@@ -28,7 +28,8 @@ permanent grid.
 
 ### Browse history
 
-`phig` and `phig log [REV] [-- PATH…]` open a repository's history. The initial
+Bare `phig` opens `phig log HEAD`; use `phig log [REV] [-- PATH…]` for another
+revision. The initial
 selection is visible as soon as data arrives. Movement updates an optional diff
 preview without blocking input. Users can search commit metadata, constrain a
 path, copy an object ID, or open commit detail.
@@ -82,8 +83,8 @@ mutation release requires a separate authority, recovery, and conflict design.
 
 ## Supported environments
 
-- macOS on Apple Silicon and x86_64
-- Linux on x86_64 and aarch64, including WSL
+- macOS 12 or newer on Apple Silicon and x86_64
+- glibc-based Linux 2.31 or newer on x86_64 and aarch64, including WSL
 - Git 2.45.1 or newer, required for enforceable no-lazy-fetch inspection; building from source requires Rust 1.88 or newer
 - terminals supporting standard ANSI control sequences; true color is optional
 - no Nerd Font or patched font requirement
@@ -95,25 +96,36 @@ CI acceptance lane.
 
 ## Budgets and release gates
 
-The committed benchmark generator defines a small fixture (1,000 commits and
-100 paths) and a large fixture (100,000 commits, 10,000 paths, merges, renames,
-and binary objects). Results record hardware, OS, Git/phig versions, fixture
-hash, sample count, and cold/warm cache procedure. Initial gates are:
+The committed release benchmark generates 1,000 commits across 100 paths and
+records the source/fixture commits, dirty state, platform, tool versions, sample
+counts, warm snapshot p50/p95, real-PTY launch-to-first-useful-history-frame
+p50/p95, release binary size, and per-process peak RSS for each measured phig
+PTY process. The achievable cross-runner release gates are:
 
-- terminal skeleton within 50 ms warm and 150 ms cold at p95
-- first useful small-fixture history page within 150 ms warm at p95
-- cached navigation-to-paint within 16 ms at p95 and 33 ms at p99
-- cancellation observed within 250 ms at p95 and process-tree cleanup within 1 s
-- idle CPU below 1% on the reference runner
-- large-fixture resident memory below 100 MiB with default limits
-- no more than 128 queued events, 32 MiB metadata, 16 MiB preview patch, or
-  64 KiB captured stderr per operation unless explicitly configured
-- release binary target below 15 MiB stripped unless measured functionality
-  justifies an exception
+- 20 warm snapshot samples with p95 at or below 500 ms
+- 10 real-PTY first-useful-frame samples with p95 at or below 1,000 ms
+- release binary at or below 15 MiB
+
+CI runs the same gate with five samples per path to catch gross regressions;
+the full release check uses 20/10. Memory is recorded rather than given a
+cross-platform threshold because `wait4` peak-RSS units differ between Darwin
+and Linux even though the harness normalizes both to MiB.
+
+The following remain architectural optimization targets, not unverified release
+blockers or current speed claims: 150 ms first useful frame, 16 ms cached
+navigation-to-paint, sub-1% idle CPU, and under 100 MiB resident memory on a
+100,000-commit/10,000-path stress fixture. That large fixture and those event
+latencies are not yet measured by the standard harness and must not be presented
+as achieved.
+
+Independent hard bounds still apply: no more than 128 queued events, 32 MiB
+metadata, 16 MiB preview patch, or 64 KiB captured stderr per operation unless
+explicitly configured.
 
 A release requires formatting, warnings-as-errors linting, unit/integration/UI
-snapshot tests, PTY smoke tests, installer tests, clean-checkout builds,
-dependency policy checks, a release dry run, and fresh-context review.
+snapshot tests, repeated PTY smoke tests, installer tests, clean-checkout builds,
+dependency policy checks, the measured release benchmark, a release dry run,
+and fresh-context review.
 
 ## Success test
 
@@ -121,4 +133,4 @@ A user unfamiliar with the project can install phig in one command, enter a Git
 repository, browse commits, understand and inspect a diff, compare their branch
 to its base, discover the keymap, emit a selection for another command, and
 recover their terminal after every exit path without reading source or writing
-configuration. The separate release milestone adds installer-aware updates.
+configuration, and explicitly check for or install a verified update.

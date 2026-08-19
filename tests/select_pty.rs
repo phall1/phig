@@ -5,6 +5,7 @@ use std::{
     fs,
     io::{Read, Write},
     process::Command,
+    sync::{Arc, Mutex},
     thread,
     time::{Duration, Instant},
 };
@@ -54,7 +55,79 @@ fn validate_protocol(value: &serde_json::Value) {
         .unwrap_or_else(|error| panic!("schema validation failed: {error}"));
 }
 
-fn run_script(repo: &std::path::Path, script: &str, key: u8) -> String {
+fn wait_for_output(output: &Arc<Mutex<Vec<u8>>>, marker: &str, timeout: Duration) {
+    let deadline = Instant::now() + timeout;
+    loop {
+        let snapshot = output
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .clone();
+        if String::from_utf8_lossy(&snapshot).contains(marker) {
+            return;
+        }
+        assert!(
+            Instant::now() < deadline,
+            "PTY omitted readiness marker {marker:?}: {:?}",
+            String::from_utf8_lossy(&snapshot)
+        );
+        thread::sleep(Duration::from_millis(10));
+    }
+}
+
+fn read_live(mut reader: Box<dyn Read + Send>) -> (Arc<Mutex<Vec<u8>>>, thread::JoinHandle<()>) {
+    let output = Arc::new(Mutex::new(Vec::new()));
+    let shared = Arc::clone(&output);
+    let thread = thread::spawn(move || {
+        let mut chunk = [0; 4096];
+        loop {
+            match reader.read(&mut chunk) {
+                Ok(0) => break,
+                Ok(count) => shared
+                    .lock()
+                    .unwrap_or_else(|poisoned| poisoned.into_inner())
+                    .extend_from_slice(&chunk[..count]),
+                Err(error) if error.kind() == std::io::ErrorKind::Interrupted => continue,
+                Err(_) => break,
+            }
+        }
+    });
+    (output, thread)
+}
+
+fn retry_key_until_exit(
+    child: &mut Box<dyn portable_pty::Child + Send + Sync>,
+    writer: &mut dyn Write,
+    key: &[u8],
+    timeout: Duration,
+) -> portable_pty::ExitStatus {
+    let deadline = Instant::now() + timeout;
+    loop {
+        if let Some(status) = child.try_wait().unwrap() {
+            return status;
+        }
+        if Instant::now() >= deadline {
+            child.kill().unwrap();
+            panic!("PTY child ignored retryable exit key");
+        }
+        writer.write_all(key).unwrap();
+        writer.flush().unwrap();
+        thread::sleep(Duration::from_millis(40));
+    }
+}
+
+fn assert_running_for(
+    child: &mut Box<dyn portable_pty::Child + Send + Sync>,
+    duration: Duration,
+    context: &str,
+) {
+    let deadline = Instant::now() + duration;
+    while Instant::now() < deadline {
+        assert!(child.try_wait().unwrap().is_none(), "{context}");
+        thread::sleep(Duration::from_millis(10));
+    }
+}
+
+fn run_script(repo: &std::path::Path, script: &str, ready: &str, key: u8) -> String {
     let pair = native_pty_system()
         .openpty(PtySize {
             rows: 24,
@@ -70,30 +143,36 @@ fn run_script(repo: &std::path::Path, script: &str, key: u8) -> String {
     cmd.env("NO_COLOR", "1");
     let mut child = pair.slave.spawn_command(cmd).unwrap();
     drop(pair.slave);
-    let mut reader = pair.master.try_clone_reader().unwrap();
-    let read = thread::spawn(move || {
-        let mut v = Vec::new();
-        reader.read_to_end(&mut v).unwrap();
-        v
-    });
+    let reader = pair.master.try_clone_reader().unwrap();
+    let (output, read) = read_live(reader);
     let mut writer = pair.master.take_writer().unwrap();
-    thread::sleep(Duration::from_millis(800));
-    writer.write_all(&[key]).unwrap();
-    writer.flush().unwrap();
-    let deadline = Instant::now() + Duration::from_secs(8);
-    loop {
-        if child.try_wait().unwrap().is_some() {
-            break;
+    wait_for_output(&output, ready, Duration::from_secs(5));
+    if key == b'q' {
+        let _ = retry_key_until_exit(&mut child, &mut writer, &[key], Duration::from_secs(8));
+    } else {
+        writer.write_all(&[key]).unwrap();
+        writer.flush().unwrap();
+        let deadline = Instant::now() + Duration::from_secs(8);
+        loop {
+            if child.try_wait().unwrap().is_some() {
+                break;
+            }
+            if Instant::now() >= deadline {
+                child.kill().unwrap();
+                panic!("selection timed out after readiness marker {ready:?}")
+            }
+            thread::sleep(Duration::from_millis(20));
         }
-        if Instant::now() >= deadline {
-            child.kill().unwrap();
-            panic!("selection timed out")
-        }
-        thread::sleep(Duration::from_millis(20));
     }
     drop(writer);
     drop(pair.master);
-    String::from_utf8_lossy(&read.join().unwrap()).into_owned()
+    read.join().unwrap();
+    String::from_utf8_lossy(
+        &output
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner()),
+    )
+    .into_owned()
 }
 
 #[test]
@@ -104,7 +183,7 @@ fn command_substitution_reserves_stdout_for_exact_selection() {
         "value=\"$('{}' --no-alt-screen select --kind commit --format oid)\"; rc=$?; printf '\\nRESULT:%s:%s\\n' \"$rc\" \"$value\"",
         bin.display()
     );
-    let output = run_script(d.path(), &script, b'\r');
+    let output = run_script(d.path(), &script, "two (HEAD", b'\r');
     assert_selection_prompt(&output, "COMMIT", "Enter", "Esc/q");
     let marker = output.rsplit("RESULT:").next().unwrap();
     let mut fields = marker.lines().next().unwrap().split(':');
@@ -118,18 +197,39 @@ fn command_substitution_reserves_stdout_for_exact_selection() {
 fn every_selection_kind_returns_a_versioned_exact_locator() {
     let d = repository();
     let bin = assert_cmd::cargo::cargo_bin!("phig");
-    for (kind, extra) in [
-        ("ref", ""),
-        ("file", ""),
-        ("hunk", ""),
-        ("line", " -- b"),
-        ("compare", " main --base feature"),
+    let blame = Command::new("git")
+        .args([
+            "-C",
+            d.path().to_str().unwrap(),
+            "blame",
+            "--porcelain",
+            "HEAD",
+            "--",
+            "b",
+        ])
+        .output()
+        .unwrap();
+    let blame_oid = String::from_utf8(blame.stdout)
+        .unwrap()
+        .split_ascii_whitespace()
+        .next()
+        .unwrap()
+        .chars()
+        .take(8)
+        .collect::<String>();
+    for (kind, extra, ready) in [
+        ("ref", "", "branch"),
+        ("file", "", "similarity"),
+        ("hunk", "", "similarity"),
+        ("line", " -- b", "blame-oid"),
+        ("compare", " main --base feature", "ahead"),
     ] {
         let script = format!(
             "value=\"$('{}' --no-alt-screen select --kind {kind} --format json{extra})\"; rc=$?; printf '\\nRESULT:%s:%s\\n' \"$rc\" \"$value\"",
             bin.display()
         );
-        let output = run_script(d.path(), &script, b'\r');
+        let ready = if kind == "line" { &blame_oid } else { ready };
+        let output = run_script(d.path(), &script, ready, b'\r');
         assert_selection_prompt(&output, &kind.to_ascii_uppercase(), "Enter", "Esc/q");
         let result = output.rsplit("RESULT:0:").next().unwrap();
         let json = result.lines().next().unwrap();
@@ -177,40 +277,28 @@ fn configured_keys_are_remaps_not_additive_aliases() {
     command.env("TERM", "xterm-256color");
     let mut child = pair.slave.spawn_command(command).unwrap();
     drop(pair.slave);
-    let mut reader = pair.master.try_clone_reader().unwrap();
-    let read = thread::spawn(move || {
-        let mut value = Vec::new();
-        reader.read_to_end(&mut value).unwrap();
-        value
-    });
+    let reader = pair.master.try_clone_reader().unwrap();
+    let (output, read) = read_live(reader);
     let mut writer = pair.master.take_writer().unwrap();
-    thread::sleep(Duration::from_millis(500));
+    wait_for_output(&output, "phig", Duration::from_secs(5));
     writer.write_all(b"q").unwrap();
     writer.flush().unwrap();
-    thread::sleep(Duration::from_millis(200));
-    assert!(
-        child.try_wait().unwrap().is_none(),
-        "old q alias still quit"
+    assert_running_for(
+        &mut child,
+        Duration::from_millis(250),
+        "old q alias still quit",
     );
     writer.write_all(b"h").unwrap();
     writer.flush().unwrap();
-    thread::sleep(Duration::from_millis(100));
+    wait_for_output(&output, "phig keys", Duration::from_secs(3));
     writer.write_all(b"\x1b").unwrap();
     writer.flush().unwrap();
-    thread::sleep(Duration::from_millis(100));
-    writer.write_all(b"x").unwrap();
-    writer.flush().unwrap();
-    let deadline = Instant::now() + Duration::from_secs(5);
-    while child.try_wait().unwrap().is_none() {
-        if Instant::now() >= deadline {
-            child.kill().unwrap();
-            panic!("remapped quit key did not exit");
-        }
-        thread::sleep(Duration::from_millis(20));
-    }
+    let status = retry_key_until_exit(&mut child, &mut writer, b"x", Duration::from_secs(5));
+    assert_eq!(status.exit_code(), 0);
     drop(writer);
     drop(pair.master);
-    let output = String::from_utf8_lossy(&read.join().unwrap()).into_owned();
+    read.join().unwrap();
+    let output = String::from_utf8_lossy(&output.lock().unwrap()).into_owned();
     assert!(
         output.contains("phig keys"),
         "remapped help key did not open help"
@@ -243,38 +331,23 @@ fn selection_cancellation_honors_semantic_quit_remap() {
     command.env("TERM", "xterm-256color");
     let mut child = pair.slave.spawn_command(command).unwrap();
     drop(pair.slave);
-    let mut reader = pair.master.try_clone_reader().unwrap();
-    let read = thread::spawn(move || {
-        let mut value = Vec::new();
-        reader.read_to_end(&mut value).unwrap();
-        value
-    });
+    let reader = pair.master.try_clone_reader().unwrap();
+    let (output, read) = read_live(reader);
     let mut writer = pair.master.take_writer().unwrap();
-    thread::sleep(Duration::from_millis(500));
+    wait_for_output(&output, "COMMIT", Duration::from_secs(5));
     writer.write_all(b"q").unwrap();
     writer.flush().unwrap();
-    thread::sleep(Duration::from_millis(200));
-    assert!(
-        child.try_wait().unwrap().is_none(),
-        "select retained the old q cancellation alias"
+    assert_running_for(
+        &mut child,
+        Duration::from_millis(250),
+        "select retained the old q cancellation alias",
     );
-    writer.write_all(b"x").unwrap();
-    writer.flush().unwrap();
-    let deadline = Instant::now() + Duration::from_secs(5);
-    let status = loop {
-        if let Some(status) = child.try_wait().unwrap() {
-            break status;
-        }
-        if Instant::now() >= deadline {
-            child.kill().unwrap();
-            panic!("remapped select quit key did not cancel");
-        }
-        thread::sleep(Duration::from_millis(20));
-    };
+    let status = retry_key_until_exit(&mut child, &mut writer, b"x", Duration::from_secs(5));
     assert_eq!(status.exit_code(), 1, "selection cancellation exit changed");
     drop(writer);
     drop(pair.master);
-    let output = String::from_utf8_lossy(&read.join().unwrap()).into_owned();
+    read.join().unwrap();
+    let output = String::from_utf8_lossy(&output.lock().unwrap()).into_owned();
     assert_selection_prompt(&output, "COMMIT", "Enter", "Esc/x");
 }
 
@@ -286,7 +359,7 @@ fn selection_cancel_is_exit_one_with_empty_stdout() {
         "value=\"$('{}' --no-alt-screen select --kind commit --format json)\"; rc=$?; printf '\\nRESULT:%s:%s\\n' \"$rc\" \"${{#value}}\"",
         bin.display()
     );
-    let output = run_script(d.path(), &script, b'q');
+    let output = run_script(d.path(), &script, "two (HEAD", b'q');
     assert_selection_prompt(&output, "COMMIT", "Enter", "Esc/q");
     assert!(output.contains("RESULT:1:0"), "{output:?}");
 }

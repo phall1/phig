@@ -1,0 +1,26 @@
+name: Feature request
+description: Propose a focused read-only inspection improvement
+title: "feature: "
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Inspection problem
+      description: What read-only Git workflow is difficult today?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed interaction
+      description: Describe the smallest keyboard-first workflow that solves it.
+    validations:
+      required: true
+  - type: checkboxes
+    id: boundary
+    attributes:
+      label: Product boundary
+      options:
+        - label: This request does not require phig to mutate a repository.
+          required: true

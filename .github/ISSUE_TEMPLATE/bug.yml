@@ -1,0 +1,34 @@
+name: Bug report
+description: Report a reproducible phig problem
+title: "bug: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: For security issues, use private vulnerability reporting instead.
+  - type: textarea
+    id: behavior
+    attributes:
+      label: What happened?
+      description: Include what you expected and exact reproduction steps.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: phig version
+      description: Output of `phig version`
+    validations:
+      required: true
+  - type: input
+    id: git
+    attributes:
+      label: Git and operating system
+      description: Output of `git --version` and your OS/architecture
+    validations:
+      required: true
+  - type: textarea
+    id: terminal
+    attributes:
+      label: Terminal context
+      description: Terminal, multiplexer, TERM/COLORTERM, and relevant configuration.

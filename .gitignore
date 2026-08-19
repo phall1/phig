@@ -12,6 +12,8 @@
 /dist
 *.profraw
 lcov.info
+__pycache__/
+*.pyc
 
 # Editor and operating-system noise
 .DS_Store

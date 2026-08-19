@@ -151,6 +151,12 @@ safe to rerun for updates. Release documentation explains independent
 `gh attestation verify` provenance verification; a checksum served by the same
 release authority is not described as a signature.
 
-Normal repository use performs no network access. The release milestone owns
-installer-aware update behavior; the current CLI intentionally has no `update`
-command and never performs unauthenticated self-replacement.
+Normal repository use performs no network access. `phig update --check` is the
+only check path that contacts GitHub; `phig update` is the only path that may
+execute Homebrew or a downloaded installer. Both require an explicit invocation.
+Release updates download the exact version-tagged cargo-dist installer into a
+private staging directory beside the destination, request its flat unmanaged
+layout, verify and sync the candidate, then atomically replace the current
+executable with rollback protection. Homebrew ownership requires canonical
+formula-prefix identity. Failures never trigger an unverified or background
+self-replacement.

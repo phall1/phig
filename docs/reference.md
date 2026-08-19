@@ -3,7 +3,8 @@
 ## Interactive commands
 
 ```text
-phig [log] [REV] [-- PATH…]
+phig                                # equivalent to phig log HEAD
+phig log [REV] [-- PATH…]
 phig show REV [-- PATH…]
 phig compare [BASE] [HEAD] [-- PATH…]   # merge-base semantics
 phig diff LEFT RIGHT [-- PATH…]         # exact endpoints
@@ -67,6 +68,8 @@ phig completions bash > ~/.local/share/bash-completion/completions/phig
 phig manpage > phig.1
 phig manpage --output-dir ./man  # root plus every nested subcommand page
 phig version --json
+phig update --check          # explicit network check, no installation
+phig update                  # Homebrew or release-installer update
 ```
 
 Machine modes do not infer themselves from redirection. They never prompt,
@@ -84,6 +87,7 @@ fields. See [`schema/phig-1.schema.json`](schema/phig-1.schema.json).
 | 3 | repository unavailable |
 | 4 | unsupported Git/platform/context or no controlling terminal |
 | 5 | Git operation failed |
+| 6 | update unavailable or failed |
 | 70 | internal or terminal invariant failure |
 | 128+N | terminated by signal, when representable |
 

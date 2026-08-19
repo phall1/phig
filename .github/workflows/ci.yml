@@ -1,0 +1,92 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: Quality and release plan
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.88.0
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      - name: Format
+        run: cargo fmt --all -- --check
+      - name: Clippy
+        run: cargo clippy --all-targets --all-features -- -D warnings
+      - name: Tests and documentation
+        run: |
+          cargo test --all-targets --all-features --locked
+          cargo test --doc --all-features --locked
+      - name: Shell lint
+        run: shellcheck install.sh scripts/*.sh
+      - name: Dependency policy
+        run: |
+          mkdir -p "$RUNNER_TEMP/cargo-deny"
+          curl --proto '=https' --tlsv1.2 -LsSf https://github.com/EmbarkStudios/cargo-deny/releases/download/0.20.2/cargo-deny-0.20.2-x86_64-unknown-linux-musl.tar.gz |
+            tar -C "$RUNNER_TEMP/cargo-deny" --strip-components=1 -xz cargo-deny-0.20.2-x86_64-unknown-linux-musl/cargo-deny
+          "$RUNNER_TEMP/cargo-deny/cargo-deny" check
+      - name: Release plan
+        run: |
+          curl --proto '=https' --tlsv1.2 -LsSf https://github.com/axodotdev/cargo-dist/releases/download/v0.32.0/cargo-dist-installer.sh | sh
+          dist plan
+      - name: Crate package
+        run: cargo package --locked
+
+  platform:
+    name: Platform (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, macos-14]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.88.0
+      - uses: Swatinem/rust-cache@v2
+      - name: PTY and integration tests
+        run: cargo test --tests --locked
+      - name: Release build
+        run: cargo build --release --locked
+      - name: Performance regression gate
+        run: python3 scripts/benchmark.py --repository "$RUNNER_TEMP/phig-benchmark" --commits 1000 --snapshot-samples 5 --pty-samples 5 --snapshot-p95-ms 1000 --first-frame-p95-ms 1500 --skip-build --json
+      - name: Build real cargo-dist installer fixture
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          curl --proto '=https' --tlsv1.2 -LsSf https://github.com/axodotdev/cargo-dist/releases/download/v0.32.0/cargo-dist-installer.sh | sh
+          mkdir -p target/distrib
+          dist build --allow-dirty --artifacts=local --target=aarch64-apple-darwin --output-format=json > "$RUNNER_TEMP/aarch64-apple-darwin-dist-manifest.json"
+          cp "$RUNNER_TEMP/aarch64-apple-darwin-dist-manifest.json" target/distrib/aarch64-apple-darwin-dist-manifest.json
+          dist build --allow-dirty --artifacts=global --output-format=json > "$RUNNER_TEMP/global-dist-manifest.json"
+          cp "$RUNNER_TEMP/global-dist-manifest.json" target/distrib/global-dist-manifest.json
+      - name: Verify real cargo-dist installer compatibility
+        if: runner.os == 'macOS'
+        env:
+          PHIG_REQUIRE_DIST_ARTIFACTS: "1"
+        run: cargo test --test installer --locked
+      - name: Binary smoke
+        run: |
+          ./target/release/phig version
+          ./target/release/phig version --json
+          ./target/release/phig completions bash >/dev/null
+          ./target/release/phig manpage >/dev/null
+      - name: Verify macOS deployment floor
+        if: runner.os == 'macOS'
+        run: |
+          otool -l ./target/release/phig | awk '/LC_BUILD_VERSION/{seen=1;next} seen && /minos/{print; exit}' | grep '12.0'

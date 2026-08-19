@@ -56,6 +56,8 @@ pub enum Command {
     Completions { shell: CompletionShell },
     /// Generate the phig manual page.
     Manpage(ManpageArgs),
+    /// Check for or explicitly install the latest release.
+    Update(UpdateArgs),
     /// Print version information.
     Version(VersionArgs),
 }
@@ -92,6 +94,13 @@ pub struct ManpageArgs {
     /// Write the root and every subcommand manpage to this directory.
     #[arg(long, value_name = "DIR")]
     pub output_dir: Option<PathBuf>,
+}
+
+#[derive(Debug, Clone, Args)]
+pub struct UpdateArgs {
+    /// Check for a newer stable release without installing it.
+    #[arg(long)]
+    pub check: bool,
 }
 
 #[derive(Debug, Clone, Args)]
@@ -226,6 +235,7 @@ pub struct Launch {
     pub paths: Vec<OsString>,
     pub compare_base: Option<String>,
     pub compare_head: String,
+    pub explicit_compare: bool,
     pub exact_compare: bool,
 }
 
@@ -241,6 +251,7 @@ impl Cli {
             paths,
             compare_base: None,
             compare_head: "HEAD".into(),
+            explicit_compare: false,
             exact_compare: false,
         };
         match self.command {
@@ -251,6 +262,7 @@ impl Cli {
                 let mut launch = defaults(StartView::Compare, args.head.clone(), args.paths);
                 launch.compare_base = args.base;
                 launch.compare_head = args.head;
+                launch.explicit_compare = true;
                 launch
             }
             Some(Command::Diff(args)) => {
@@ -271,6 +283,7 @@ impl Cli {
                 | Command::Select(_)
                 | Command::Completions { .. }
                 | Command::Manpage(_)
+                | Command::Update(_)
                 | Command::Version(_),
             ) => unreachable!("non-interactive commands do not create a launch"),
         }
@@ -297,6 +310,7 @@ mod tests {
             .unwrap()
             .launch();
         assert_eq!(compare.compare_base.as_deref(), Some("main"));
+        assert!(compare.explicit_compare);
         assert!(!compare.exact_compare);
         let diff = Cli::try_parse_from(["phig", "diff", "a", "b"])
             .unwrap()

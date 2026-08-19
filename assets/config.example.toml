@@ -6,7 +6,7 @@ alternate_screen = true
 mouse = false
 date = "relative" # relative, local, iso, unix
 color = "auto"    # auto, always, never
-clipboard = "off" # off, osc52 (press y to copy the current semantic selection)
+clipboard = "osc52" # osc52, off (press y to copy the current semantic selection)
 
 [diff]
 context = 3

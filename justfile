@@ -29,4 +29,12 @@ package:
 security:
     cargo deny check
 
-ci: check security
+release-check: check security
+    shellcheck install.sh scripts/*.sh
+    cargo build --release --locked
+    scripts/benchmark.sh "${TMPDIR:-/tmp}/phig-release-benchmark" 1000 --skip-build --json
+    dist generate --check
+    dist plan --allow-dirty
+    cargo package --locked --allow-dirty
+
+ci: release-check

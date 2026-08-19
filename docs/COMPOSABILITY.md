@@ -6,7 +6,8 @@ an agent runtime, a daemon, or a network service.
 ## Modes
 
 ```text
-phig [log] [REV] [-- PATH…]
+phig
+phig log [REV] [-- PATH…]
 phig show REV [-- PATH…]
 phig compare [BASE] [HEAD] [-- PATH…]
 phig diff LEFT RIGHT [-- PATH…]
@@ -19,10 +20,12 @@ phig select [TARGETING OPTIONS] --kind commit|ref|file|hunk|line|compare --forma
 phig snapshot [--format json] [--offset N] TARGET [TARGETING OPTIONS]
 phig completions SHELL
 phig manpage
+phig update [--check]
 phig version --json
 ```
 
-Bare `phig` is identical to `phig log`. UI and machine modes are explicit; phig
+Bare `phig` is identical to `phig log HEAD`; use `phig log [REV]` to browse a
+specific revision. UI and machine modes are explicit; phig
 never changes mode merely because stdout is redirected.
 
 ## Streams
@@ -34,6 +37,8 @@ never changes mode merely because stdout is redirected.
 | `snapshot` | unused | exactly one JSON object + LF | diagnostics |
 | `version --json` | unused | exactly one JSON object + LF | diagnostics |
 | completions/manpage | unused | generated document | diagnostics |
+| `update --check` | unused | one status line | diagnostics/network errors |
+| `update` | unused | installer/package-manager progress and final status | diagnostics/network errors |
 
 Machine modes never prompt, invoke a pager/editor, emit ANSI, perform network
 access, or execute repository-controlled helpers. A failure before output leaves
@@ -73,6 +78,7 @@ Git RPC API. Truncation and continuation information are explicit.
 | `3` | repository unavailable |
 | `4` | unsupported capability or context |
 | `5` | Git operation failed |
+| `6` | update check, package manager, download, or installer failed |
 | `70` | internal invariant failure |
 | `128+N` | terminated by signal where representable |
 
@@ -85,7 +91,7 @@ or close phig like any foreground terminal process.
 
 ## Stability
 
-The CLI, exit table, and `phig/1` envelope become stable at 1.0. During 0.x,
-breaking protocol changes are called out in the changelog and retain a migration
-note. Interactive layout is intentionally free to improve while semantic actions
-and documented default keys remain compatible.
+The CLI, exit table, semantic actions, and `phig/1` envelope are stable for the
+1.x series. Breaking automation changes require a new major CLI/protocol version.
+Interactive layout may improve while documented commands, semantic actions, and
+default-key behavior remain compatible.

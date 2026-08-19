@@ -18,6 +18,7 @@ use phig_cli::{
     git::{CancellationToken, GitClient, GitError},
     protocol::{self, Envelope, SnapshotError},
     tui::{self, RenderTheme, TuiError},
+    update::{self, UpdateError, UpdateResult},
 };
 use thiserror::Error;
 
@@ -37,6 +38,8 @@ enum MainError {
     Output(#[from] io::Error),
     #[error("serialization error: {0}")]
     Json(#[from] serde_json::Error),
+    #[error("update unavailable: {0}")]
+    Update(#[from] UpdateError),
 }
 
 enum Outcome {
@@ -67,6 +70,10 @@ fn run() -> Result<Outcome, MainError> {
         }
         Some(Command::Manpage(args)) => {
             write_manpages(args.output_dir.as_deref())?;
+            return Ok(Outcome::Success);
+        }
+        Some(Command::Update(args)) => {
+            run_update(args.check)?;
             return Ok(Outcome::Success);
         }
         Some(Command::Version(args)) => {
@@ -109,6 +116,21 @@ fn run() -> Result<Outcome, MainError> {
     }
     run_interactive(cli, loaded, client)?;
     Ok(Outcome::Success)
+}
+
+fn run_update(check_only: bool) -> Result<(), MainError> {
+    let message = match update::run(check_only)? {
+        UpdateResult::Current { current } => format!("phig {current} is current\n"),
+        UpdateResult::Available { current, latest } => {
+            format!("phig {latest} is available (current {current}); run `phig update`\n")
+        }
+        UpdateResult::Updated {
+            previous,
+            installed,
+            method,
+        } => format!("updated phig {previous} to {installed} with {method}\n"),
+    };
+    write_text(&message)
 }
 
 fn run_config_command(cli: &Cli, command: ConfigCommand) -> Result<Outcome, MainError> {
@@ -219,10 +241,10 @@ fn run_interactive(cli: Cli, loaded: LoadedConfig, client: GitClient) -> Result<
     };
     let mode = if launch.exact_compare {
         ComparisonMode::Exact
-    } else if view == View::Compare {
-        loaded.config.compare.mode()
-    } else {
+    } else if launch.explicit_compare {
         ComparisonMode::MergeBase
+    } else {
+        loaded.config.compare.mode()
     };
     let app = configured_app(
         &client,
@@ -430,6 +452,7 @@ fn exit_code(error: &MainError) -> u8 {
             u8::try_from(128_i32.saturating_add(*signal)).unwrap_or(255)
         }
         MainError::Tui(TuiError::Terminal(error)) if error.kind() == io::ErrorKind::NotFound => 4,
+        MainError::Update(_) => 6,
         MainError::Tui(_) | MainError::Output(_) | MainError::Json(_) => 70,
     }
 }

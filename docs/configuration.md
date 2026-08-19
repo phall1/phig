@@ -39,12 +39,15 @@ is the canonical complete example. Main sections are:
 
 - `[ui]`: contextual preview, alternate screen, mouse policy, date format,
   color policy, and clipboard policy. `color = "never"` strips colors and
-  modifiers; `NO_COLOR` does the same in `auto` mode. With `clipboard = "osc52"`, `y` copies the
-  current semantic OID or path through the controlling terminal; the default
-  `off` never emits clipboard control sequences.
+  modifiers; `NO_COLOR` does the same in `auto` mode. The zero-config default
+  `clipboard = "osc52"` makes `y` copy the current semantic OID or path through
+  the terminal. Set `clipboard = "off"` to emit no clipboard sequences; pressing
+  `y` then reports that copying is disabled instead of implying success.
 - `[diff]`: context lines, Git's `myers|minimal|patience|histogram` algorithm,
   and whitespace visibility/ignore policy.
-- `[compare]`: `merge-base` or `exact`, plus an optional preferred base.
+- `[compare]`: the default `merge-base` or `exact` mode for comparisons started
+  inside the TUI, plus an optional preferred base. Explicit `phig compare` is
+  always merge-base; explicit `phig diff` is always exact.
 - `[limits]`: bounded history pages, patch/blob bytes, and snapshot items.
 - `[theme]`: named ANSI colors for accent, muted text, additions, removals,
   warnings, errors, and selection foreground/background.
@@ -56,7 +59,9 @@ Key names accept one character or `enter`, `esc`, `tab`, `backtab`,
 `ctrl+`, `alt+`, or `shift+`. Every component is strict; unknown or duplicate
 modifiers are errors. Assignments are remaps, not aliases: remapping `help`
 disables `?`, and remapping `open` disables Enter until explicitly assigned.
-Phig rejects two overrides that claim the same key.
+Phig rejects two overrides that claim the same key. The documented semantic
+navigation and view actions—including `file-picker` and `redraw`—are remappable;
+internal overlay editing operations are intentionally not configuration keys.
 
 Configuration never enables Git mutation, repository-controlled helpers,
 network access, an embedded agent, or a daemon.

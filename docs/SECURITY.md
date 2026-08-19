@@ -24,9 +24,16 @@ helpers or inject terminal controls if implemented carelessly.
 ## Explicitly trusted actions
 
 Opening an editor or external command, enabling textconv/external diff, and
-running an update can execute software or use the network. These actions require
-an explicit command or configuration and are never triggered by merely opening a
-repository.
+running an update can execute software or use the network. Phig 1.0 does not
+implement the first two actions. `phig update --check` contacts GitHub only when
+invoked; `phig update` may execute `brew upgrade phig` or a versioned cargo-dist
+installer downloaded over constrained TLS into a private same-filesystem staging
+directory. Non-Homebrew updates require an exact version-tag match, verify the
+staged and replaced executable, sync where supported, and retain a rollback link
+until post-install verification. The automated path trusts GitHub's TLS-delivered
+installer; its embedded archive checksum is same-authority integrity, not an
+independent signature. Attestation verification is a separate documented user
+action. These actions are never triggered by opening a repository.
 
 ## Supported boundary
 

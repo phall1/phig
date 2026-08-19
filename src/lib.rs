@@ -13,3 +13,4 @@ pub mod protocol;
 pub mod runtime;
 pub mod sanitize;
 pub mod tui;
+pub mod update;
