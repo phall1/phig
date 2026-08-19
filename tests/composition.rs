@@ -220,10 +220,7 @@ fn version_completions_and_manpage_are_pipe_clean() {
         assert!(directory.path().join(page).is_file(), "missing {page}");
     }
     let binary = assert_cmd::cargo::cargo_bin!("phig");
-    let pipeline = format!(
-        "set -o pipefail; '{}' manpage | true",
-        binary.display()
-    );
+    let pipeline = format!("set -o pipefail; '{}' manpage | true", binary.display());
     let status = Command::new("bash")
         .args(["-c", &pipeline])
         .status()

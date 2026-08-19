@@ -22,10 +22,12 @@ standard-library harness builds the locked release binary, warms the determinist
 - source and fixture commits, source dirty state, platform, architecture, Git
   and Python versions, and sample counts.
 
-The command fails if warm snapshot p95 exceeds 500 ms, PTY first-useful-frame p95
-exceeds 1,000 ms, or the release binary exceeds 15 MiB. CI runs five samples of
-each timing path on macOS and Linux; `just release-check` runs the full 20/10 gate.
-The PTY metric is a real rendered history frame, not terminal setup alone.
+The local release command fails if warm snapshot p95 exceeds 500 ms, PTY
+first-useful-frame p95 exceeds 1,000 ms, or the release binary exceeds 15 MiB.
+Shared CI runners use a 1,000/1,500 ms regression envelope with five samples to
+absorb noisy virtualization and cold ephemeral disks; `just release-check` runs
+the stricter full 20/10 gate. The PTY metric is a real rendered history frame,
+not terminal setup alone.
 
 The harness captures each PTY phig process with `wait4`, normalizes Darwin bytes
 and Linux KiB to MiB, and reports the largest sample. It is still reported rather

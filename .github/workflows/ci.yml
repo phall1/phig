@@ -64,7 +64,7 @@ jobs:
       - name: Release build
         run: cargo build --release --locked
       - name: Performance regression gate
-        run: python3 scripts/benchmark.py --repository "$RUNNER_TEMP/phig-benchmark" --commits 1000 --snapshot-samples 5 --pty-samples 5 --skip-build --json
+        run: python3 scripts/benchmark.py --repository "$RUNNER_TEMP/phig-benchmark" --commits 1000 --snapshot-samples 5 --pty-samples 5 --snapshot-p95-ms 1000 --first-frame-p95-ms 1500 --skip-build --json
       - name: Build real cargo-dist installer fixture
         if: runner.os == 'macOS'
         shell: bash
