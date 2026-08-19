@@ -44,7 +44,6 @@ installed executable and product are `phig`.
 - `tui`: terminal lifecycle, event translation, layout, widgets, styles, help,
   and controlling-terminal selection rendering
 - `protocol`: stable JSON envelopes and byte-clean writers
-- `update`: installation detection and safe update guidance/execution
 
 TUI row numbers, split geometry, and cursor coordinates must not leak into the
 repository domain or protocol.
@@ -152,6 +151,6 @@ safe to rerun for updates. Release documentation explains independent
 `gh attestation verify` provenance verification; a checksum served by the same
 release authority is not described as a signature.
 
-Normal repository use performs no network access. `phig update` detects managed
-installs and reports or executes the appropriate Homebrew/installer path only
-when explicitly requested; it does not perform unauthenticated self-replacement.
+Normal repository use performs no network access. The release milestone owns
+installer-aware update behavior; the current CLI intentionally has no `update`
+command and never performs unauthenticated self-replacement.

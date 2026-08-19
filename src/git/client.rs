@@ -27,6 +27,9 @@ pub struct GitClient {
     runner: GitRunner,
     max_patch_bytes: usize,
     max_blob_bytes: usize,
+    diff_context: usize,
+    diff_algorithm: String,
+    diff_whitespace: String,
 }
 
 impl Default for GitClient {
@@ -35,6 +38,9 @@ impl Default for GitClient {
             runner: GitRunner::default(),
             max_patch_bytes: 16 * 1024 * 1024,
             max_blob_bytes: 8 * 1024 * 1024,
+            diff_context: 3,
+            diff_algorithm: "histogram".into(),
+            diff_whitespace: "show".into(),
         }
     }
 }
@@ -54,6 +60,18 @@ impl GitClient {
     pub fn with_content_limits(mut self, max_patch_bytes: usize, max_blob_bytes: usize) -> Self {
         self.max_patch_bytes = max_patch_bytes.max(1);
         self.max_blob_bytes = max_blob_bytes.max(1);
+        self
+    }
+
+    pub fn with_diff_options(
+        mut self,
+        context: usize,
+        algorithm: impl Into<String>,
+        whitespace: impl Into<String>,
+    ) -> Self {
+        self.diff_context = context.min(999);
+        self.diff_algorithm = algorithm.into();
+        self.diff_whitespace = whitespace.into();
         self
     }
 
@@ -275,8 +293,8 @@ impl GitClient {
                 OsString::from("--"),
             ];
             (
-                diff_args("diff", "--patch", &revisions),
-                diff_args("diff", "--raw", &revisions),
+                self.diff_args("diff", "--patch", &revisions),
+                self.diff_args("diff", "--raw", &revisions),
             )
         } else {
             let revision = [
@@ -285,8 +303,8 @@ impl GitClient {
                 OsString::from("--"),
             ];
             (
-                diff_tree_args("--patch", &revision),
-                diff_tree_args("--raw", &revision),
+                self.diff_tree_args("--patch", &revision),
+                self.diff_tree_args("--raw", &revision),
             )
         };
         append_paths(&mut patch_args, paths)?;
@@ -547,8 +565,8 @@ impl GitClient {
         }
         suffix.push(OsString::from("--"));
         suffix.push(path.to_os_string()?);
-        let patch_args = diff_args("diff", "--patch", &suffix);
-        let metadata_args = diff_args("diff", "--raw", &suffix);
+        let patch_args = self.diff_args("diff", "--patch", &suffix);
+        let metadata_args = self.diff_args("diff", "--raw", &suffix);
         self.load_diff(
             repository,
             "working-diff",
@@ -625,8 +643,8 @@ impl GitClient {
             OsString::from(resolved_head.to_string()),
             OsString::from("--"),
         ];
-        let mut patch_args = diff_args("diff", "--patch", &revisions);
-        let mut metadata_args = diff_args("diff", "--raw", &revisions);
+        let mut patch_args = self.diff_args("diff", "--patch", &revisions);
+        let mut metadata_args = self.diff_args("diff", "--raw", &revisions);
         append_paths(&mut patch_args, paths)?;
         append_paths(&mut metadata_args, paths)?;
         let diff = self.load_diff(
@@ -729,38 +747,48 @@ impl GitClient {
             message: error.to_string(),
         })
     }
-}
 
-fn diff_args(command: &str, output_mode: &str, revisions: &[OsString]) -> Vec<OsString> {
-    let mut args = vec![
-        OsString::from(command),
-        OsString::from("--no-ext-diff"),
-        OsString::from("--no-textconv"),
-        OsString::from("--color=never"),
-        OsString::from("--find-renames"),
-        OsString::from(output_mode),
-    ];
-    if output_mode == "--raw" {
-        args.push(OsString::from("-z"));
-    } else {
-        args.push(OsString::from("--unified=3"));
+    fn diff_args(&self, command: &str, output_mode: &str, revisions: &[OsString]) -> Vec<OsString> {
+        let mut args = vec![
+            OsString::from(command),
+            OsString::from("--no-ext-diff"),
+            OsString::from("--no-textconv"),
+            OsString::from("--color=never"),
+            OsString::from("--find-renames"),
+            OsString::from(output_mode),
+        ];
+        if output_mode == "--raw" {
+            args.push(OsString::from("-z"));
+        } else {
+            args.push(OsString::from(format!("--unified={}", self.diff_context)));
+            args.push(OsString::from(format!(
+                "--diff-algorithm={}",
+                self.diff_algorithm
+            )));
+            match self.diff_whitespace.as_str() {
+                "ignore-all" => args.push(OsString::from("--ignore-all-space")),
+                "ignore-space-change" => args.push(OsString::from("--ignore-space-change")),
+                "ignore-eol" => args.push(OsString::from("--ignore-space-at-eol")),
+                _ => {}
+            }
+        }
+        args.extend(revisions.iter().cloned());
+        args
     }
-    args.extend(revisions.iter().cloned());
-    args
-}
 
-fn diff_tree_args(output_mode: &str, revision: &[OsString]) -> Vec<OsString> {
-    let mut args = diff_args("diff-tree", output_mode, &[]);
-    args.splice(
-        1..1,
-        [
-            OsString::from("--root"),
-            OsString::from("--no-commit-id"),
-            OsString::from("-r"),
-        ],
-    );
-    args.extend(revision.iter().cloned());
-    args
+    fn diff_tree_args(&self, output_mode: &str, revision: &[OsString]) -> Vec<OsString> {
+        let mut args = self.diff_args("diff-tree", output_mode, &[]);
+        args.splice(
+            1..1,
+            [
+                OsString::from("--root"),
+                OsString::from("--no-commit-id"),
+                OsString::from("-r"),
+            ],
+        );
+        args.extend(revision.iter().cloned());
+        args
+    }
 }
 
 #[cfg(unix)]

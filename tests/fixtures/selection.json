@@ -1,0 +1,1 @@
+{"protocol":"phig/1","kind":"selection","payload":{"repository":{"display":"/repo","bytesBase64":"L3JlcG8="},"generation":{"algorithm":"sha1","hex":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},"kind":"commit","oid":{"algorithm":"sha1","hex":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"}}}

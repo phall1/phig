@@ -3,16 +3,21 @@ mod session;
 
 use std::{collections::HashMap, io, time::Duration};
 
-use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
+use crossterm::event::{
+    self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers, MouseEventKind,
+};
 use thiserror::Error;
 
 use crate::{
     app::{Action, App, Effect, Overlay, RequestKind, View},
+    cli::SelectionKind,
+    config::KeyBindings,
     git::GitClient,
+    protocol::{SelectionPayload, selection_from_app},
     runtime::{Coordinator, CoordinatorError, GitQuery, GitResult, RequestKey, Response},
 };
 
-pub use render::render;
+pub use render::{RenderTheme, render, set_color_mode, set_date_mode, set_theme};
 pub use session::TerminalSession;
 
 #[derive(Debug, Error)]
@@ -21,22 +26,87 @@ pub enum TuiError {
     Terminal(#[from] io::Error),
     #[error("Git worker error: {0}")]
     Coordinator(#[from] CoordinatorError),
+    #[error("selection requires a controlling terminal: {0}")]
+    NoControllingTerminal(String),
     #[error("terminated by signal {0}")]
     Terminated(i32),
 }
 
-pub fn run(mut app: App, client: GitClient, no_alt_screen: bool) -> Result<(), TuiError> {
-    // The documented global bound is 128. Cancelled preview generations are
-    // skipped by workers, so key-repeat bursts remain responsive without
-    // turning a full queue into a terminal-fatal error.
+#[derive(Debug, Clone, Copy)]
+struct TerminalOptions {
+    no_alt_screen: bool,
+    mouse: bool,
+    clipboard_osc52: bool,
+}
+
+pub fn run(app: App, client: GitClient, no_alt_screen: bool) -> Result<(), TuiError> {
+    run_configured(
+        app,
+        client,
+        no_alt_screen,
+        KeyBindings::default(),
+        false,
+        false,
+    )
+}
+
+pub fn run_configured(
+    app: App,
+    client: GitClient,
+    no_alt_screen: bool,
+    bindings: KeyBindings,
+    mouse: bool,
+    clipboard_osc52: bool,
+) -> Result<(), TuiError> {
+    let options = TerminalOptions {
+        no_alt_screen,
+        mouse,
+        clipboard_osc52,
+    };
+    let session = TerminalSession::enter_configured(no_alt_screen, mouse)?;
+    run_loop(app, client, bindings, None, options, session).map(|_| ())
+}
+
+pub fn run_select(
+    app: App,
+    client: GitClient,
+    no_alt_screen: bool,
+    bindings: KeyBindings,
+    kind: SelectionKind,
+    mouse: bool,
+    clipboard_osc52: bool,
+) -> Result<Option<SelectionPayload>, TuiError> {
+    let options = TerminalOptions {
+        no_alt_screen,
+        mouse,
+        clipboard_osc52,
+    };
+    let session =
+        TerminalSession::enter_controlling_tty(no_alt_screen, mouse).map_err(|error| {
+            if error.to_string().contains("controlling terminal") {
+                TuiError::NoControllingTerminal(error.to_string())
+            } else {
+                TuiError::Terminal(error)
+            }
+        })?;
+    run_loop(app, client, bindings, Some(kind), options, session)
+}
+
+fn run_loop(
+    mut app: App,
+    client: GitClient,
+    bindings: KeyBindings,
+    selection_kind: Option<SelectionKind>,
+    options: TerminalOptions,
+    mut session: TerminalSession,
+) -> Result<Option<SelectionPayload>, TuiError> {
     let coordinator = Coordinator::new(client, 2, 128);
     let mut pending = HashMap::new();
     #[cfg(unix)]
     let signals = SignalMonitor::new()?;
-    let mut session = TerminalSession::enter(no_alt_screen)?;
     let mut terminating_signal = None;
+    let mut selection = None;
     dispatch_effects(&coordinator, &app, app.initial_effects(), &mut pending)?;
-
     while !app.should_quit {
         #[cfg(unix)]
         while let Some(signal) = signals.try_recv() {
@@ -49,7 +119,14 @@ pub fn run(mut app: App, client: GitClient, no_alt_screen: bool) -> Result<(), T
                 SIGTSTP => {
                     session.restore()?;
                     signal_hook::low_level::emulate_default_handler(SIGTSTP)?;
-                    session = TerminalSession::enter(no_alt_screen)?;
+                    session = if selection_kind.is_some() {
+                        TerminalSession::enter_controlling_tty(
+                            options.no_alt_screen,
+                            options.mouse,
+                        )?
+                    } else {
+                        TerminalSession::enter_configured(options.no_alt_screen, options.mouse)?
+                    };
                     app.dirty = true;
                 }
                 _ => {}
@@ -59,14 +136,12 @@ pub fn run(mut app: App, client: GitClient, no_alt_screen: bool) -> Result<(), T
         while let Some(response) = coordinator.try_recv() {
             apply_response(&mut app, &coordinator, response, &mut pending)?;
         }
-
         if app.dirty {
             session
                 .terminal_mut()
                 .draw(|frame| render::render(frame, &app))?;
             app.dirty = false;
         }
-
         if event::poll(Duration::from_millis(50))? {
             match event::read()? {
                 Event::Key(key) if key.kind != KeyEventKind::Release => {
@@ -87,13 +162,34 @@ pub fn run(mut app: App, client: GitClient, no_alt_screen: bool) -> Result<(), T
                         app.should_quit = true;
                         continue;
                     }
-                    if handle_help_key(&mut app, &key) {
-                        continue;
+                    let action = bindings.resolve(key, key_action(&app, key));
+                    if let Some(kind) = selection_kind
+                        && matches!(app.overlay, Overlay::None)
+                    {
+                        if action == Some(Action::Open)
+                            && let Some(value) = selection_from_app(&app, kind)
+                        {
+                            selection = Some(value);
+                            app.should_quit = true;
+                            continue;
+                        }
+                        if matches!(action, Some(Action::Quit | Action::Back)) {
+                            app.should_quit = true;
+                            continue;
+                        }
                     }
-                    if let Some(action) = key_action(&app, key) {
+                    if let Some(action) = action {
+                        if action == Action::CopySelection {
+                            if options.clipboard_osc52
+                                && let Some(value) = app.copy_value()
+                            {
+                                session.copy_osc52(&value)?;
+                            }
+                            continue;
+                        }
                         let size = session.terminal_mut().size()?;
-                        let page_rows = render::page_rows(&app, size.width, size.height);
-                        let effects = app.update(action, page_rows);
+                        let rows = render::page_rows(&app, size.width, size.height);
+                        let effects = app.update(action, rows);
                         dispatch_effects(&coordinator, &app, effects, &mut pending)?;
                     }
                 }
@@ -103,23 +199,35 @@ pub fn run(mut app: App, client: GitClient, no_alt_screen: bool) -> Result<(), T
                         Overlay::Search { .. } | Overlay::Palette { .. }
                     ) {
                         let size = session.terminal_mut().size()?;
-                        let page_rows = render::page_rows(&app, size.width, size.height);
-                        let effects = apply_paste(&mut app, &value, page_rows);
+                        let rows = render::page_rows(&app, size.width, size.height);
+                        let effects = apply_paste(&mut app, &value, rows);
                         dispatch_effects(&coordinator, &app, effects, &mut pending)?;
                     }
                 }
-                Event::Resize(width, height) => app.resize(width, height),
-                Event::FocusGained | Event::FocusLost | Event::Mouse(_) => {}
+                Event::Mouse(event) => {
+                    let action = match event.kind {
+                        MouseEventKind::ScrollDown => Some(Action::Move(3)),
+                        MouseEventKind::ScrollUp => Some(Action::Move(-3)),
+                        _ => None,
+                    };
+                    if let Some(action) = action {
+                        let size = session.terminal_mut().size()?;
+                        let rows = render::page_rows(&app, size.width, size.height);
+                        let effects = app.update(action, rows);
+                        dispatch_effects(&coordinator, &app, effects, &mut pending)?;
+                    }
+                }
+                Event::Resize(w, h) => app.resize(w, h),
+                Event::FocusGained | Event::FocusLost => {}
                 _ => {}
             }
         }
     }
-
     session.restore()?;
     if let Some(signal) = terminating_signal {
         Err(TuiError::Terminated(signal))
     } else {
-        Ok(())
+        Ok(selection)
     }
 }
 
@@ -418,12 +526,13 @@ fn key_action(app: &App, key: KeyEvent) -> Option<Action> {
         KeyCode::BackTab if app.view == View::Detail => Some(Action::NextFile(-1)),
         KeyCode::Tab | KeyCode::BackTab => Some(Action::ToggleFocus),
         KeyCode::Char('p') => Some(Action::TogglePreview),
+        KeyCode::Char('y') => Some(Action::CopySelection),
         KeyCode::Char('P') if app.view == View::Detail => Some(Action::NextParent),
         KeyCode::Char(']') => Some(Action::NextHunk(1)),
         KeyCode::Char('[') => Some(Action::NextHunk(-1)),
         KeyCode::Char('}') => Some(Action::NextFile(1)),
         KeyCode::Char('{') => Some(Action::NextFile(-1)),
-        KeyCode::Char('?') => None,
+        KeyCode::Char('?') => Some(Action::ToggleHelp),
         _ => None,
     }
 }

@@ -1,5 +1,11 @@
+use std::sync::{
+    LazyLock, RwLock,
+    atomic::{AtomicI8, Ordering},
+};
+
 use ratatui::{
     Frame,
+    buffer::Buffer,
     layout::{Alignment, Constraint, Direction, Layout, Rect},
     style::{Color, Style},
     text::{Line, Span, Text},
@@ -12,8 +18,74 @@ use crate::{
     sanitize::sanitize_str,
 };
 
-const ACCENT: Color = Color::Cyan;
-const MUTED: Color = Color::DarkGray;
+#[derive(Debug, Clone)]
+pub struct RenderTheme {
+    pub accent: Color,
+    pub muted: Color,
+    pub added: Color,
+    pub removed: Color,
+    pub warning: Color,
+    pub error: Color,
+    pub selection_fg: Color,
+    pub selection_bg: Color,
+}
+impl Default for RenderTheme {
+    fn default() -> Self {
+        Self {
+            accent: Color::Cyan,
+            muted: Color::DarkGray,
+            added: Color::Green,
+            removed: Color::Red,
+            warning: Color::Yellow,
+            error: Color::Red,
+            selection_fg: Color::Black,
+            selection_bg: Color::Cyan,
+        }
+    }
+}
+static THEME: LazyLock<RwLock<RenderTheme>> = LazyLock::new(|| RwLock::new(RenderTheme::default()));
+static COLOR_MODE: AtomicI8 = AtomicI8::new(0);
+static DATE_MODE: LazyLock<RwLock<String>> = LazyLock::new(|| RwLock::new("relative".into()));
+pub fn set_date_mode(mode: &str) {
+    *DATE_MODE.write().expect("date mode lock") = mode.to_owned();
+}
+pub fn set_color_mode(mode: &str) {
+    COLOR_MODE.store(
+        match mode {
+            "never" => -1,
+            "always" => 1,
+            _ => 0,
+        },
+        Ordering::SeqCst,
+    );
+}
+pub fn set_theme(theme: RenderTheme) {
+    *THEME.write().expect("theme lock") = theme;
+}
+fn accent() -> Color {
+    THEME.read().expect("theme lock").accent
+}
+fn muted() -> Color {
+    THEME.read().expect("theme lock").muted
+}
+fn added() -> Color {
+    THEME.read().expect("theme lock").added
+}
+fn removed() -> Color {
+    THEME.read().expect("theme lock").removed
+}
+fn warning() -> Color {
+    THEME.read().expect("theme lock").warning
+}
+fn error_color() -> Color {
+    THEME.read().expect("theme lock").error
+}
+fn selection_fg() -> Color {
+    THEME.read().expect("theme lock").selection_fg
+}
+fn selection_bg() -> Color {
+    THEME.read().expect("theme lock").selection_bg
+}
 
 pub fn render(frame: &mut Frame<'_>, app: &App) {
     let area = frame.area();
@@ -51,12 +123,17 @@ pub fn render(frame: &mut Frame<'_>, app: &App) {
         Overlay::None => {}
     }
 
-    if std::env::var_os("NO_COLOR").is_some() {
-        let buffer = frame.buffer_mut();
-        for y in area.top()..area.bottom() {
-            for x in area.left()..area.right() {
-                buffer[(x, y)].set_fg(Color::Reset).set_bg(Color::Reset);
-            }
+    if COLOR_MODE.load(Ordering::SeqCst) < 0
+        || (COLOR_MODE.load(Ordering::SeqCst) == 0 && std::env::var_os("NO_COLOR").is_some())
+    {
+        reset_styles(frame.buffer_mut(), area);
+    }
+}
+
+fn reset_styles(buffer: &mut Buffer, area: Rect) {
+    for y in area.top()..area.bottom() {
+        for x in area.left()..area.right() {
+            buffer[(x, y)].set_style(Style::reset());
         }
     }
 }
@@ -85,16 +162,19 @@ fn render_header(frame: &mut Frame<'_>, app: &App, area: Rect) {
     let mut spans = vec![
         Span::styled(
             " phig ",
-            Style::default().fg(Color::Black).bg(ACCENT).bold(),
+            Style::default()
+                .fg(selection_fg())
+                .bg(selection_bg())
+                .bold(),
         ),
         Span::raw(" "),
         Span::styled(repository, Style::default().bold()),
-        Span::styled(format!("  {view}  "), Style::default().fg(ACCENT)),
+        Span::styled(format!("  {view}  "), Style::default().fg(accent())),
         Span::raw(app.revision_label.as_ref().map_or_else(
             || sanitize_str(&app.revision),
             |label| format!("{}@{}", sanitize_str(label), truncate(&app.revision, 10)),
         )),
-        Span::styled(format!("  {branch}"), Style::default().fg(MUTED)),
+        Span::styled(format!("  {branch}"), Style::default().fg(muted())),
     ];
     if let Some(marked) = &app.marked_oid {
         spans.push(Span::styled(
@@ -105,7 +185,7 @@ fn render_header(frame: &mut Frame<'_>, app: &App, area: Rect) {
     if app.inspect.compare_picker {
         spans.push(Span::styled(
             "  choose comparison base",
-            Style::default().fg(Color::Yellow).bold(),
+            Style::default().fg(warning()).bold(),
         ));
     }
     if !app.paths.is_empty() {
@@ -117,7 +197,7 @@ fn render_header(frame: &mut Frame<'_>, app: &App, area: Rect) {
             .join(",");
         spans.push(Span::styled(
             format!("  path:{paths}"),
-            Style::default().fg(MUTED),
+            Style::default().fg(muted()),
         ));
     }
     if app.view == View::Tree {
@@ -129,14 +209,11 @@ fn render_header(frame: &mut Frame<'_>, app: &App, area: Rect) {
                     .as_ref()
                     .map_or("", |path| path.display.as_str())
             ),
-            Style::default().fg(MUTED),
+            Style::default().fg(muted()),
         ));
     }
     if app.inspect.loading {
-        spans.push(Span::styled(
-            "  loading…",
-            Style::default().fg(Color::Yellow),
-        ));
+        spans.push(Span::styled("  loading…", Style::default().fg(warning())));
     }
     match (
         app.history_loading && matches!(app.view, View::Log | View::Detail),
@@ -148,22 +225,22 @@ fn render_header(frame: &mut Frame<'_>, app: &App, area: Rect) {
     ) {
         (true, true) => spans.push(Span::styled(
             "  loading history+detail…",
-            Style::default().fg(Color::Yellow),
+            Style::default().fg(warning()),
         )),
         (true, false) => spans.push(Span::styled(
             "  loading history…",
-            Style::default().fg(Color::Yellow),
+            Style::default().fg(warning()),
         )),
         (false, true) => spans.push(Span::styled(
             "  loading detail…",
-            Style::default().fg(Color::Yellow),
+            Style::default().fg(warning()),
         )),
         (false, false) => {}
     }
     if app.has_errors() {
         spans.push(Span::styled(
             "  request failed",
-            Style::default().fg(Color::Red).bold(),
+            Style::default().fg(error_color()).bold(),
         ));
     }
     frame.render_widget(Paragraph::new(Line::from(spans)), area);
@@ -239,7 +316,7 @@ fn render_history(frame: &mut Frame<'_>, app: &App, area: Rect) {
         frame.render_widget(
             Paragraph::new(message)
                 .alignment(Alignment::Center)
-                .style(Style::default().fg(MUTED)),
+                .style(Style::default().fg(muted())),
             area,
         );
         return;
@@ -264,7 +341,10 @@ fn render_history(frame: &mut Frame<'_>, app: &App, area: Rect) {
         .collect();
     let mut state = ListState::default().with_selected(Some(app.selected - start));
     let highlight = if app.focus == Focus::List {
-        Style::default().fg(Color::Black).bg(ACCENT).bold()
+        Style::default()
+            .fg(selection_fg())
+            .bg(selection_bg())
+            .bold()
     } else {
         Style::default().bg(Color::DarkGray)
     };
@@ -283,7 +363,7 @@ fn history_line(commit: &Commit, width: u16, graph: String, marked: bool) -> Lin
     } else {
         String::new()
     };
-    let age = relative_age(commit.author.timestamp);
+    let age = display_date(commit.author.timestamp, &commit.author.timezone);
     let decorations = if commit.decorations.is_empty() {
         String::new()
     } else {
@@ -294,12 +374,12 @@ fn history_line(commit: &Commit, width: u16, graph: String, marked: bool) -> Lin
             if marked { "◆ " } else { "  " },
             Style::default().fg(Color::Magenta).bold(),
         ),
-        Span::styled(graph, Style::default().fg(ACCENT)),
+        Span::styled(graph, Style::default().fg(accent())),
         Span::styled(
             commit.id.short(8).to_owned(),
-            Style::default().fg(Color::Yellow),
+            Style::default().fg(warning()),
         ),
-        Span::styled(format!(" {age:>4} "), Style::default().fg(MUTED)),
+        Span::styled(format!(" {age:>4} "), Style::default().fg(muted())),
     ];
     if !author.is_empty() {
         spans.push(Span::styled(
@@ -364,7 +444,7 @@ fn graph_prefixes(commits: &[Commit], end: usize, lane_limit: usize) -> Vec<Stri
 fn render_preview(frame: &mut Frame<'_>, app: &App, area: Rect) {
     if app.preview_loading && app.preview.is_none() {
         frame.render_widget(
-            Paragraph::new("Loading diff…").style(Style::default().fg(MUTED)),
+            Paragraph::new("Loading diff…").style(Style::default().fg(muted())),
             area,
         );
         return;
@@ -376,7 +456,7 @@ fn render_preview(frame: &mut Frame<'_>, app: &App, area: Rect) {
             "Select a commit to preview its diff"
         };
         frame.render_widget(
-            Paragraph::new(message).style(Style::default().fg(MUTED)),
+            Paragraph::new(message).style(Style::default().fg(muted())),
             area,
         );
         return;
@@ -452,9 +532,9 @@ fn detail_metadata(app: &App, height: usize) -> Vec<Line<'static>> {
         Line::from(vec![
             Span::styled(
                 detail.commit.id.short(12).to_owned(),
-                Style::default().fg(Color::Yellow),
+                Style::default().fg(warning()),
             ),
-            Span::styled(parent, Style::default().fg(MUTED)),
+            Span::styled(parent, Style::default().fg(muted())),
         ]),
         Line::from(Span::styled(
             sanitize_str(&detail.commit.subject),
@@ -466,7 +546,7 @@ fn detail_metadata(app: &App, height: usize) -> Vec<Line<'static>> {
                 sanitize_str(&detail.commit.author.name),
                 sanitize_str(&detail.commit.author.email)
             ),
-            Style::default().fg(MUTED),
+            Style::default().fg(muted()),
         )),
         Line::from(Span::styled(
             format!(
@@ -476,14 +556,14 @@ fn detail_metadata(app: &App, height: usize) -> Vec<Line<'static>> {
                     &detail.commit.author.timezone
                 )
             ),
-            Style::default().fg(MUTED),
+            Style::default().fg(muted()),
         )),
         Line::from(Span::styled(
             format!(
                 "Parents: {parents} · Files: {} (+{added} -{removed})",
                 detail.diff.files.len()
             ),
-            Style::default().fg(MUTED),
+            Style::default().fg(muted()),
         )),
     ];
     for body_line in detail
@@ -593,23 +673,23 @@ fn render_diff_value(frame: &mut Frame<'_>, diff: &Diff, scroll: usize, area: Re
     };
     frame.render_widget(Paragraph::new(lines).style(style), area);
     if diff.truncated && area.height > 0 {
-        let warning = Rect::new(area.x, area.bottom().saturating_sub(1), area.width, 1);
+        let warning_area = Rect::new(area.x, area.bottom().saturating_sub(1), area.width, 1);
         frame.render_widget(
             Paragraph::new("diff truncated at configured limit")
-                .style(Style::default().fg(Color::Yellow).bg(Color::Black)),
-            warning,
+                .style(Style::default().fg(warning()).bg(Color::Black)),
+            warning_area,
         );
     }
 }
 
 fn diff_line(line: &DiffLine) -> Line<'_> {
     let style = match line.kind {
-        DiffLineKind::Added => Style::default().fg(Color::Green),
-        DiffLineKind::Removed => Style::default().fg(Color::Red),
-        DiffLineKind::HunkHeader => Style::default().fg(ACCENT).bold(),
-        DiffLineKind::FileHeader => Style::default().fg(Color::Yellow).bold(),
+        DiffLineKind::Added => Style::default().fg(added()),
+        DiffLineKind::Removed => Style::default().fg(removed()),
+        DiffLineKind::HunkHeader => Style::default().fg(accent()).bold(),
+        DiffLineKind::FileHeader => Style::default().fg(warning()).bold(),
         DiffLineKind::Context => Style::default(),
-        DiffLineKind::Metadata => Style::default().fg(MUTED),
+        DiffLineKind::Metadata => Style::default().fg(muted()),
     };
     Line::styled(line.text.as_str(), style)
 }
@@ -633,7 +713,7 @@ fn render_string_list(
         frame.render_widget(
             Paragraph::new("Nothing to show")
                 .alignment(Alignment::Center)
-                .style(Style::default().fg(MUTED)),
+                .style(Style::default().fg(muted())),
             area,
         );
         return;
@@ -651,9 +731,12 @@ fn render_string_list(
         .collect::<Vec<_>>();
     let mut state = ListState::default().with_selected(Some(selected - start));
     frame.render_stateful_widget(
-        List::new(items)
-            .highlight_symbol("› ")
-            .highlight_style(Style::default().fg(Color::Black).bg(ACCENT).bold()),
+        List::new(items).highlight_symbol("› ").highlight_style(
+            Style::default()
+                .fg(selection_fg())
+                .bg(selection_bg())
+                .bold(),
+        ),
         area,
         &mut state,
     );
@@ -668,7 +751,7 @@ fn render_compare(frame: &mut Frame<'_>, app: &App, area: Rect) {
                 "Comparison unavailable"
             })
             .alignment(Alignment::Center)
-            .style(Style::default().fg(MUTED)),
+            .style(Style::default().fg(muted())),
             area,
         );
         return;
@@ -701,7 +784,7 @@ fn render_compare(frame: &mut Frame<'_>, app: &App, area: Rect) {
     };
     frame.render_widget(
         Paragraph::new(vec![
-            Line::styled(semantics, Style::default().fg(ACCENT).bold()),
+            Line::styled(semantics, Style::default().fg(accent()).bold()),
             Line::raw(format!(
                 "resolved inputs: {} → {}",
                 comparison.requested_base, comparison.requested_head
@@ -713,7 +796,7 @@ fn render_compare(frame: &mut Frame<'_>, app: &App, area: Rect) {
                     comparison.behind,
                     comparison.diff.files.len()
                 ),
-                Style::default().fg(MUTED),
+                Style::default().fg(muted()),
             ),
         ]),
         parts[0],
@@ -755,12 +838,12 @@ fn render_refs(frame: &mut Frame<'_>, app: &App, area: Rect) {
                 String::new()
             };
             Line::from(vec![
-                Span::styled(format!("{head} {kind:<7} "), Style::default().fg(MUTED)),
+                Span::styled(format!("{head} {kind:<7} "), Style::default().fg(muted())),
                 Span::styled(
                     reference.short_name.display().to_owned(),
-                    Style::default().fg(Color::Yellow),
+                    Style::default().fg(warning()),
                 ),
-                Span::styled(oid, Style::default().fg(MUTED)),
+                Span::styled(oid, Style::default().fg(muted())),
                 Span::styled(upstream, Style::default().fg(Color::Blue)),
                 Span::raw(subject),
             ])
@@ -796,7 +879,7 @@ fn render_status(frame: &mut Frame<'_>, app: &App, area: Rect) {
             Line::from(vec![
                 Span::styled(
                     format!("{:<9} ", status_group(entry)),
-                    Style::default().fg(MUTED),
+                    Style::default().fg(muted()),
                 ),
                 Span::styled(
                     format!(
@@ -804,7 +887,7 @@ fn render_status(frame: &mut Frame<'_>, app: &App, area: Rect) {
                         entry.index.porcelain_char(),
                         entry.worktree.porcelain_char()
                     ),
-                    Style::default().fg(Color::Yellow),
+                    Style::default().fg(warning()),
                 ),
                 Span::raw(entry.path.display.clone()),
             ])
@@ -821,7 +904,7 @@ fn render_status(frame: &mut Frame<'_>, app: &App, area: Rect) {
                 } else {
                     "unstaged diff"
                 })
-                .style(Style::default().fg(ACCENT).bold()),
+                .style(Style::default().fg(accent()).bold()),
                 parts[0],
             );
             render_diff_value(frame, diff, app.diff_scroll, parts[1], true);
@@ -838,7 +921,7 @@ fn render_status(frame: &mut Frame<'_>, app: &App, area: Rect) {
                 "Select a tracked change to preview"
             };
             frame.render_widget(
-                Paragraph::new(message).style(Style::default().fg(MUTED)),
+                Paragraph::new(message).style(Style::default().fg(muted())),
                 preview,
             );
         }
@@ -850,7 +933,7 @@ fn render_status_diff(frame: &mut Frame<'_>, app: &App, area: Rect) {
         frame.render_widget(
             Paragraph::new("Working diff unavailable")
                 .alignment(Alignment::Center)
-                .style(Style::default().fg(MUTED)),
+                .style(Style::default().fg(muted())),
             area,
         );
         return;
@@ -862,7 +945,7 @@ fn render_status_diff(frame: &mut Frame<'_>, app: &App, area: Rect) {
         } else {
             "unstaged working diff"
         })
-        .style(Style::default().fg(ACCENT).bold()),
+        .style(Style::default().fg(accent()).bold()),
         parts[0],
     );
     render_diff_value(frame, diff, app.diff_scroll, parts[1], true);
@@ -883,12 +966,12 @@ fn render_tree(frame: &mut Frame<'_>, app: &App, area: Rect) {
             Line::from(vec![
                 Span::styled(
                     format!("{icon} {} ", entry.mode),
-                    Style::default().fg(MUTED),
+                    Style::default().fg(muted()),
                 ),
                 Span::styled(
                     entry.path.display.clone(),
                     Style::default().fg(if entry.kind == TreeEntryKind::Tree {
-                        ACCENT
+                        accent()
                     } else {
                         Color::Reset
                     }),
@@ -897,7 +980,7 @@ fn render_tree(frame: &mut Frame<'_>, app: &App, area: Rect) {
                     entry
                         .size
                         .map_or(String::new(), |size| format!("  {size} B")),
-                    Style::default().fg(MUTED),
+                    Style::default().fg(muted()),
                 ),
             ])
         })
@@ -923,7 +1006,7 @@ fn render_blob(frame: &mut Frame<'_>, app: &App, area: Rect) {
                 }
             ))
             .alignment(Alignment::Center)
-            .style(Style::default().fg(MUTED)),
+            .style(Style::default().fg(muted())),
             area,
         );
     } else {
@@ -963,7 +1046,7 @@ fn render_blame(frame: &mut Frame<'_>, app: &App, area: Rect) {
             Line::from(vec![
                 Span::styled(
                     attribution,
-                    Style::default().fg(if repeated { MUTED } else { Color::Yellow }),
+                    Style::default().fg(if repeated { muted() } else { Color::Yellow }),
                 ),
                 Span::raw(line.content.clone()),
             ])
@@ -985,7 +1068,7 @@ fn render_stashes(frame: &mut Frame<'_>, app: &App, area: Rect) {
             Line::from(vec![
                 Span::styled(
                     format!("{} {} ", stash.selector, stash.id.short(8)),
-                    Style::default().fg(Color::Yellow),
+                    Style::default().fg(warning()),
                 ),
                 Span::raw(stash.subject.clone()),
             ])
@@ -998,6 +1081,44 @@ fn render_stashes(frame: &mut Frame<'_>, app: &App, area: Rect) {
 }
 
 fn render_footer(frame: &mut Frame<'_>, app: &App, area: Rect) {
+    if let Some(selection) = &app.selection_contract {
+        let contract = format!(
+            " SELECT {} · {} emit · {} cancel",
+            selection.target.label(),
+            selection.accept_key,
+            selection.cancel_keys
+        );
+        let full_navigation = match app.view {
+            View::Log | View::Refs | View::Blame | View::Stash | View::Status | View::Tree => {
+                " · j/k move · / search · p preview"
+            }
+            View::Detail | View::StatusDiff => " · j/k scroll · [/] hunk · Tab file",
+            View::Compare => " · j/k scroll · [/] hunk · x swap",
+            View::Blob => " · j/k scroll · / search",
+        };
+        let compact_navigation = match app.view {
+            View::Log | View::Refs | View::Blame | View::Stash | View::Status | View::Tree => {
+                " · j/k move"
+            }
+            View::Detail | View::Compare | View::StatusDiff | View::Blob => " · j/k scroll",
+        };
+        let navigation = if contract.chars().count() + full_navigation.chars().count()
+            <= usize::from(area.width)
+        {
+            full_navigation
+        } else {
+            compact_navigation
+        };
+        frame.render_widget(
+            Paragraph::new(Line::from(vec![
+                Span::styled(contract, Style::default().fg(accent()).bold()),
+                Span::styled(navigation, Style::default().fg(muted())),
+            ])),
+            area,
+        );
+        return;
+    }
+
     let position = match app.view {
         View::Log => {
             if app.commits.is_empty() {
@@ -1051,10 +1172,10 @@ fn render_footer(frame: &mut Frame<'_>, app: &App, area: Rect) {
         Paragraph::new(Line::from(vec![
             Span::styled(
                 format!(" {position} "),
-                Style::default().fg(Color::Black).bg(MUTED),
+                Style::default().fg(Color::Black).bg(muted()),
             ),
             Span::raw(" "),
-            Span::styled(keys, Style::default().fg(MUTED)),
+            Span::styled(keys, Style::default().fg(muted())),
             Span::styled(
                 app.marked_oid
                     .as_ref()
@@ -1086,7 +1207,7 @@ fn render_help(frame: &mut Frame<'_>, app: &App, area: Rect) {
         View::Stash => "Stash: Enter opens the selected stash patch",
     };
     let text = Text::from(vec![
-        Line::styled("phig keys", Style::default().fg(ACCENT).bold()),
+        Line::styled("phig keys", Style::default().fg(accent()).bold()),
         Line::raw(""),
         Line::raw("j/k or ↑/↓       move / scroll"),
         Line::raw("Ctrl-d/u PgDn/Up page"),
@@ -1100,7 +1221,7 @@ fn render_help(frame: &mut Frame<'_>, app: &App, area: Rect) {
         Line::raw("Tab · p · P       section/file · preview · parent"),
         Line::raw("Ctrl-l            redraw"),
         Line::raw(""),
-        Line::styled(context, Style::default().fg(MUTED)),
+        Line::styled(context, Style::default().fg(muted())),
         Line::raw("Esc closes this help"),
     ]);
     frame.render_widget(
@@ -1109,7 +1230,7 @@ fn render_help(frame: &mut Frame<'_>, app: &App, area: Rect) {
                 Block::default()
                     .borders(Borders::ALL)
                     .title(" Help ")
-                    .border_style(Style::default().fg(ACCENT)),
+                    .border_style(Style::default().fg(accent())),
             )
             .wrap(Wrap { trim: false }),
         popup,
@@ -1121,9 +1242,9 @@ fn render_search(frame: &mut Frame<'_>, draft: &str, body: Rect) {
     frame.render_widget(Clear, area);
     frame.render_widget(
         Paragraph::new(Line::from(vec![
-            Span::styled("/", Style::default().fg(ACCENT).bold()),
+            Span::styled("/", Style::default().fg(accent()).bold()),
             Span::raw(draft.to_owned()),
-            Span::styled("  Enter accept · Esc cancel", Style::default().fg(MUTED)),
+            Span::styled("  Enter accept · Esc cancel", Style::default().fg(muted())),
         ]))
         .style(Style::default().bg(Color::Black)),
         area,
@@ -1148,7 +1269,7 @@ fn render_palette(frame: &mut Frame<'_>, draft: &str, selected: usize, area: Rec
         }));
     frame.render_widget(
         Paragraph::new(Line::from(vec![
-            Span::styled(":", Style::default().fg(ACCENT).bold()),
+            Span::styled(":", Style::default().fg(accent()).bold()),
             Span::raw(draft.to_owned()),
         ])),
         inner[0],
@@ -1170,9 +1291,12 @@ fn render_palette(frame: &mut Frame<'_>, draft: &str, selected: usize, area: Rec
     let mut state = ListState::default()
         .with_selected((!commands.is_empty()).then_some(selected.saturating_sub(start)));
     frame.render_stateful_widget(
-        List::new(items)
-            .highlight_symbol("› ")
-            .highlight_style(Style::default().fg(Color::Black).bg(ACCENT).bold()),
+        List::new(items).highlight_symbol("› ").highlight_style(
+            Style::default()
+                .fg(selection_fg())
+                .bg(selection_bg())
+                .bold(),
+        ),
         inner[1],
         &mut state,
     );
@@ -1180,7 +1304,7 @@ fn render_palette(frame: &mut Frame<'_>, draft: &str, selected: usize, area: Rec
         Block::default()
             .borders(Borders::ALL)
             .title(" Commands · type to filter · Enter run · Esc close ")
-            .border_style(Style::default().fg(ACCENT)),
+            .border_style(Style::default().fg(accent())),
         popup,
     );
 }
@@ -1194,7 +1318,7 @@ fn render_errors(frame: &mut Frame<'_>, app: &App, area: Rect) {
     for failure in &failures {
         lines.push(Line::styled(
             format!("Failed to {}", failure.operation),
-            Style::default().fg(Color::Red).bold(),
+            Style::default().fg(error_color()).bold(),
         ));
         lines.push(Line::raw(failure.detail.clone()));
     }
@@ -1208,7 +1332,7 @@ fn render_errors(frame: &mut Frame<'_>, app: &App, area: Rect) {
     let block = Block::default()
         .borders(Borders::ALL)
         .title(" Request error ")
-        .border_style(Style::default().fg(Color::Red));
+        .border_style(Style::default().fg(error_color()));
     let inner = block.inner(popup);
     frame.render_widget(block, popup);
     let sections = Layout::default()
@@ -1228,7 +1352,7 @@ fn render_errors(frame: &mut Frame<'_>, app: &App, area: Rect) {
         "r retry failed request(s) · Esc dismiss"
     };
     frame.render_widget(
-        Paragraph::new(recovery).style(Style::default().fg(Color::Yellow)),
+        Paragraph::new(recovery).style(Style::default().fg(warning())),
         sections[1],
     );
 }
@@ -1251,6 +1375,15 @@ fn truncate(value: &str, width: usize) -> String {
     let mut output: String = value.chars().take(width.saturating_sub(1)).collect();
     output.push('…');
     output
+}
+
+fn display_date(timestamp: i64, timezone: &str) -> String {
+    match DATE_MODE.read().expect("date mode lock").as_str() {
+        "unix" => timestamp.to_string(),
+        "iso" => format_commit_date(timestamp, "+00:00"),
+        "local" => format_commit_date(timestamp, timezone),
+        _ => relative_age(timestamp),
+    }
 }
 
 fn relative_age(timestamp: i64) -> String {
@@ -1280,6 +1413,7 @@ mod tests {
     use base64::{Engine as _, engine::general_purpose::STANDARD};
     use ratatui::{Terminal, backend::TestBackend};
 
+    use crate::app::{SelectionContract, SelectionTarget};
     use crate::domain::{
         BlameLine, Blob, Commit, CommitDetail, Comparison, ComparisonMode, Diff, DiffFile,
         DiffLine, DiffLineKind, GitPath, HistoryPage, ObjectFormat, Oid, RefInfo, RefKind, RefName,
@@ -1398,6 +1532,44 @@ mod tests {
         assert!(output.contains("make history pleasant"));
         assert!(!output.contains("diff --git"));
         assert!(output.contains("j/k move"));
+    }
+
+    #[test]
+    fn selection_footer_is_explicit_and_adapts_to_narrow_and_normal_widths() {
+        let mut app = sample_app();
+        app.view = View::Detail;
+        app.selection_contract = Some(SelectionContract::default_keys(SelectionTarget::Hunk));
+        let narrow = screen(60, 16, &app);
+        let narrow_footer = narrow.lines().nth(15).unwrap();
+        assert!(
+            narrow_footer.contains("SELECT HUNK · Enter emit · Esc/q cancel"),
+            "selection contract was clipped at 60 columns: {narrow_footer}"
+        );
+        assert!(narrow_footer.contains("j/k scroll"));
+        assert!(!narrow_footer.contains("q back"));
+
+        for (target, view) in [
+            (SelectionTarget::Commit, View::Log),
+            (SelectionTarget::Ref, View::Refs),
+            (SelectionTarget::File, View::Detail),
+            (SelectionTarget::Hunk, View::Detail),
+            (SelectionTarget::Line, View::Blame),
+            (SelectionTarget::Compare, View::Compare),
+        ] {
+            app.selection_contract = Some(SelectionContract::default_keys(target));
+            app.view = view;
+            let normal = screen(80, 16, &app);
+            let footer = normal.lines().nth(15).unwrap();
+            let expected = format!("SELECT {} · Enter emit · Esc/q cancel", target.label());
+            assert!(
+                footer.contains(&expected),
+                "missing {target:?} selection contract: {footer}"
+            );
+            assert!(
+                footer.contains("j/k"),
+                "selection footer lost context navigation: {footer}"
+            );
+        }
     }
 
     #[test]
@@ -1667,6 +1839,23 @@ mod tests {
         let output = screen(80, 20, &app);
         assert!(output.contains("select a file path first"));
         assert!(output.contains("select a file path, then press b"));
+    }
+
+    #[test]
+    fn no_color_resets_modifiers_as_well_as_colors() {
+        use ratatui::style::Modifier;
+        let mut buffer = Buffer::empty(Rect::new(0, 0, 1, 1));
+        buffer[(0, 0)].set_style(
+            Style::default()
+                .fg(Color::Red)
+                .bg(Color::Blue)
+                .add_modifier(Modifier::BOLD | Modifier::UNDERLINED),
+        );
+        reset_styles(&mut buffer, Rect::new(0, 0, 1, 1));
+        let cell = &buffer[(0, 0)];
+        assert_eq!(cell.fg, Color::Reset);
+        assert_eq!(cell.bg, Color::Reset);
+        assert!(cell.modifier.is_empty());
     }
 
     #[test]

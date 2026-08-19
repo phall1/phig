@@ -15,11 +15,10 @@ phig status
 phig tree [REV] [-- PATH]
 phig blame [REV] -- PATH
 phig stash
-phig select [TARGETING OPTIONS] --kind commit|ref|file|hunk --format oid|json
-phig snapshot [TARGETING OPTIONS] --format json
+phig select [TARGETING OPTIONS] --kind commit|ref|file|hunk|line|compare --format oid|json
+phig snapshot [--format json] [--offset N] TARGET [TARGETING OPTIONS]
 phig completions SHELL
 phig manpage
-phig update [--check]
 phig version --json
 ```
 
@@ -53,7 +52,8 @@ diagnostics on stderr are human-readable unless a command explicitly adds an
 ```
 
 Consumers must ignore unknown fields. Breaking changes use a new protocol
-identifier. Serialization is compact UTF-8 with stable field names. Raw paths
+identifier. The checked-in schema is `docs/schema/phig-1.schema.json`.
+Serialization is compact UTF-8 with stable field names. Raw paths
 that are not UTF-8 include an explicit encoded representation.
 
 Selection payloads contain the repository root, repository generation when
@@ -73,7 +73,6 @@ Git RPC API. Truncation and continuation information are explicit.
 | `3` | repository unavailable |
 | `4` | unsupported capability or context |
 | `5` | Git operation failed |
-| `6` | update unavailable or failed |
 | `70` | internal invariant failure |
 | `128+N` | terminated by signal where representable |
 

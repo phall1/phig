@@ -1,0 +1,239 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/phall1/phig/blob/main/docs/schema/phig-1.schema.json",
+  "title": "phig/1 process envelopes",
+  "oneOf": [
+    { "$ref": "#/$defs/versionEnvelope" },
+    { "$ref": "#/$defs/snapshotEnvelope" },
+    { "$ref": "#/$defs/selectionEnvelope" }
+  ],
+  "$defs": {
+    "sha1Oid": {
+      "type": "object",
+      "required": ["algorithm", "hex"],
+      "properties": {
+        "algorithm": { "const": "sha1" },
+        "hex": { "type": "string", "pattern": "^[0-9a-f]{40}$" }
+      },
+      "additionalProperties": true
+    },
+    "sha256Oid": {
+      "type": "object",
+      "required": ["algorithm", "hex"],
+      "properties": {
+        "algorithm": { "const": "sha256" },
+        "hex": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+      },
+      "additionalProperties": true
+    },
+    "unknownOid": {
+      "type": "object",
+      "required": ["algorithm", "hex"],
+      "properties": {
+        "algorithm": { "const": "unknown" },
+        "hex": { "type": "string", "pattern": "^(?:[0-9a-f]{2}){2,64}$" }
+      },
+      "additionalProperties": true
+    },
+    "oid": {
+      "oneOf": [
+        { "$ref": "#/$defs/sha1Oid" },
+        { "$ref": "#/$defs/sha256Oid" },
+        { "$ref": "#/$defs/unknownOid" }
+      ]
+    },
+    "nullableOid": {
+      "oneOf": [{ "$ref": "#/$defs/oid" }, { "type": "null" }]
+    },
+    "path": {
+      "type": "object",
+      "required": ["bytesBase64", "display"],
+      "properties": {
+        "bytesBase64": { "type": "string", "contentEncoding": "base64" },
+        "display": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "snapshotRepository": {
+      "type": "object",
+      "required": ["root", "generation", "objectFormat"],
+      "properties": {
+        "root": { "$ref": "#/$defs/path" },
+        "generation": { "$ref": "#/$defs/nullableOid" },
+        "objectFormat": { "enum": ["sha1", "sha256", "unknown"] }
+      },
+      "additionalProperties": true
+    },
+    "envelopeBase": {
+      "type": "object",
+      "required": ["protocol", "kind", "payload"],
+      "properties": { "protocol": { "const": "phig/1" } },
+      "additionalProperties": true
+    },
+    "versionEnvelope": {
+      "allOf": [
+        { "$ref": "#/$defs/envelopeBase" },
+        {
+          "properties": {
+            "kind": { "const": "version" },
+            "payload": {
+              "type": "object",
+              "required": ["version", "gitMinimum"],
+              "properties": {
+                "version": { "type": "string" },
+                "gitMinimum": { "type": "string" }
+              },
+              "additionalProperties": true
+            }
+          }
+        }
+      ]
+    },
+    "snapshotEnvelope": {
+      "allOf": [
+        { "$ref": "#/$defs/envelopeBase" },
+        {
+          "properties": {
+            "kind": { "const": "snapshot" },
+            "payload": {
+              "type": "object",
+              "required": ["repository", "target", "request", "offset", "data", "truncated", "continuation"],
+              "properties": {
+                "repository": { "$ref": "#/$defs/snapshotRepository" },
+                "target": { "enum": ["log", "show", "compare", "diff", "refs", "status", "tree", "blame", "stash"] },
+                "request": { "type": "object" },
+                "offset": { "type": "integer", "minimum": 0 },
+                "data": {},
+                "truncated": { "type": "boolean" },
+                "continuation": {
+                  "oneOf": [
+                    { "type": "integer", "minimum": 0 },
+                    { "type": "null" }
+                  ]
+                }
+              },
+              "additionalProperties": true
+            }
+          }
+        }
+      ]
+    },
+    "selectionCommon": {
+      "type": "object",
+      "required": ["repository", "generation", "kind"],
+      "properties": {
+        "repository": { "$ref": "#/$defs/path" },
+        "generation": { "$ref": "#/$defs/nullableOid" },
+        "oid": { "$ref": "#/$defs/oid" },
+        "parent": { "$ref": "#/$defs/oid" },
+        "path": { "$ref": "#/$defs/path" },
+        "reference": { "$ref": "#/$defs/path" },
+        "oldPath": { "$ref": "#/$defs/path" },
+        "sourcePath": { "$ref": "#/$defs/path" }
+      },
+      "additionalProperties": true
+    },
+    "commitSelection": {
+      "allOf": [
+        { "$ref": "#/$defs/selectionCommon" },
+        { "required": ["oid"], "properties": { "kind": { "const": "commit" } } }
+      ]
+    },
+    "refSelection": {
+      "allOf": [
+        { "$ref": "#/$defs/selectionCommon" },
+        { "required": ["oid", "reference"], "properties": { "kind": { "const": "ref" } } }
+      ]
+    },
+    "fileSelection": {
+      "allOf": [
+        { "$ref": "#/$defs/selectionCommon" },
+        { "required": ["oid", "path"], "properties": { "kind": { "const": "file" } } }
+      ]
+    },
+    "hunkSelection": {
+      "allOf": [
+        { "$ref": "#/$defs/selectionCommon" },
+        {
+          "required": ["oid", "path", "hunk"],
+          "properties": {
+            "kind": { "const": "hunk" },
+            "hunk": {
+              "type": "object",
+              "required": ["oldStart", "oldLines", "newStart", "newLines"],
+              "properties": {
+                "oldStart": { "type": "integer", "minimum": 0 },
+                "oldLines": { "type": "integer", "minimum": 0 },
+                "newStart": { "type": "integer", "minimum": 0 },
+                "newLines": { "type": "integer", "minimum": 0 }
+              },
+              "additionalProperties": true
+            }
+          }
+        }
+      ]
+    },
+    "lineSelection": {
+      "allOf": [
+        { "$ref": "#/$defs/selectionCommon" },
+        {
+          "required": ["oid", "path", "line"],
+          "properties": {
+            "kind": { "const": "line" },
+            "line": {
+              "type": "object",
+              "required": ["number", "originalNumber"],
+              "properties": {
+                "number": { "type": "integer", "minimum": 1 },
+                "originalNumber": { "type": "integer", "minimum": 1 }
+              },
+              "additionalProperties": true
+            }
+          }
+        }
+      ]
+    },
+    "compareSelection": {
+      "allOf": [
+        { "$ref": "#/$defs/selectionCommon" },
+        {
+          "required": ["oid", "compare"],
+          "properties": {
+            "kind": { "const": "compare" },
+            "compare": {
+              "type": "object",
+              "required": ["mode", "base", "head", "mergeBase"],
+              "properties": {
+                "mode": { "enum": ["exact", "merge-base"] },
+                "base": { "$ref": "#/$defs/oid" },
+                "head": { "$ref": "#/$defs/oid" },
+                "mergeBase": { "$ref": "#/$defs/nullableOid" }
+              },
+              "additionalProperties": true
+            }
+          }
+        }
+      ]
+    },
+    "selectionEnvelope": {
+      "allOf": [
+        { "$ref": "#/$defs/envelopeBase" },
+        {
+          "properties": {
+            "kind": { "const": "selection" },
+            "payload": {
+              "oneOf": [
+                { "$ref": "#/$defs/commitSelection" },
+                { "$ref": "#/$defs/refSelection" },
+                { "$ref": "#/$defs/fileSelection" },
+                { "$ref": "#/$defs/hunkSelection" },
+                { "$ref": "#/$defs/lineSelection" },
+                { "$ref": "#/$defs/compareSelection" }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,1 @@
+{"protocol":"phig/1","kind":"snapshot","payload":{"repository":{"root":{"display":"/repo","bytesBase64":"L3JlcG8="},"generation":null,"objectFormat":"sha1"},"target":"refs","request":{},"offset":0,"data":[],"truncated":false,"continuation":null}}

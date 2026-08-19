@@ -50,6 +50,7 @@ phig status                  # inspect working-tree and index changes
 phig tree HEAD               # browse a revision's files
 phig blame HEAD -- src/lib.rs
 phig stash                   # inspect stashes without applying them
+phig snapshot status | jq .  # bounded, deterministic phig/1 JSON
 ```
 
 The default navigation is intentionally familiar: `j/k`, arrows, `Enter`,
@@ -60,11 +61,13 @@ The default navigation is intentionally familiar: `j/k`, arrows, `Enter`,
 ```sh
 selection="$(phig select --kind hunk --format json)"
 printf '%s\n' "$selection" | jq .
+phig --no-alt-screen refs    # conventional phux/tmux scrollback
 ```
 
 The selection UI uses the controlling terminal while stdout contains only the
 result. Normal browsing never contacts the network and does not require an
-agent runtime.
+agent runtime. See the [machine-mode and exit-status reference](docs/reference.md)
+and the checked-in [`phig/1` schema](docs/schema/phig-1.schema.json).
 
 ## Design
 

@@ -119,6 +119,6 @@ dependency policy checks, a release dry run, and fresh-context review.
 
 A user unfamiliar with the project can install phig in one command, enter a Git
 repository, browse commits, understand and inspect a diff, compare their branch
-to its base, discover the keymap, emit a selection for another command, update
-the installation, and recover their terminal after every exit path without
-reading source or writing configuration.
+to its base, discover the keymap, emit a selection for another command, and
+recover their terminal after every exit path without reading source or writing
+configuration. The separate release milestone adds installer-aware updates.

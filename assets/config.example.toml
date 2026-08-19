@@ -1,0 +1,40 @@
+version = 1
+
+[ui]
+preview = true
+alternate_screen = true
+mouse = false
+date = "relative" # relative, local, iso, unix
+color = "auto"    # auto, always, never
+clipboard = "off" # off, osc52 (press y to copy the current semantic selection)
+
+[diff]
+context = 3
+algorithm = "histogram"
+whitespace = "show"
+
+[compare]
+mode = "merge-base"
+# preferred_base = "main"
+
+[limits]
+history_page = 256
+patch_bytes = 16777216
+blob_bytes = 8388608
+snapshot_items = 256
+
+[theme]
+accent = "cyan"
+muted = "dark-gray"
+added = "green"
+removed = "red"
+warning = "yellow"
+error = "red"
+selection_fg = "black"
+selection_bg = "cyan"
+
+# Keys name semantic actions, so remaps survive layout changes.
+# [keys]
+# open = "enter"
+# quit = "q"
+# view-refs = "r"

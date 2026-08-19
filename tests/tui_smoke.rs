@@ -309,7 +309,7 @@ fn real_pty_exercises_navigation_overlays_resize_and_cleanup() {
         "commit diff was not rendered"
     );
     assert!(
-        screen.contains("phig keys"),
+        screen.contains("Help") && screen.contains("keys"),
         "help overlay was not rendered"
     );
     assert!(screen.contains("\u{1b}[?25h"), "cursor was not restored");

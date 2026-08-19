@@ -25,7 +25,6 @@ clap_mangen = "0.3.3"
 command-group = "5.0.1"
 crossbeam-channel = "0.5.16"
 crossterm = "0.29.0"
-directories = "6.0.0"
 memchr = "2.8.3"
 ratatui = { version = "0.30.2", default-features = false, features = ["crossterm"] }
 serde = { version = "1.0.229", features = ["derive"] }
@@ -38,6 +37,7 @@ unicode-width = "0.2.2"
 [dev-dependencies]
 assert_cmd = "2.2.2"
 insta = { version = "1.48.0", features = ["json"] }
+jsonschema = { version = "0.30.0", default-features = false }
 predicates = "3.1.4"
 portable-pty = "0.9.0"
 tempfile = "3.27.0"

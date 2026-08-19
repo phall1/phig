@@ -87,6 +87,7 @@ pub enum Action {
     ToggleCompareMode,
     ToggleStatusDiff,
     Ascend,
+    CopySelection,
     Redraw,
 }
 
@@ -141,6 +142,51 @@ pub struct PaletteCommand {
     pub action: Action,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SelectionTarget {
+    Commit,
+    Ref,
+    File,
+    Hunk,
+    Line,
+    Compare,
+}
+
+impl SelectionTarget {
+    pub const fn label(self) -> &'static str {
+        match self {
+            Self::Commit => "COMMIT",
+            Self::Ref => "REF",
+            Self::File => "FILE",
+            Self::Hunk => "HUNK",
+            Self::Line => "LINE",
+            Self::Compare => "COMPARE",
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SelectionContract {
+    pub target: SelectionTarget,
+    pub accept_key: String,
+    pub cancel_keys: String,
+}
+
+impl SelectionContract {
+    pub fn new(target: SelectionTarget, accept_key: String, cancel_keys: String) -> Self {
+        Self {
+            target,
+            accept_key,
+            cancel_keys,
+        }
+    }
+
+    #[cfg(test)]
+    pub fn default_keys(target: SelectionTarget) -> Self {
+        Self::new(target, "Enter".into(), "Esc/q".into())
+    }
+}
+
 #[derive(Debug)]
 pub struct App {
     pub repository: Repository,
@@ -158,6 +204,7 @@ pub struct App {
     pub history_loading: bool,
     pub preview_loading: bool,
     pub has_more: bool,
+    pub history_page_size: usize,
     pub show_preview: bool,
     pub diff_scroll: usize,
     pub parent_index: usize,
@@ -170,6 +217,7 @@ pub struct App {
     pub inspect: InspectState,
     pub view_stack: Vec<View>,
     pub marked_oid: Option<Oid>,
+    pub selection_contract: Option<SelectionContract>,
     pub should_quit: bool,
     pub dirty: bool,
 }
@@ -201,6 +249,7 @@ impl App {
             history_loading: true,
             preview_loading: start_in_detail,
             has_more: true,
+            history_page_size: PAGE_SIZE,
             show_preview: true,
             diff_scroll: 0,
             parent_index: 0,
@@ -212,9 +261,14 @@ impl App {
             inspect: InspectState::new(),
             view_stack: Vec::new(),
             marked_oid: None,
+            selection_contract: None,
             should_quit: false,
             dirty: true,
         }
+    }
+
+    pub fn set_history_page_size(&mut self, size: usize) {
+        self.history_page_size = size.clamp(1, 4096);
     }
 
     pub fn set_start_view(
@@ -237,12 +291,12 @@ impl App {
         match self.view {
             View::Log => vec![Effect::LoadHistory {
                 offset: 0,
-                limit: PAGE_SIZE,
+                limit: self.history_page_size,
             }],
             View::Detail => vec![
                 Effect::LoadHistory {
                     offset: 0,
-                    limit: PAGE_SIZE,
+                    limit: self.history_page_size,
                 },
                 Effect::LoadPreview {
                     revision: self.revision.clone(),
@@ -316,7 +370,7 @@ impl App {
                     self.history_loading = true;
                     vec![Effect::LoadHistory {
                         offset: 0,
-                        limit: PAGE_SIZE,
+                        limit: self.history_page_size,
                     }]
                 } else {
                     Vec::new()
@@ -440,7 +494,7 @@ impl App {
                 }]
             }
             Action::Ascend => self.ascend_tree(),
-            Action::Redraw => Vec::new(),
+            Action::CopySelection | Action::Redraw => Vec::new(),
             Action::SearchInput(_)
             | Action::SearchBackspace
             | Action::AcceptSearch
@@ -772,7 +826,7 @@ impl App {
                 } else {
                     self.commits.len()
                 },
-                limit: PAGE_SIZE,
+                limit: self.history_page_size,
             });
         }
         if self.preview_error.take().is_some() {
@@ -799,7 +853,7 @@ impl App {
             self.history_error = None;
             vec![Effect::LoadHistory {
                 offset: self.commits.len(),
-                limit: PAGE_SIZE,
+                limit: self.history_page_size,
             }]
         } else {
             Vec::new()
@@ -837,7 +891,7 @@ impl App {
                 if self.commits.is_empty() {
                     vec![Effect::LoadHistory {
                         offset: 0,
-                        limit: PAGE_SIZE,
+                        limit: self.history_page_size,
                     }]
                 } else {
                     Vec::new()
@@ -870,6 +924,34 @@ impl App {
             View::Stash => vec![Effect::LoadStashes],
             View::Compare => vec![Effect::LoadCompare],
             View::Detail | View::Blob => Vec::new(),
+        }
+    }
+
+    pub fn copy_value(&self) -> Option<String> {
+        match self.view {
+            View::Log => self.selected_commit().map(|commit| commit.id.to_string()),
+            View::Detail => self
+                .preview
+                .as_ref()
+                .map(|detail| detail.commit.id.to_string()),
+            View::Compare => self
+                .inspect
+                .comparison
+                .as_ref()
+                .map(|value| value.resolved_head.to_string()),
+            View::Refs => self
+                .inspect
+                .refs
+                .get(self.inspect.selected)
+                .map(|value| value.peeled.as_ref().unwrap_or(&value.target).to_string()),
+            View::Status | View::StatusDiff | View::Tree | View::Blob | View::Blame => {
+                self.active_path().map(|path| path.display)
+            }
+            View::Stash => self
+                .inspect
+                .stashes
+                .get(self.inspect.selected)
+                .map(|value| value.id.to_string()),
         }
     }
 
@@ -1109,7 +1191,7 @@ impl App {
                     self.view = View::Log;
                     vec![Effect::LoadHistory {
                         offset: 0,
-                        limit: PAGE_SIZE,
+                        limit: self.history_page_size,
                     }]
                 }
             }
@@ -1476,7 +1558,7 @@ impl App {
                     self.history_error = None;
                     return vec![Effect::LoadHistory {
                         offset: self.commits.len(),
-                        limit: PAGE_SIZE,
+                        limit: self.history_page_size,
                     }];
                 }
             }
@@ -1550,6 +1632,7 @@ pub fn palette_commands(query: &str) -> Vec<PaletteCommand> {
         ("Toggle merge-base comparison", Action::ToggleCompareMode),
         ("Toggle staged/unstaged diff", Action::ToggleStatusDiff),
         ("Ascend tree", Action::Ascend),
+        ("Copy selection", Action::CopySelection),
         ("Retry failed request", Action::RetryFailed),
         ("Dismiss errors", Action::DismissErrors),
     ];

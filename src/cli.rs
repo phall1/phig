@@ -1,6 +1,6 @@
 use std::{ffi::OsString, path::PathBuf};
 
-use clap::{Args, Parser, Subcommand};
+use clap::{Args, Parser, Subcommand, ValueEnum};
 
 /// A fast, focused terminal Git history and diff browser.
 #[derive(Debug, Clone, Parser)]
@@ -13,6 +13,14 @@ pub struct Cli {
     /// Render on the normal screen so terminal scrollback remains available.
     #[arg(long, global = true)]
     pub no_alt_screen: bool,
+
+    /// Load configuration from this exact path.
+    #[arg(long, global = true, value_name = "PATH", env = "PHIG_CONFIG")]
+    pub config: Option<PathBuf>,
+
+    /// Ignore all configuration files and use built-in defaults.
+    #[arg(long, global = true)]
+    pub no_config: bool,
 
     #[command(subcommand)]
     pub command: Option<Command>,
@@ -38,6 +46,117 @@ pub enum Command {
     Blame(BlameArgs),
     /// Inspect stash entries and patches.
     Stash,
+    /// Print or create the XDG configuration.
+    Config(ConfigArgs),
+    /// Emit a bounded, deterministic phig/1 JSON snapshot.
+    Snapshot(SnapshotArgs),
+    /// Interactively select one exact object using the controlling terminal.
+    Select(SelectArgs),
+    /// Generate shell completions.
+    Completions { shell: CompletionShell },
+    /// Generate the phig manual page.
+    Manpage(ManpageArgs),
+    /// Print version information.
+    Version(VersionArgs),
+}
+
+#[derive(Debug, Clone, Args)]
+pub struct ConfigArgs {
+    #[command(subcommand)]
+    pub command: ConfigCommand,
+}
+#[derive(Debug, Clone, Subcommand)]
+pub enum ConfigCommand {
+    /// Print the effective configuration path.
+    Path,
+    /// Write the documented default configuration.
+    Init {
+        #[arg(long)]
+        force: bool,
+    },
+    /// Parse and validate the effective configuration.
+    Check,
+}
+
+#[derive(Debug, Clone, Copy, ValueEnum)]
+pub enum CompletionShell {
+    Bash,
+    Zsh,
+    Fish,
+    Elvish,
+    Powershell,
+}
+
+#[derive(Debug, Clone, Args)]
+pub struct ManpageArgs {
+    /// Write the root and every subcommand manpage to this directory.
+    #[arg(long, value_name = "DIR")]
+    pub output_dir: Option<PathBuf>,
+}
+
+#[derive(Debug, Clone, Args)]
+pub struct VersionArgs {
+    /// Emit a phig/1 JSON object.
+    #[arg(long)]
+    pub json: bool,
+}
+
+#[derive(Debug, Clone, Args)]
+pub struct SnapshotArgs {
+    /// Output format. `json` is currently the stable format.
+    #[arg(long, global = true, value_enum, default_value = "json")]
+    pub format: MachineFormat,
+    /// Start at this deterministic item offset. Singleton targets require zero.
+    #[arg(long, global = true, default_value_t = 0)]
+    pub offset: usize,
+    #[command(subcommand)]
+    pub target: SnapshotTarget,
+}
+
+#[derive(Debug, Clone, Subcommand)]
+pub enum SnapshotTarget {
+    Log(RevisionArgs),
+    Show(RevisionArgs),
+    Compare(CompareArgs),
+    Diff(DiffArgs),
+    Refs,
+    Status,
+    Tree(TreeArgs),
+    Blame(BlameArgs),
+    Stash,
+}
+
+#[derive(Debug, Clone, Copy, ValueEnum, PartialEq, Eq)]
+pub enum MachineFormat {
+    Json,
+}
+#[derive(Debug, Clone, Copy, ValueEnum, PartialEq, Eq)]
+pub enum SelectionFormat {
+    Oid,
+    Json,
+}
+#[derive(Debug, Clone, Copy, ValueEnum, PartialEq, Eq)]
+pub enum SelectionKind {
+    Commit,
+    Ref,
+    File,
+    Hunk,
+    Line,
+    Compare,
+}
+
+#[derive(Debug, Clone, Args)]
+pub struct SelectArgs {
+    #[arg(long, value_enum)]
+    pub kind: SelectionKind,
+    #[arg(long, value_enum, default_value = "json")]
+    pub format: SelectionFormat,
+    #[arg(value_name = "REV", default_value = "HEAD")]
+    pub revision: String,
+    #[arg(long)]
+    pub base: Option<String>,
+    #[arg(last = true, value_name = "PATH")]
+    pub paths: Vec<OsString>,
 }
 
 #[derive(Debug, Clone, Args)]
@@ -100,6 +219,8 @@ pub enum StartView {
 pub struct Launch {
     pub repo: PathBuf,
     pub no_alt_screen: bool,
+    pub config: Option<PathBuf>,
+    pub no_config: bool,
     pub start_view: StartView,
     pub revision: String,
     pub paths: Vec<OsString>,
@@ -113,6 +234,8 @@ impl Cli {
         let defaults = |start_view, revision, paths| Launch {
             repo: self.repo.clone(),
             no_alt_screen: self.no_alt_screen,
+            config: self.config.clone(),
+            no_config: self.no_config,
             start_view,
             revision,
             paths,
@@ -142,6 +265,14 @@ impl Cli {
             Some(Command::Tree(args)) => defaults(StartView::Tree, args.revision, args.path),
             Some(Command::Blame(args)) => defaults(StartView::Blame, args.revision, args.path),
             Some(Command::Stash) => defaults(StartView::Stash, "HEAD".into(), Vec::new()),
+            Some(
+                Command::Config(_)
+                | Command::Snapshot(_)
+                | Command::Select(_)
+                | Command::Completions { .. }
+                | Command::Manpage(_)
+                | Command::Version(_),
+            ) => unreachable!("non-interactive commands do not create a launch"),
         }
     }
 }
