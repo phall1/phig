@@ -303,6 +303,65 @@ fn narrow_status_enter_opens_full_working_diff_and_returns() {
 }
 
 #[test]
+fn narrow_log_cannot_focus_an_invisible_preview() {
+    let _guard = PTY_LOCK
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    let repo = tempfile::tempdir().unwrap();
+    git(repo.path(), &["init", "-q", "-b", "main"]);
+    git(repo.path(), &["config", "user.name", "Phig PTY"]);
+    git(
+        repo.path(),
+        &["config", "user.email", "pty@example.invalid"],
+    );
+    fs::write(repo.path().join("file.txt"), "one\n").unwrap();
+    git(repo.path(), &["add", "file.txt"]);
+    git(repo.path(), &["commit", "-qm", "first commit"]);
+    fs::write(repo.path().join("file.txt"), "one\ntwo\n").unwrap();
+    git(repo.path(), &["commit", "-qam", "second commit"]);
+    let first_oid = Command::new("git")
+        .args([
+            "-C",
+            repo.path().to_str().unwrap(),
+            "rev-parse",
+            "--short=8",
+            "HEAD~1",
+        ])
+        .output()
+        .unwrap();
+    let first_oid = String::from_utf8(first_oid.stdout).unwrap();
+
+    let pair = native_pty_system()
+        .openpty(PtySize {
+            rows: 16,
+            cols: 60,
+            pixel_width: 0,
+            pixel_height: 0,
+        })
+        .unwrap();
+    let mut command = CommandBuilder::new(assert_cmd::cargo::cargo_bin!("phig"));
+    command.cwd(repo.path());
+    command.env("TERM", "xterm-256color");
+    command.env("NO_COLOR", "1");
+    let mut child = pair.slave.spawn_command(command).unwrap();
+    drop(pair.slave);
+    let reader = pair.master.try_clone_reader().unwrap();
+    let (output, reader_thread) = read_live(reader);
+    let mut writer = pair.master.take_writer().unwrap();
+    wait_for_marker(&output, "second commit", Duration::from_secs(5));
+    output.lock().unwrap().clear();
+    writer.write_all(b"\tj\r").unwrap();
+    writer.flush().unwrap();
+    wait_for_marker(&output, "SHOW", Duration::from_secs(5));
+    wait_for_marker(&output, first_oid.trim(), Duration::from_secs(5));
+    let status = retry_key_until_exit(&mut child, &mut writer, b"q", Duration::from_secs(8));
+    drop(writer);
+    drop(pair.master);
+    reader_thread.join().unwrap();
+    assert!(status.success());
+}
+
+#[test]
 fn real_pty_exercises_navigation_overlays_resize_and_cleanup() {
     let _guard = PTY_LOCK
         .lock()
@@ -374,7 +433,7 @@ fn real_pty_exercises_navigation_overlays_resize_and_cleanup() {
     writer.write_all(b"/\x1b[200~first\x1b[201~\r").unwrap(); // pasted diff search
     writer.write_all(b":help\r").unwrap(); // palette -> contextual help
     writer.flush().unwrap();
-    wait_for_marker(&output, "Ctrl-l", Duration::from_secs(5));
+    wait_for_marker(&output, "Help", Duration::from_secs(5));
     writer.write_all(b"\x1b").unwrap(); // close help
     writer.flush().unwrap();
     pair.master
@@ -403,7 +462,7 @@ fn real_pty_exercises_navigation_overlays_resize_and_cleanup() {
         "Enter did not render commit detail"
     );
     assert!(screen.contains("+side"), "commit diff was not rendered");
-    assert!(screen.contains("Ctrl-l"), "help overlay was not rendered");
+    assert!(screen.contains("Help"), "help overlay was not rendered");
     assert!(screen.contains("\u{1b}[?25h"), "cursor was not restored");
     assert!(
         screen.contains("\u{1b}[?1049l"),
@@ -427,7 +486,7 @@ fn remapped_printable_key_still_types_in_every_text_overlay() {
     git(repo.path(), &["add", "file.txt"]);
     git(repo.path(), &["commit", "-qm", "overlay input"]);
     let config = repo.path().join("remap.toml");
-    fs::write(&config, "version = 1\n[keys]\nquit = \"x\"\n").unwrap();
+    fs::write(&config, "version = 1\n[keys]\nquit = \"x\"\nhelp = \"h\"\n").unwrap();
 
     let pty = native_pty_system();
     let pair = pty
@@ -502,7 +561,24 @@ fn remapped_printable_key_still_types_in_every_text_overlay() {
     writer.flush().unwrap();
     thread::sleep(Duration::from_millis(100));
 
-    let status = retry_key_until_exit(&mut child, &mut writer, b"x", Duration::from_secs(8));
+    writer.write_all(b"h").unwrap();
+    writer.flush().unwrap();
+    wait_for_marker(&output, "Help", Duration::from_secs(3));
+    writer.write_all(b"h").unwrap(); // configured help key closes the overlay
+    writer.flush().unwrap();
+    thread::sleep(Duration::from_millis(100));
+    writer.write_all(b"?").unwrap(); // old help key is disabled by the remap
+    writer.flush().unwrap();
+    thread::sleep(Duration::from_millis(100));
+    // From SHOW, two configured quits return to LOG and exit. If the old `?`
+    // reopened Help, the first x would only close it and the process would remain.
+    writer.write_all(b"xx").unwrap();
+    writer.flush().unwrap();
+    let status = wait_bounded(
+        &mut child,
+        Duration::from_secs(8),
+        "waiting for remapped quits after closing help",
+    );
     drop(writer);
     drop(pair.master);
     reader_thread.join().unwrap();

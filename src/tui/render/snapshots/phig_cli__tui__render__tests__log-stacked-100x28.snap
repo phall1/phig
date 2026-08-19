@@ -3,7 +3,7 @@ source: src/tui/render/tests.rs
 expression: "styled_screen(100, 28, &sample_app())"
 ---
 TEXT
- phig  phig-demo  LOG  HEAD  main
+ phig LOG phig-demo / main  HEAD
 ›   ● aaaaaaaa 1700000000 Pat Example        make history pleasant (HEAD -> main)
 
 
@@ -15,7 +15,7 @@ TEXT
 
 
 
-
+────────────────────────────────────────────────────────────────────────────────────────────────────
 aaaaaaaaaaaa
 make history pleasant
 Author: Pat Example <pat@example.invalid>
@@ -30,28 +30,26 @@ diff --git a/src/main.rs b/src/main.rs
 
 
 
- 1/1  j/k move  Enter inspect  f files  c compare  / search  ? help  q quit
+ j/k move · Enter open · / search                                                                1/1
 STYLES
-0:0-5 fg=Black bg=Cyan mod=BOLD text=" phig "
-0:7-15 fg=Reset bg=Reset mod=BOLD text="phig-demo"
-0:16-22 fg=Cyan bg=Reset mod=NONE text="  LOG  "
-0:27-32 fg=DarkGray bg=Reset mod=NONE text="  main"
-1:0-99 fg=Black bg=Cyan mod=BOLD text="›   ● aaaaaaaa 1700000000 Pat Example        make history pleasant (HEAD -> main)                   "
+0:0-9 fg=Cyan bg=Reset mod=BOLD text=" phig LOG "
+0:19-31 fg=DarkGray bg=Reset mod=NONE text=" / main  HEAD"
+1:0-99 fg=Cyan bg=Reset mod=BOLD text="›   ● aaaaaaaa 1700000000 Pat Example        make history pleasant (HEAD -> main)                   "
+12:0-99 fg=DarkGray bg=Reset mod=NONE text="────────────────────────────────────────────────────────────────────────────────────────────────────"
 13:0-11 fg=Yellow bg=Reset mod=NONE text="aaaaaaaaaaaa"
 14:0-20 fg=Reset bg=Reset mod=BOLD text="make history pleasant"
 15:0-40 fg=DarkGray bg=Reset mod=NONE text="Author: Pat Example <pat@example.invalid>"
 16:0-31 fg=DarkGray bg=Reset mod=NONE text="Date: 2023-11-14 18:13:20 -04:00"
 17:0-31 fg=DarkGray bg=Reset mod=NONE text="Parents: root · Files: 1 (+1 -1)"
 20:0-37 fg=Yellow bg=Reset mod=BOLD text="diff --git a/src/main.rs b/src/main.rs"
-20:38-99 fg=Gray bg=Reset mod=NONE text="                                                              "
+20:38-99 fg=DarkGray bg=Reset mod=NONE text="                                                              "
 21:0-10 fg=Cyan bg=Reset mod=BOLD text="@@ -1 +1 @@"
-21:11-99 fg=Gray bg=Reset mod=NONE text="                                                                                         "
+21:11-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                         "
 22:0-3 fg=Red bg=Reset mod=NONE text="-old"
-22:4-99 fg=Gray bg=Reset mod=NONE text="                                                                                                "
+22:4-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                "
 23:0-3 fg=Green bg=Reset mod=NONE text="+new"
-23:4-99 fg=Gray bg=Reset mod=NONE text="                                                                                                "
-24:0-99 fg=Gray bg=Reset mod=NONE text="                                                                                                    "
-25:0-99 fg=Gray bg=Reset mod=NONE text="                                                                                                    "
-26:0-99 fg=Gray bg=Reset mod=NONE text="                                                                                                    "
-27:0-4 fg=Black bg=DarkGray mod=NONE text=" 1/1 "
-27:6-74 fg=DarkGray bg=Reset mod=NONE text="j/k move  Enter inspect  f files  c compare  / search  ? help  q quit"
+23:4-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                "
+24:0-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                    "
+25:0-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                    "
+26:0-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                    "
+27:0-99 fg=DarkGray bg=Reset mod=NONE text=" j/k move · Enter open · / search                                                                1/1"

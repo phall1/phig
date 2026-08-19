@@ -1,16 +1,20 @@
 use std::{path::PathBuf, sync::Mutex};
 
 use base64::{Engine as _, engine::general_purpose::STANDARD};
-use ratatui::{Terminal, backend::TestBackend, style::Color};
+use ratatui::{Terminal, backend::TestBackend, layout::Rect, style::Color};
 
-use crate::app::{SelectionContract, SelectionTarget};
+use crate::app::{App, SelectionContract, SelectionTarget, View};
 use crate::domain::{
     BlameLine, Blob, Commit, CommitDetail, Comparison, ComparisonMode, Diff, DiffFile, DiffLine,
     DiffLineKind, GitPath, HistoryPage, ObjectFormat, Oid, RefInfo, RefKind, RefName, Repository,
     Signature, Status, StatusCode, StatusEntry,
 };
 
-use super::{layout::list_preview_areas, *};
+use super::{
+    history::history_line,
+    layout::{diff_content_rows, list_preview_layout},
+    *,
+};
 
 fn sample_app() -> App {
     let oid: Oid = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa".parse().unwrap();
@@ -100,11 +104,30 @@ fn status_entry(index: StatusCode, worktree: StatusCode, path: &[u8]) -> StatusE
     }
 }
 
+fn deterministic_config() -> RenderConfig {
+    RenderConfig {
+        color_mode: ColorMode::Always,
+        glyph_mode: GlyphMode::Unicode,
+        ..RenderConfig::default()
+    }
+}
+
 fn screen(width: u16, height: u16, app: &App) -> String {
+    screen_with_context(
+        width,
+        height,
+        app,
+        &RenderContext::new(deterministic_config()),
+    )
+}
+
+fn screen_with_context(width: u16, height: u16, app: &App, context: &RenderContext) -> String {
     let _guard = GOLDEN_RENDER_LOCK.lock().unwrap();
     let backend = TestBackend::new(width, height);
     let mut terminal = Terminal::new(backend).unwrap();
-    terminal.draw(|frame| render(frame, app)).unwrap();
+    terminal
+        .draw(|frame| render_with_context(frame, app, context))
+        .unwrap();
     let buffer = terminal.backend().buffer();
     let mut output = String::new();
     for y in 0..height {
@@ -120,11 +143,15 @@ static GOLDEN_RENDER_LOCK: Mutex<()> = Mutex::new(());
 
 fn styled_screen(width: u16, height: u16, app: &App) -> String {
     let _guard = GOLDEN_RENDER_LOCK.lock().unwrap();
-    set_date_mode("unix");
     let backend = TestBackend::new(width, height);
     let mut terminal = Terminal::new(backend).unwrap();
-    terminal.draw(|frame| render(frame, app)).unwrap();
-    set_date_mode("relative");
+    let context = RenderContext::new(RenderConfig {
+        date_mode: DateMode::Unix,
+        ..deterministic_config()
+    });
+    terminal
+        .draw(|frame| render_with_context(frame, app, &context))
+        .unwrap();
     let buffer = terminal.backend().buffer();
     let mut output = String::from("TEXT\n");
     for y in 0..height {
@@ -206,10 +233,58 @@ fn golden_detail_wide_and_narrow_help() {
 }
 
 #[test]
+fn golden_primary_views_at_100x28() {
+    let views = [
+        View::Log,
+        View::Detail,
+        View::Compare,
+        View::Refs,
+        View::Status,
+        View::StatusDiff,
+        View::Tree,
+        View::Blob,
+        View::Blame,
+        View::Stash,
+    ];
+    let mut output = String::new();
+    for view in views {
+        let mut app = sample_app();
+        app.view = view;
+        output.push_str(&format!(
+            "\n=== {view:?} ===\n{}",
+            styled_screen(100, 28, &app)
+        ));
+    }
+    insta::assert_snapshot!("primary-views-100x28", output);
+}
+
+#[test]
+fn golden_overlays_at_supported_minimum() {
+    let mut palette = sample_app();
+    let _ = palette.update(crate::app::Action::StartPalette, 10);
+    let mut files = sample_app();
+    let _ = files.update(crate::app::Action::StartFilePicker, 10);
+    let mut error = sample_app();
+    error.apply_error(
+        crate::app::RequestKind::Preview,
+        &crate::git::GitError::Timeout("commit-detail"),
+    );
+    insta::assert_snapshot!(
+        "overlays-60x16",
+        format!(
+            "PALETTE\n{}\nFILES\n{}\nERROR\n{}",
+            styled_screen(60, 16, &palette),
+            styled_screen(60, 16, &files),
+            styled_screen(60, 16, &error),
+        )
+    );
+}
+
+#[test]
 fn narrow_layout_keeps_one_dominant_surface() {
     let output = screen(60, 16, &sample_app());
     assert!(output.contains("phig"));
-    assert!(output.contains("make history pleasant"));
+    assert!(output.contains("make history"));
     assert!(!output.contains("diff --git"));
     assert!(output.contains("j/k move"));
 }
@@ -222,11 +297,10 @@ fn selection_footer_is_explicit_and_adapts_to_narrow_and_normal_widths() {
     let narrow = screen(60, 16, &app);
     let narrow_footer = narrow.lines().nth(15).unwrap();
     assert!(
-        narrow_footer.contains("SELECT HUNK · Enter emit · Esc/q cancel"),
+        narrow_footer.contains("Enter emit hunk · Esc/q cancel"),
         "selection contract was clipped at 60 columns: {narrow_footer}"
     );
-    assert!(narrow_footer.contains("j/k scroll"));
-    assert!(!narrow_footer.contains("q back"));
+    assert!(!narrow_footer.contains("j/k"));
 
     for (target, view) in [
         (SelectionTarget::Commit, View::Log),
@@ -240,14 +314,13 @@ fn selection_footer_is_explicit_and_adapts_to_narrow_and_normal_widths() {
         app.view = view;
         let normal = screen(80, 16, &app);
         let footer = normal.lines().nth(15).unwrap();
-        let expected = format!("SELECT {} · Enter emit · Esc/q cancel", target.label());
+        let expected = format!(
+            "Enter emit {} · Esc/q cancel",
+            target.label().to_ascii_lowercase()
+        );
         assert!(
             footer.contains(&expected),
             "missing {target:?} selection contract: {footer}"
-        );
-        assert!(
-            footer.contains("j/k"),
-            "selection footer lost context navigation: {footer}"
         );
     }
 }
@@ -256,23 +329,15 @@ fn selection_footer_is_explicit_and_adapts_to_narrow_and_normal_widths() {
 fn log_footer_keeps_core_actions_visible_at_eighty_columns() {
     let output = screen(80, 16, &sample_app());
     let footer = output.lines().nth(15).unwrap();
-    for hint in [
-        "j/k move",
-        "Enter inspect",
-        "c compare",
-        "/ search",
-        "? help",
-        "q quit",
-    ] {
+    for hint in ["j/k move", "Enter open", "/ search"] {
         assert!(
             footer.contains(hint),
             "missing footer hint {hint:?}: {footer}"
         );
     }
-    assert!(!footer.contains("refs"));
-    assert!(!footer.contains("status"));
-    assert!(!footer.contains("tree"));
-    assert!(!footer.contains("mark"));
+    assert_eq!(footer.matches('·').count(), 2);
+    assert!(!footer.contains("compare"));
+    assert!(!footer.contains("quit"));
 }
 
 #[test]
@@ -347,7 +412,7 @@ fn command_palette_is_searchable_and_error_panel_is_actionable() {
     let error = screen(52, 20, &app);
     assert!(error.contains("Failed to load commit detail"));
     assert!(error.contains("timed out"));
-    assert!(error.contains("r retry failed request(s)"));
+    assert!(error.contains("r retry · Esc dismiss"));
 }
 
 #[test]
@@ -404,7 +469,7 @@ fn refs_mark_tree_breadcrumb_and_blame_groups_are_visible() {
     let mut app = sample_app();
     app.marked_oid = Some(app.commits[0].id.clone());
     let marked = screen(100, 28, &app);
-    assert!(marked.contains("marked:aaaaaaaaaa"));
+    assert!(marked.contains("marked aaaaaaaaaa"));
 
     app.view = View::Refs;
     app.inspect.refs = vec![RefInfo {
@@ -458,27 +523,83 @@ fn inspection_preview_layout_and_page_size_follow_width_class() {
     let normal = Rect::new(0, 1, 100, 26);
     let threshold = Rect::new(0, 1, 110, 26);
     let wide = Rect::new(0, 1, 140, 26);
-    let (narrow_list, narrow_preview) = list_preview_areas(&app, narrow);
-    assert_eq!(narrow_list, narrow);
-    assert_eq!(narrow_preview, Rect::default());
+    let narrow_layout = list_preview_layout(&app, narrow);
+    assert_eq!(narrow_layout.primary, narrow);
+    assert_eq!(narrow_layout.secondary, None);
     assert_eq!(page_rows(&app, 60, 28), 26);
-    let (normal_list, normal_preview) = list_preview_areas(&app, normal);
+    let normal_layout = list_preview_layout(&app, normal);
     assert!(
-        normal_preview.y > normal_list.y,
+        normal_layout.secondary.unwrap().y > normal_layout.primary.y,
         "normal preview must be stacked"
     );
-    assert_eq!(page_rows(&app, 100, 28), 13);
-    let (threshold_list, threshold_preview) = list_preview_areas(&app, threshold);
-    assert!(threshold_preview.x > threshold_list.x);
+    assert_eq!(normal_layout.divider.unwrap().height, 1);
+    assert_eq!(page_rows(&app, 100, 28), 12);
+    let threshold_layout = list_preview_layout(&app, threshold);
+    assert!(threshold_layout.secondary.unwrap().x > threshold_layout.primary.x);
+    assert_eq!(threshold_layout.divider.unwrap().width, 1);
     assert_eq!(page_rows(&app, 110, 28), 26);
-    let (wide_list, wide_preview) = list_preview_areas(&app, wide);
+    let wide_layout = list_preview_layout(&app, wide);
     assert!(
-        wide_preview.x > wide_list.x,
+        wide_layout.secondary.unwrap().x > wide_layout.primary.x,
         "wide preview must be right-side"
     );
     assert_eq!(page_rows(&app, 140, 28), 26);
     app.show_preview = false;
     assert_eq!(page_rows(&app, 100, 28), 26);
+
+    app.view = View::Compare;
+    assert_eq!(page_rows(&app, 100, 28), 23);
+    app.view = View::StatusDiff;
+    assert_eq!(page_rows(&app, 100, 28), 25);
+}
+
+#[test]
+fn page_steps_match_visible_compare_and_status_diff_rows() {
+    let mut app = sample_app();
+    let mut diff = app.preview.as_ref().unwrap().diff.clone();
+    diff.lines = (0..40)
+        .map(|index| DiffLine {
+            kind: DiffLineKind::Context,
+            text: format!(" line {index}"),
+        })
+        .collect();
+    let base: Oid = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb".parse().unwrap();
+    let head: Oid = "cccccccccccccccccccccccccccccccccccccccc".parse().unwrap();
+    app.view = View::Compare;
+    app.inspect.comparison = Some(Comparison {
+        mode: ComparisonMode::Exact,
+        requested_base: "main".into(),
+        requested_head: "HEAD".into(),
+        resolved_base: base,
+        resolved_head: head,
+        merge_base: None,
+        ahead: 1,
+        behind: 0,
+        diff: diff.clone(),
+    });
+    let compare_rows = page_rows(&app, 100, 28);
+    let _ = app.update(crate::app::Action::Page(1), compare_rows);
+    assert_eq!(app.diff_scroll, 23);
+    app.diff_scroll = 0;
+    app.inspect.comparison.as_mut().unwrap().diff.truncated = true;
+    let truncated_compare_rows = page_rows(&app, 100, 28);
+    assert_eq!(truncated_compare_rows, 22);
+    assert_eq!(diff_content_rows(23, true), 22);
+    let _ = app.update(crate::app::Action::Page(1), truncated_compare_rows);
+    assert_eq!(app.diff_scroll, 22);
+
+    app.view = View::StatusDiff;
+    app.diff_scroll = 0;
+    app.inspect.working_diff = Some(diff);
+    let status_rows = page_rows(&app, 100, 28);
+    let _ = app.update(crate::app::Action::Page(1), status_rows);
+    assert_eq!(app.diff_scroll, 25);
+    app.diff_scroll = 0;
+    app.inspect.working_diff.as_mut().unwrap().truncated = true;
+    let truncated_status_rows = page_rows(&app, 100, 28);
+    assert_eq!(truncated_status_rows, 24);
+    let _ = app.update(crate::app::Action::Page(1), truncated_status_rows);
+    assert_eq!(app.diff_scroll, 24);
 }
 
 #[test]
@@ -549,24 +670,227 @@ fn missing_blame_path_error_explains_recovery() {
     let _ = app.update(crate::app::Action::ViewBlame, 10);
     let output = screen(80, 20, &app);
     assert!(output.contains("select a file path first"));
-    assert!(output.contains("select a file path, then press b"));
+    assert!(output.contains("select a path, then b"));
 }
 
 #[test]
-fn no_color_resets_modifiers_as_well_as_colors() {
-    use ratatui::style::Modifier;
-    let mut buffer = Buffer::empty(Rect::new(0, 0, 1, 1));
-    buffer[(0, 0)].set_style(
-        Style::default()
-            .fg(Color::Red)
-            .bg(Color::Blue)
-            .add_modifier(Modifier::BOLD | Modifier::UNDERLINED),
+fn no_color_renders_reset_styles_without_a_post_pass() {
+    let backend = TestBackend::new(100, 28);
+    let mut terminal = Terminal::new(backend).unwrap();
+    let context = RenderContext::new(RenderConfig {
+        color_mode: ColorMode::Never,
+        glyph_mode: GlyphMode::Unicode,
+        ..RenderConfig::default()
+    });
+    terminal
+        .draw(|frame| render_with_context(frame, &sample_app(), &context))
+        .unwrap();
+    let buffer = terminal.backend().buffer();
+    assert!((0..28).all(|y| (0..100).all(|x| {
+        let cell = &buffer[(x, y)];
+        cell.fg == Color::Reset && cell.bg == Color::Reset && cell.modifier.is_empty()
+    })));
+}
+
+#[test]
+fn visual_policy_supports_ascii_dividers_calm_selection_and_critical_header() {
+    let app = sample_app();
+    let ascii = RenderContext::new(RenderConfig {
+        glyph_mode: GlyphMode::Ascii,
+        date_mode: DateMode::Unix,
+        color_mode: ColorMode::Always,
+        ..RenderConfig::default()
+    });
+    let output = screen_with_context(110, 28, &app, &ascii);
+    assert!(
+        output.is_ascii(),
+        "ASCII mode emitted non-ASCII application chrome: {output:?}"
     );
-    reset_styles(&mut buffer, Rect::new(0, 0, 1, 1));
-    let cell = &buffer[(0, 0)];
-    assert_eq!(cell.fg, Color::Reset);
-    assert_eq!(cell.bg, Color::Reset);
-    assert!(cell.modifier.is_empty());
+    assert!(
+        output
+            .lines()
+            .skip(1)
+            .take(26)
+            .all(|line| line.chars().nth(45) == Some('|'))
+    );
+    let mut ascii_help = sample_app();
+    ascii_help.show_help();
+    assert!(screen_with_context(60, 16, &ascii_help, &ascii).is_ascii());
+    let mut ascii_palette = sample_app();
+    let _ = ascii_palette.update(crate::app::Action::StartPalette, 10);
+    assert!(screen_with_context(60, 16, &ascii_palette, &ascii).is_ascii());
+
+    let unicode = screen(110, 28, &app);
+    assert!(
+        unicode
+            .lines()
+            .skip(1)
+            .take(26)
+            .all(|line| line.chars().nth(45) == Some('│'))
+    );
+    let stacked = screen(100, 28, &app);
+    assert_eq!(stacked.matches('─').count(), 100);
+
+    let backend = TestBackend::new(60, 16);
+    let mut terminal = Terminal::new(backend).unwrap();
+    let context = RenderContext::new(deterministic_config());
+    terminal
+        .draw(|frame| render_with_context(frame, &app, &context))
+        .unwrap();
+    let selected = &terminal.backend().buffer()[(0, 1)];
+    assert_eq!(selected.bg, Color::Reset);
+    assert_eq!(selected.fg, Color::Cyan);
+
+    let mut failed = app;
+    failed.repository.root =
+        PathBuf::from("/tmp/界界界界界-a-very-long-repository-name-that-must-truncate");
+    failed.apply_error(
+        crate::app::RequestKind::History,
+        &crate::git::GitError::Timeout("history"),
+    );
+    assert!(
+        screen(60, 16, &failed)
+            .lines()
+            .next()
+            .unwrap()
+            .contains("request failed")
+    );
+}
+
+#[test]
+fn history_preserves_subjects_and_cell_width_across_date_modes() {
+    use unicode_width::UnicodeWidthStr;
+
+    let mut app = sample_app();
+    app.commits[0].author.name = "界界e\u{301} author".into();
+    app.commits[0].subject = "important subject survives".into();
+    for mode in [
+        DateMode::Relative,
+        DateMode::Local,
+        DateMode::Iso,
+        DateMode::Unix,
+    ] {
+        let context = RenderContext::new(RenderConfig {
+            date_mode: mode,
+            ..deterministic_config()
+        });
+        for width in [45, 60] {
+            let line = history_line(&app.commits[0], width, "● ".into(), false, &context);
+            let text = line
+                .spans
+                .iter()
+                .map(|span| span.content.as_ref())
+                .collect::<String>();
+            assert!(
+                text.contains("important"),
+                "subject vanished at {width} columns in {mode:?}: {text:?}"
+            );
+            assert!(
+                UnicodeWidthStr::width(text.as_str())
+                    <= usize::from(width) - UnicodeWidthStr::width(context.glyphs().selected),
+                "history row exceeded its cell budget at {width} columns: {text:?}"
+            );
+        }
+    }
+}
+
+#[test]
+fn empty_inspection_views_report_zero_of_zero_without_stale_previews() {
+    let mut app = sample_app();
+    app.commits.clear();
+    for view in [
+        View::Refs,
+        View::Status,
+        View::Tree,
+        View::Blame,
+        View::Stash,
+    ] {
+        app.view = view;
+        let output = screen(100, 28, &app);
+        let footer = output.lines().nth(27).unwrap().to_owned();
+        assert!(
+            footer.ends_with("0/0"),
+            "{view:?} had an impossible position: {footer:?}"
+        );
+        if matches!(view, View::Refs | View::Blame | View::Stash) {
+            assert!(
+                !output.contains("diff --git"),
+                "{view:?} rendered an unrelated commit preview"
+            );
+        }
+        if view == View::Status {
+            assert!(footer.contains("no changes"));
+            assert!(!footer.contains("loading diff"));
+        }
+    }
+}
+
+#[test]
+fn explicit_context_honors_custom_selection_and_color_policy() {
+    let app = sample_app();
+    let theme = RenderTheme {
+        selection_fg: Color::White,
+        selection_bg: Color::Blue,
+        ..RenderTheme::default()
+    };
+    let context = RenderContext::new(RenderConfig {
+        theme,
+        color_mode: ColorMode::Always,
+        glyph_mode: GlyphMode::Unicode,
+        ..RenderConfig::default()
+    });
+    assert!(!context.is_monochrome());
+    let backend = TestBackend::new(60, 16);
+    let mut terminal = Terminal::new(backend).unwrap();
+    terminal
+        .draw(|frame| render_with_context(frame, &app, &context))
+        .unwrap();
+    let selected = &terminal.backend().buffer()[(0, 1)];
+    assert_eq!(selected.fg, Color::White);
+    assert_eq!(selected.bg, Color::Blue);
+
+    let never = RenderContext::new(RenderConfig {
+        color_mode: ColorMode::Never,
+        ..RenderConfig::default()
+    });
+    assert!(never.is_monochrome());
+}
+
+#[test]
+fn footer_and_help_use_effective_remapped_keys() {
+    let mut overrides = std::collections::BTreeMap::new();
+    overrides.insert("open".into(), "ctrl+x".into());
+    overrides.insert("search".into(), "alt+s".into());
+    overrides.insert("help".into(), "h".into());
+    let bindings = crate::config::KeyBindings::from_config(&overrides).unwrap();
+    let context = RenderContext::with_bindings(RenderConfig::default(), bindings);
+    let app = sample_app();
+    let footer = screen_with_context(100, 28, &app, &context);
+    assert!(footer.contains("Ctrl+x open"));
+    assert!(footer.contains("Alt+s search"));
+    let mut help = app;
+    help.show_help();
+    let overlay = screen_with_context(60, 16, &help, &context);
+    assert!(overlay.contains("Ctrl+x"));
+    assert!(overlay.contains("Alt+s"));
+    assert!(overlay.contains("h close"));
+
+    let mut wide_override = std::collections::BTreeMap::new();
+    wide_override.insert("open".into(), "界".into());
+    let wide_context = RenderContext::with_bindings(
+        deterministic_config(),
+        crate::config::KeyBindings::from_config(&wide_override).unwrap(),
+    );
+    let footer = screen_with_context(60, 16, &sample_app(), &wide_context)
+        .lines()
+        .nth(15)
+        .unwrap()
+        .to_owned();
+    assert!(
+        footer.contains('界') && footer.contains("open"),
+        "wide key hint was clipped: {footer:?}"
+    );
+    assert!(footer.ends_with("1/1"));
 }
 
 #[test]
@@ -574,6 +898,7 @@ fn help_overlay_is_contextual() {
     let mut app = sample_app();
     app.show_help();
     let output = screen(100, 28, &app);
-    assert!(output.contains("phig keys"));
-    assert!(output.contains("Log: Enter inspect"));
+    assert!(output.contains("Help"));
+    assert!(output.contains("Enter"));
+    assert!(output.contains("log view"));
 }

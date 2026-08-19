@@ -54,7 +54,7 @@ impl App {
                 Vec::new()
             }
             Action::ToggleFocus => {
-                if self.view == View::Log && self.show_preview {
+                if self.view == View::Log && self.show_preview && self.preview_focus_available {
                     self.focus = match self.focus {
                         Focus::List => Focus::Preview,
                         Focus::Preview => Focus::List,
@@ -272,6 +272,10 @@ impl App {
         self.inspect.refs = refs;
         self.inspect.loading = false;
         self.inspect_error = None;
+        if self.inspect.refs.is_empty() {
+            self.preview = None;
+            self.preview_loading = false;
+        }
         self.inspect.selected = self
             .inspect
             .selected
@@ -330,6 +334,10 @@ impl App {
         self.inspect.blame = blame;
         self.inspect.loading = false;
         self.inspect_error = None;
+        if self.inspect.blame.is_empty() {
+            self.preview = None;
+            self.preview_loading = false;
+        }
         self.inspect.selected = self
             .inspect
             .selected
@@ -342,6 +350,10 @@ impl App {
         self.inspect.stashes = stashes;
         self.inspect.loading = false;
         self.inspect_error = None;
+        if self.inspect.stashes.is_empty() {
+            self.preview = None;
+            self.preview_loading = false;
+        }
         self.inspect.selected = self
             .inspect
             .selected
@@ -369,6 +381,10 @@ impl App {
 
     /// Apply the TUI adapter's semantic decision about preview focus availability.
     pub fn set_preview_focus_available(&mut self, available: bool) {
+        if self.preview_focus_available == available {
+            return;
+        }
+        self.preview_focus_available = available;
         if self.view == View::Log && self.focus == Focus::Preview && !available {
             self.focus = Focus::List;
         }
@@ -494,7 +510,11 @@ impl App {
                     Vec::new()
                 }
             }
-            View::Refs => vec![Effect::LoadRefs],
+            View::Refs => {
+                self.preview = None;
+                self.preview_loading = false;
+                vec![Effect::LoadRefs]
+            }
             View::Status => {
                 self.inspect.working_diff = None;
                 vec![Effect::LoadStatus]
@@ -505,6 +525,8 @@ impl App {
                 path: self.inspect.tree_path.clone(),
             }],
             View::Blame => {
+                self.preview = None;
+                self.preview_loading = false;
                 self.inspect.blame_path = previous_path
                     .clone()
                     .or_else(|| self.paths.first().cloned());
@@ -518,7 +540,11 @@ impl App {
                     .into_iter()
                     .collect()
             }
-            View::Stash => vec![Effect::LoadStashes],
+            View::Stash => {
+                self.preview = None;
+                self.preview_loading = false;
+                vec![Effect::LoadStashes]
+            }
             View::Compare => vec![Effect::LoadCompare],
             View::Detail | View::Blob => Vec::new(),
         }

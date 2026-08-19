@@ -207,6 +207,9 @@ pub struct App {
     pub has_more: bool,
     pub history_page_size: usize,
     pub show_preview: bool,
+    /// Whether the active terminal layout currently exposes the preview pane.
+    /// The TUI adapter supplies this semantic fact; the app never owns geometry.
+    pub preview_focus_available: bool,
     pub diff_scroll: usize,
     pub parent_index: usize,
     pub search_query: String,
@@ -255,6 +258,7 @@ impl App {
             has_more: true,
             history_page_size: PAGE_SIZE,
             show_preview: true,
+            preview_focus_available: true,
             diff_scroll: 0,
             parent_index: 0,
             search_query: String::new(),

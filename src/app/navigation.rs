@@ -410,6 +410,8 @@ impl App {
             self.inspect.compare_picker = true;
             self.view_stack.push(self.view);
             self.view = View::Refs;
+            self.preview = None;
+            self.preview_loading = false;
             self.inspect.loading = true;
             vec![Effect::LoadRefs]
         }

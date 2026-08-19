@@ -6,6 +6,7 @@ alternate_screen = true
 mouse = false
 date = "relative" # relative, local, iso, unix
 color = "auto"    # auto, always, never
+glyphs = "auto"   # auto, unicode, ascii; auto falls back for TERM=dumb
 clipboard = "osc52" # osc52, off (press y to copy the current semantic selection)
 
 [diff]
@@ -30,8 +31,8 @@ added = "green"
 removed = "red"
 warning = "yellow"
 error = "red"
-selection_fg = "black"
-selection_bg = "cyan"
+selection_fg = "cyan"
+selection_bg = "reset" # native background; set a color for block selection
 
 # Keys name semantic actions, so remaps survive layout changes.
 # [keys]

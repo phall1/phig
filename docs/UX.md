@@ -2,15 +2,20 @@
 
 ## Visual model
 
-The header names the repository, active view, revision/range, path constraint,
-and loading/error state. The body is one dominant list or document. At 110
-columns and wider, log, refs, status, blame, and stash previews occupy the right
-side. Normal widths use a stacked list/preview; narrow terminals hide previews
-and open details with `Enter`. The footer shows only the highest-value contextual
-keys.
+The width-budgeted header names the active view and repository first, reserves
+space for critical selection/error state, and then adds revision, branch, path,
+loading, and marked-endpoint context as room permits. The body is one dominant
+list or document. At 110 columns and wider, log, refs, status, blame, and stash
+previews occupy the right side behind one thin vertical divider. Normal widths
+use a stacked list/preview with one horizontal divider; narrow terminals hide
+previews and open details with `Enter`. The footer shows at most three effective,
+contextual key hints plus a quiet right-aligned position.
 
 Phig must remain usable at 60×16, comfortable at 100×28, and information-dense
-without decorative borders at larger sizes.
+without decorative borders at larger sizes. It uses the terminal's native
+background, marker-led selection, restrained semantic color, and thin functional
+dividers rather than boxed panes or cards. Overlays alone use a thin adaptive
+frame with a short title and a persistent action footer.
 
 ## Default keys
 
@@ -130,7 +135,8 @@ and writes nothing to stdout.
 
 - Meaning is never conveyed by color alone.
 - `NO_COLOR` and monochrome themes preserve selection and diff semantics.
-- Unicode graph glyphs have ASCII fallbacks.
+- Unicode graph, selection, divider, and overlay glyphs have a centralized ASCII
+  set. `ui.glyphs` can force either set; `auto` selects ASCII for `TERM=dumb`.
 - Mouse is optional and disabled by default.
 - Resize is lossless; the logical selection survives reflow.
 - Every exit path restores cursor, raw mode, mouse/focus state, and screen.

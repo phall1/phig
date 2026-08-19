@@ -25,9 +25,9 @@ pub(super) fn key_action(app: &App, key: KeyEvent) -> Option<Action> {
     match &app.overlay {
         Overlay::Help => {
             return match key.code {
-                KeyCode::Esc | KeyCode::Char('q') | KeyCode::Char('?') => {
-                    Some(Action::CancelOverlay)
-                }
+                KeyCode::Esc => Some(Action::CancelOverlay),
+                KeyCode::Char('?') => Some(Action::ToggleHelp),
+                KeyCode::Char('q') => Some(Action::Quit),
                 _ => None,
             };
         }

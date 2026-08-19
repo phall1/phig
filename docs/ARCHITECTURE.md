@@ -97,7 +97,11 @@ phig parses structural patch lines and applies Ratatui styles itself. C0/C1,
 DEL, terminal escapes, malformed sequences, and bidirectional formatting
 controls are escaped before rendering. Machine output never contains ANSI.
 
-A terminal guard owns raw mode, alternate-screen state, mouse/focus modes, cursor
+Each terminal driver owns an immutable render context containing the resolved
+color and glyph policy, theme, date mode, and effective semantic key labels.
+Normal rendering therefore has no process-global style lookup or color-stripping
+post-pass; compatibility wrappers retain the original public setter API. A
+terminal guard owns raw mode, alternate-screen state, mouse/focus modes, cursor
 visibility, and panic restoration. External interactive commands temporarily
 restore the real terminal, inherit the TTY, then force a complete redraw.
 `--no-alt-screen` renders in place and remains compatible with phux/tmux scrollback.

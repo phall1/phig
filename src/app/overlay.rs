@@ -13,7 +13,10 @@ impl App {
         let mut palette_action = None;
         let mut file_selection = None;
         match (&mut self.overlay, action) {
-            (Overlay::Help, Action::CancelOverlay | Action::Back | Action::Quit) => {
+            (
+                Overlay::Help,
+                Action::CancelOverlay | Action::Back | Action::Quit | Action::ToggleHelp,
+            ) => {
                 self.overlay = Overlay::None;
             }
             (Overlay::Help, Action::StartSearch | Action::StartPalette) => {

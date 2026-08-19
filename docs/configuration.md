@@ -38,8 +38,11 @@ The distributed [`assets/config.example.toml`](../assets/config.example.toml)
 is the canonical complete example. Main sections are:
 
 - `[ui]`: contextual preview, alternate screen, mouse policy, date format,
-  color policy, and clipboard policy. `color = "never"` strips colors and
-  modifiers; `NO_COLOR` does the same in `auto` mode. The zero-config default
+  color, glyph, and clipboard policy. `color = "never"` strips colors and
+  modifiers; `NO_COLOR` does the same in `auto` mode. `glyphs = "unicode"` or
+  `"ascii"` is an explicit display override; `"auto"` uses Unicode except for
+  `TERM=dumb`, where phig chooses ASCII. This is a predictable policy rather
+  than terminal-capability detection. The zero-config default
   `clipboard = "osc52"` makes `y` copy the current semantic OID or path through
   the terminal. Set `clipboard = "off"` to emit no clipboard sequences; pressing
   `y` then reports that copying is disabled instead of implying success.
@@ -50,7 +53,9 @@ is the canonical complete example. Main sections are:
   always merge-base; explicit `phig diff` is always exact.
 - `[limits]`: bounded history pages, patch/blob bytes, and snapshot items.
 - `[theme]`: named ANSI colors for accent, muted text, additions, removals,
-  warnings, errors, and selection foreground/background.
+  warnings, errors, and selection foreground/background. The calm default is
+  accent-on-`reset`, preserving the terminal's native background; set a
+  non-reset `selection_bg` to opt into block selection.
 - `[keys]`: semantic action to key mappings such as `open = "enter"` and
   `view-refs = "ctrl+r"`.
 

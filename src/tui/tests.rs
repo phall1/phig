@@ -168,6 +168,63 @@ fn overlay_text_and_file_picker_paste_bypass_global_remaps() {
 }
 
 #[test]
+fn help_overlay_honors_semantic_remaps_and_keeps_escape_modal() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("config.toml");
+    std::fs::write(&path, "version = 1\n[keys]\nhelp = \"h\"\nquit = \"x\"\n").unwrap();
+    let bindings = config::load(Some(&path), false).unwrap().bindings;
+    let mut app = app();
+
+    assert_eq!(
+        resolve_action(
+            &app,
+            &bindings,
+            KeyEvent::new(KeyCode::Char('h'), KeyModifiers::NONE)
+        ),
+        Some(Action::ToggleHelp)
+    );
+    assert_eq!(
+        resolve_action(
+            &app,
+            &bindings,
+            KeyEvent::new(KeyCode::Char('?'), KeyModifiers::NONE)
+        ),
+        None,
+        "the old help key remained active after a remap"
+    );
+
+    let _ = app.update(Action::ToggleHelp, 10);
+    assert_eq!(app.overlay, Overlay::Help);
+    assert_eq!(
+        resolve_action(
+            &app,
+            &bindings,
+            KeyEvent::new(KeyCode::Char('h'), KeyModifiers::NONE)
+        ),
+        Some(Action::ToggleHelp)
+    );
+    assert_eq!(
+        resolve_action(
+            &app,
+            &bindings,
+            KeyEvent::new(KeyCode::Char('q'), KeyModifiers::NONE)
+        ),
+        None,
+        "the old quit key remained active inside help after a remap"
+    );
+    assert_eq!(
+        resolve_action(
+            &app,
+            &bindings,
+            KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE)
+        ),
+        Some(Action::CancelOverlay)
+    );
+    let _ = app.update(Action::ToggleHelp, 10);
+    assert_eq!(app.overlay, Overlay::None);
+}
+
+#[test]
 fn invalidated_status_responses_cannot_mutate_a_new_tree_view() {
     for result in [
         Ok(GitResult::Status(Status {
@@ -274,7 +331,7 @@ fn page_keys_use_each_layouts_real_history_height() {
         limit: 256,
         has_more: false,
     });
-    for (width, expected) in [(60, 28), (100, 13), (140, 28)] {
+    for (width, expected) in [(60, 28), (100, 12), (140, 28)] {
         app.selected = 0;
         app.selected_oid = app.selected_commit().map(|commit| commit.id.clone());
         let rows = render::page_rows(&app, width, 30);

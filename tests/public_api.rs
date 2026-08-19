@@ -12,8 +12,10 @@ use phig_cli::{
     inspect,
     protocol::SelectionPayload,
     tui::{
-        RenderTheme, TerminalSession, TuiError, handle_help_key, render, run, run_configured,
-        run_select, set_color_mode, set_date_mode, set_theme,
+        ColorMode, DateMode, GlyphMode, RenderConfig, RenderContext, RenderTheme, TerminalSession,
+        TuiError, TuiOptions, handle_help_key, render, render_with_context, run, run_configured,
+        run_select, run_select_with_options, run_with_options, set_color_mode, set_date_mode,
+        set_theme,
     },
 };
 
@@ -60,10 +62,28 @@ fn documented_public_facades_remain_source_compatible() {
         std::mem::size_of::<View>(),
     );
     let _render: fn(&mut ratatui::Frame<'_>, &App) = render;
+    let _render_explicit: fn(&mut ratatui::Frame<'_>, &App, &RenderContext) = render_with_context;
     let _run: fn(App, GitClient, bool) -> Result<(), TuiError> = run;
     let _configured: fn(App, GitClient, bool, KeyBindings, bool, bool) -> Result<(), TuiError> =
         run_configured;
     let _select: RunSelect = run_select;
+    let _options = TuiOptions::default();
+    let _render_config = RenderConfig::default();
+    let _glyphs = [GlyphMode::Auto, GlyphMode::Unicode, GlyphMode::Ascii];
+    let _dates = [
+        DateMode::Relative,
+        DateMode::Local,
+        DateMode::Iso,
+        DateMode::Unix,
+    ];
+    let _colors = [ColorMode::Auto, ColorMode::Always, ColorMode::Never];
+    let _run_options: fn(App, GitClient, TuiOptions) -> Result<(), TuiError> = run_with_options;
+    let _select_options: fn(
+        App,
+        GitClient,
+        SelectionKind,
+        TuiOptions,
+    ) -> Result<Option<SelectionPayload>, TuiError> = run_select_with_options;
     let _help: fn(&mut App, &crossterm::event::KeyEvent) -> bool = handle_help_key;
     let _theme: fn(RenderTheme) = set_theme;
     let _date: fn(&str) = set_date_mode;

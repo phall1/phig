@@ -1,8 +1,10 @@
 //! Width-safe text and deterministic date formatting helpers.
 
+use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
+
 use crate::sanitize::sanitize_str;
 
-use super::theme::DATE_MODE;
+use super::theme::DateMode;
 
 pub(super) fn format_commit_date(timestamp: i64, timezone: &str) -> String {
     let offset = parse_timezone_offset(timezone);
@@ -65,21 +67,54 @@ pub(super) fn civil_from_days(days_since_epoch: i64) -> (i64, i64, i64) {
     (year, month, day)
 }
 
-pub(super) fn truncate(value: &str, width: usize) -> String {
-    if value.chars().count() <= width {
+pub(super) fn display_width(value: &str) -> usize {
+    UnicodeWidthStr::width(value)
+}
+
+pub(super) fn truncate_with(value: &str, width: usize, ellipsis: &str) -> String {
+    if display_width(value) <= width {
         return value.to_owned();
     }
-    let mut output: String = value.chars().take(width.saturating_sub(1)).collect();
-    output.push('…');
+    if width == 0 {
+        return String::new();
+    }
+    let suffix = take_width(ellipsis, width);
+    let suffix_width = display_width(&suffix);
+    let mut output = take_width(value, width.saturating_sub(suffix_width));
+    output.push_str(&suffix);
     output
 }
 
-pub(super) fn display_date(timestamp: i64, timezone: &str) -> String {
-    match DATE_MODE.read().expect("date mode lock").as_str() {
-        "unix" => timestamp.to_string(),
-        "iso" => format_commit_date(timestamp, "+00:00"),
-        "local" => format_commit_date(timestamp, timezone),
-        _ => relative_age(timestamp),
+pub(super) fn pad_right(value: &str, width: usize) -> String {
+    let value = truncate_with(value, width, "");
+    format!(
+        "{value}{}",
+        " ".repeat(width.saturating_sub(display_width(&value)))
+    )
+}
+
+fn take_width(value: &str, width: usize) -> String {
+    let mut used: usize = 0;
+    value
+        .chars()
+        .take_while(|character| {
+            let character_width = UnicodeWidthChar::width(*character).unwrap_or(0);
+            if used.saturating_add(character_width) > width {
+                false
+            } else {
+                used += character_width;
+                true
+            }
+        })
+        .collect()
+}
+
+pub(super) fn display_date(timestamp: i64, timezone: &str, mode: DateMode) -> String {
+    match mode {
+        DateMode::Unix => timestamp.to_string(),
+        DateMode::Iso => format_commit_date(timestamp, "+00:00"),
+        DateMode::Local => format_commit_date(timestamp, timezone),
+        DateMode::Relative => relative_age(timestamp),
     }
 }
 
@@ -100,5 +135,17 @@ pub(super) fn relative_age(timestamp: i64) -> String {
         format!("{}mo", seconds / 2_592_000)
     } else {
         format!("{}y", seconds / 31_536_000)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn truncation_and_padding_use_terminal_cell_width() {
+        assert_eq!(display_width("界e\u{301}"), 3);
+        assert_eq!(truncate_with("界界abc", 5, "…"), "界界…");
+        assert_eq!(display_width(&pad_right("界", 4)), 4);
     }
 }

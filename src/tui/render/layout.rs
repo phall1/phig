@@ -1,46 +1,108 @@
 //! Pure adaptive geometry shared by drawing and navigation page sizing.
 
-use ratatui::layout::{Constraint, Direction, Layout, Rect};
+use ratatui::layout::Rect;
 
 use crate::app::{App, Focus, View};
 
 use super::history::metadata_height;
+
+pub(super) const COMPARE_HEADER_ROWS: u16 = 3;
+pub(super) const STATUS_DIFF_HEADER_ROWS: u16 = 1;
+
+/// Rows available to patch content after reserving the truncation notice.
+pub(super) fn diff_content_rows(height: u16, truncated: bool) -> u16 {
+    if truncated && height > 1 {
+        height - 1
+    } else {
+        height.max(1)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum SplitDirection {
+    Vertical,
+    Horizontal,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) struct PaneLayout {
+    pub primary: Rect,
+    pub divider: Option<Rect>,
+    pub secondary: Option<Rect>,
+    pub direction: Option<SplitDirection>,
+}
+
+impl PaneLayout {
+    fn single(area: Rect) -> Self {
+        Self {
+            primary: area,
+            divider: None,
+            secondary: None,
+            direction: None,
+        }
+    }
+}
 
 pub(crate) fn preview_focus_available(app: &App, width: u16, height: u16) -> bool {
     let body_height = height.saturating_sub(2);
     app.show_preview && width >= 72 && body_height >= 16
 }
 
-pub(super) fn log_areas(app: &App, area: Rect) -> (Rect, Option<Rect>) {
-    let can_preview = app.show_preview && area.height >= 16;
-    if can_preview && area.width >= 110 {
-        let columns = Layout::default()
-            .direction(Direction::Horizontal)
-            .constraints([Constraint::Percentage(42), Constraint::Percentage(58)])
-            .split(area);
-        (columns[0], Some(columns[1]))
-    } else if can_preview && area.width >= 72 {
-        // The 72–109 column contract is intentionally stacked.
-        let rows = Layout::default()
-            .direction(Direction::Vertical)
-            .constraints([Constraint::Percentage(45), Constraint::Percentage(55)])
-            .split(area);
-        (rows[0], Some(rows[1]))
-    } else {
-        (area, None)
+pub(super) fn pane_layout(app: &App, area: Rect, stacked_percent: u16) -> PaneLayout {
+    if !app.show_preview || area.height < 16 || area.width < 72 {
+        return PaneLayout::single(area);
     }
+    if area.width >= 110 {
+        let content = area.width.saturating_sub(1);
+        let primary_width = content.saturating_mul(42) / 100;
+        let secondary_width = content.saturating_sub(primary_width);
+        PaneLayout {
+            primary: Rect::new(area.x, area.y, primary_width, area.height),
+            divider: Some(Rect::new(area.x + primary_width, area.y, 1, area.height)),
+            secondary: Some(Rect::new(
+                area.x + primary_width + 1,
+                area.y,
+                secondary_width,
+                area.height,
+            )),
+            direction: Some(SplitDirection::Vertical),
+        }
+    } else {
+        let content = area.height.saturating_sub(1);
+        let primary_height = content.saturating_mul(stacked_percent) / 100;
+        let secondary_height = content.saturating_sub(primary_height);
+        PaneLayout {
+            primary: Rect::new(area.x, area.y, area.width, primary_height),
+            divider: Some(Rect::new(area.x, area.y + primary_height, area.width, 1)),
+            secondary: Some(Rect::new(
+                area.x,
+                area.y + primary_height + 1,
+                area.width,
+                secondary_height,
+            )),
+            direction: Some(SplitDirection::Horizontal),
+        }
+    }
+}
+
+pub(super) fn log_layout(app: &App, area: Rect) -> PaneLayout {
+    pane_layout(app, area, 45)
+}
+
+pub(super) fn list_preview_layout(app: &App, area: Rect) -> PaneLayout {
+    pane_layout(app, area, 50)
 }
 
 pub(crate) fn page_rows(app: &App, width: u16, height: u16) -> usize {
     let body = Rect::new(0, 1, width, height.saturating_sub(2));
     if app.view == View::Log && app.focus == Focus::List {
-        return usize::from(log_areas(app, body).0.height.max(1));
+        return usize::from(log_layout(app, body).primary.height.max(1));
     }
     if matches!(
         app.view,
         View::Refs | View::Status | View::Blame | View::Stash
     ) {
-        return usize::from(list_preview_areas(app, body).0.height.max(1));
+        return usize::from(list_preview_layout(app, body).primary.height.max(1));
     }
     if app.view == View::Tree {
         return usize::from(body.height.max(1));
@@ -51,26 +113,16 @@ pub(crate) fn page_rows(app: &App, width: u16, height: u16) -> usize {
     ) {
         body
     } else {
-        log_areas(app, body).1.unwrap_or(body)
+        log_layout(app, body).secondary.unwrap_or(body)
     };
-    usize::from(
-        preview
-            .height
-            .saturating_sub(metadata_height(app, preview.height))
-            .max(1),
-    )
-}
-
-pub(super) fn list_preview_areas(app: &App, area: Rect) -> (Rect, Rect) {
-    if !app.show_preview || area.height < 16 || area.width < 72 {
-        return (area, Rect::default());
-    }
-    let parts = if area.width >= 110 {
-        Layout::horizontal([Constraint::Percentage(42), Constraint::Percentage(58)]).split(area)
-    } else {
-        Layout::vertical([Constraint::Percentage(50), Constraint::Percentage(50)]).split(area)
+    let persistent_header = match app.view {
+        View::Compare => COMPARE_HEADER_ROWS,
+        View::StatusDiff => STATUS_DIFF_HEADER_ROWS,
+        _ => metadata_height(app, preview.height),
     };
-    (parts[0], parts[1])
+    let content_height = preview.height.saturating_sub(persistent_header);
+    let truncated = app.active_diff().is_some_and(|diff| diff.truncated);
+    usize::from(diff_content_rows(content_height, truncated))
 }
 
 pub(super) fn centered_rect(width: u16, height: u16, area: Rect) -> Rect {

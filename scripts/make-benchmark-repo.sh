@@ -22,6 +22,11 @@ git -C "$repository" config user.email 'benchmark@example.invalid'
 # the tight commit loop on shared CI runners.
 git -C "$repository" config gc.auto 0
 git -C "$repository" config maintenance.auto false
+# Stamp the private fixture identity so benchmark reuse cannot silently accept
+# an unrelated repository that merely has the same number of commits.
+git -C "$repository" config phig.benchmark.version 1
+git -C "$repository" config phig.benchmark.commits "$commits"
+git -C "$repository" config phig.benchmark.paths 100
 path=0
 while [ "$path" -lt 100 ]; do
   printf '0\n' >"$repository/files/path-$(printf '%03d' "$path").txt"

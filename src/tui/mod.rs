@@ -14,9 +14,14 @@ use thiserror::Error;
 
 use crate::runtime::CoordinatorError;
 
-pub use driver::{run, run_configured, run_select};
+pub use driver::{
+    TuiOptions, run, run_configured, run_select, run_select_with_options, run_with_options,
+};
 pub use input::handle_help_key;
-pub use render::{RenderTheme, render, set_color_mode, set_date_mode, set_theme};
+pub use render::{
+    ColorMode, DateMode, GlyphMode, RenderConfig, RenderContext, RenderTheme, render,
+    render_with_context, set_color_mode, set_date_mode, set_theme,
+};
 pub use session::TerminalSession;
 
 #[derive(Debug, Error)]

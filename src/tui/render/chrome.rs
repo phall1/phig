@@ -2,33 +2,25 @@
 
 use ratatui::{
     Frame,
-    layout::{Constraint, Direction, Layout, Rect},
-    style::{Color, Style},
-    text::{Line, Span, Text},
+    layout::{Alignment, Constraint, Layout, Rect},
+    style::Style,
+    text::{Line, Span},
     widgets::{Block, Borders, Clear, List, ListItem, ListState, Paragraph, Wrap},
 };
 
 use crate::{
-    app::{App, View, palette_commands},
+    app::{Action, App, View, palette_commands},
     sanitize::sanitize_str,
 };
 
 use super::{
-    format::truncate,
+    format::{display_width, pad_right, truncate_with},
     layout::centered_rect,
-    theme::{accent, error_color, muted, selection_bg, selection_fg, warning},
+    theme::RenderContext,
 };
 
-pub(super) fn render_header(frame: &mut Frame<'_>, app: &App, area: Rect) {
-    let repository = app
-        .repository
-        .root
-        .file_name()
-        .map(|name| sanitize_str(&name.to_string_lossy()))
-        .filter(|name| !name.is_empty())
-        .unwrap_or_else(|| sanitize_str(&app.repository.root.to_string_lossy()));
-    let branch = app.repository.branch.as_deref().unwrap_or("detached");
-    let view = match app.view {
+fn view_label(view: View) -> &'static str {
+    match view {
         View::Log => "LOG",
         View::Detail => "SHOW",
         View::Compare => "COMPARE",
@@ -39,50 +31,40 @@ pub(super) fn render_header(frame: &mut Frame<'_>, app: &App, area: Rect) {
         View::Blob => "BLOB",
         View::Blame => "BLAME",
         View::Stash => "STASH",
-    };
-    let mut spans = vec![
+    }
+}
+
+pub(super) fn render_header(frame: &mut Frame<'_>, app: &App, area: Rect, context: &RenderContext) {
+    let repository = app
+        .repository
+        .root
+        .file_name()
+        .map(|name| sanitize_str(&name.to_string_lossy()))
+        .filter(|name| !name.is_empty())
+        .unwrap_or_else(|| sanitize_str(&app.repository.root.to_string_lossy()));
+    let branch = sanitize_str(app.repository.branch.as_deref().unwrap_or("detached"));
+    let revision = app.revision_label.as_ref().map_or_else(
+        || sanitize_str(&app.revision),
+        |label| {
+            format!(
+                "{}@{}",
+                sanitize_str(label),
+                truncate_with(&app.revision, 10, context.glyphs().ellipsis)
+            )
+        },
+    );
+    let mut left = vec![
+        Span::styled(" phig ", context.strong(context.accent())),
         Span::styled(
-            " phig ",
-            Style::default()
-                .fg(selection_fg())
-                .bg(selection_bg())
-                .bold(),
+            format!("{} ", view_label(app.view)),
+            context.strong(context.accent()),
         ),
-        Span::raw(" "),
-        Span::styled(repository, Style::default().bold()),
-        Span::styled(format!("  {view}  "), Style::default().fg(accent())),
-        Span::raw(app.revision_label.as_ref().map_or_else(
-            || sanitize_str(&app.revision),
-            |label| format!("{}@{}", sanitize_str(label), truncate(&app.revision, 10)),
-        )),
-        Span::styled(format!("  {branch}"), Style::default().fg(muted())),
+        Span::styled(repository, Style::reset()),
+        Span::styled(format!(" / {branch}"), context.style(context.muted())),
+        Span::styled(format!("  {revision}"), context.style(context.muted())),
     ];
-    if let Some(marked) = &app.marked_oid {
-        spans.push(Span::styled(
-            format!("  marked:{}", marked.short(10)),
-            Style::default().fg(Color::Magenta).bold(),
-        ));
-    }
-    if app.inspect.compare_picker {
-        spans.push(Span::styled(
-            "  choose comparison base",
-            Style::default().fg(warning()).bold(),
-        ));
-    }
-    if !app.paths.is_empty() {
-        let paths = app
-            .paths
-            .iter()
-            .map(|path| path.display.as_str())
-            .collect::<Vec<_>>()
-            .join(",");
-        spans.push(Span::styled(
-            format!("  path:{paths}"),
-            Style::default().fg(muted()),
-        ));
-    }
     if app.view == View::Tree {
-        spans.push(Span::styled(
+        left.push(Span::styled(
             format!(
                 "  /{}",
                 app.inspect
@@ -90,253 +72,333 @@ pub(super) fn render_header(frame: &mut Frame<'_>, app: &App, area: Rect) {
                     .as_ref()
                     .map_or("", |path| path.display.as_str())
             ),
-            Style::default().fg(muted()),
+            context.style(context.muted()),
+        ));
+    } else if !app.paths.is_empty() {
+        left.push(Span::styled(
+            format!(
+                "  {}",
+                app.paths
+                    .iter()
+                    .map(|path| path.display.as_str())
+                    .collect::<Vec<_>>()
+                    .join(",")
+            ),
+            context.style(context.muted()),
         ));
     }
-    if app.inspect.loading {
-        spans.push(Span::styled("  loading…", Style::default().fg(warning())));
-    }
-    match (
-        app.history_loading && matches!(app.view, View::Log | View::Detail),
-        app.preview_loading
-            && matches!(
-                app.view,
-                View::Log | View::Detail | View::Refs | View::Blame | View::Stash
-            ),
-    ) {
-        (true, true) => spans.push(Span::styled(
-            "  loading history+detail…",
-            Style::default().fg(warning()),
-        )),
-        (true, false) => spans.push(Span::styled(
-            "  loading history…",
-            Style::default().fg(warning()),
-        )),
-        (false, true) => spans.push(Span::styled(
-            "  loading detail…",
-            Style::default().fg(warning()),
-        )),
-        (false, false) => {}
-    }
-    if app.has_errors() {
-        spans.push(Span::styled(
-            "  request failed",
-            Style::default().fg(error_color()).bold(),
-        ));
-    }
-    frame.render_widget(Paragraph::new(Line::from(spans)), area);
-}
 
-pub(super) fn render_footer(frame: &mut Frame<'_>, app: &App, area: Rect) {
-    if let Some(selection) = &app.selection_contract {
-        let contract = format!(
-            " SELECT {} · {} emit · {} cancel",
-            selection.target.label(),
-            selection.accept_key,
-            selection.cancel_keys
-        );
-        let full_navigation = match app.view {
-            View::Log | View::Refs | View::Blame | View::Stash | View::Status | View::Tree => {
-                " · j/k move · / search · p preview"
-            }
-            View::Detail | View::StatusDiff => " · j/k scroll · [/] hunk · Tab file",
-            View::Compare => " · j/k scroll · [/] hunk · x swap",
-            View::Blob => " · j/k scroll · / search",
-        };
-        let compact_navigation = match app.view {
-            View::Log | View::Refs | View::Blame | View::Stash | View::Status | View::Tree => {
-                " · j/k move"
-            }
-            View::Detail | View::Compare | View::StatusDiff | View::Blob => " · j/k scroll",
-        };
-        let navigation = if contract.chars().count() + full_navigation.chars().count()
-            <= usize::from(area.width)
-        {
-            full_navigation
-        } else {
-            compact_navigation
-        };
-        frame.render_widget(
-            Paragraph::new(Line::from(vec![
-                Span::styled(contract, Style::default().fg(accent()).bold()),
-                Span::styled(navigation, Style::default().fg(muted())),
-            ])),
-            area,
-        );
-        return;
-    }
-
-    let position = match app.view {
-        View::Log => {
-            if app.commits.is_empty() {
-                "0/0".into()
-            } else {
-                format!("{}/{}", app.selected + 1, app.commits.len())
-            }
-        }
-        View::Refs => format!(
-            "{}/{}",
-            app.inspect.selected.saturating_add(1),
-            app.inspect.refs.len()
-        ),
-        View::Status => format!(
-            "{}/{}",
-            app.inspect.selected.saturating_add(1),
-            app.inspect.status_entries().len()
-        ),
-        View::Tree => format!(
-            "{}/{}",
-            app.inspect.selected.saturating_add(1),
-            app.inspect.tree.len()
-        ),
-        View::Blame => format!(
-            "{}/{}",
-            app.inspect.selected.saturating_add(1),
-            app.inspect.blame.len()
-        ),
-        View::Stash => format!(
-            "{}/{}",
-            app.inspect.selected.saturating_add(1),
-            app.inspect.stashes.len()
-        ),
-        View::Blob | View::Detail | View::Compare | View::StatusDiff => {
-            format!("line {}", app.diff_scroll.saturating_add(1))
-        }
-    };
-    if let Some(notice) = &app.notice {
-        frame.render_widget(
-            Paragraph::new(Line::from(vec![
-                Span::styled(" Notice ", Style::default().fg(Color::Black).bg(accent())),
-                Span::raw(" "),
-                Span::styled(notice.clone(), Style::default().fg(muted())),
-            ])),
-            area,
-        );
-        return;
-    }
-    let keys = match app.view {
-        View::Log => "j/k move  Enter inspect  f files  c compare  / search  ? help  q quit",
-        View::Detail => "j/k scroll  f files  [/] hunk  Tab file  P parent  b blame  q back",
-        View::Compare => "j/k scroll  f files  [/] hunk  x swap  M mode  q back",
-        View::Refs => "j/k move  Enter history/base  c compare  p preview  / search  q back",
-        View::Status if app.inspect.working_diff.is_some() => {
-            "diff ready  Enter inspect  j/k move  f files  d staged/unstaged  p preview  q back"
-        }
-        View::Status => "loading diff  j/k move  d staged/unstaged  p preview  q back",
-        View::StatusDiff => "j/k scroll  f files  [/] hunk  {/} file  b blame  q back",
-        View::Tree => "j/k move  Enter open  Backspace up  b blame  q back",
-        View::Blob => "j/k scroll  b blame  / search  q back",
-        View::Blame => "j/k move  Enter commit  p preview  / search  q back",
-        View::Stash => "j/k move  Enter patch  p preview  / search  q back",
-    };
-    frame.render_widget(
-        Paragraph::new(Line::from(vec![
-            Span::styled(
-                format!(" {position} "),
-                Style::default().fg(Color::Black).bg(muted()),
-            ),
-            Span::raw(" "),
-            Span::styled(keys, Style::default().fg(muted())),
-            Span::styled(
-                app.marked_oid
-                    .as_ref()
-                    .map_or(String::new(), |oid| format!("  marked:{}", oid.short(10))),
-                Style::default().fg(Color::Magenta),
-            ),
-        ])),
-        area,
-    );
-}
-
-pub(super) fn render_help(frame: &mut Frame<'_>, app: &App, area: Rect) {
-    let popup = centered_rect(
-        72.min(area.width.saturating_sub(4)),
-        20.min(area.height.saturating_sub(2)),
-        area,
-    );
-    frame.render_widget(Clear, popup);
-    let context = match app.view {
-        View::Log => "Log: Enter inspect · v mark · c compare · p preview",
-        View::Detail => "Diff: f file picker · [/] hunks · Tab files · P merge parent",
-        View::Compare => "Compare: f file picker · x swap · M exact/merge-base",
-        View::Refs => "Refs: Enter opens history or accepts comparison base",
-        View::Status => "Status is read-only; Enter opens the selected working diff",
-        View::StatusDiff => "Working diff: f file picker · [/] hunks · q returns to status",
-        View::Tree => "Tree: Enter descends/opens · Backspace ascends",
-        View::Blob => "Blob: sanitized text or a safe binary summary",
-        View::Blame => "Blame: Enter opens the selected line's commit",
-        View::Stash => "Stash: Enter opens the selected stash patch",
-    };
-    let text = Text::from(vec![
-        Line::styled("phig keys", Style::default().fg(accent()).bold()),
-        Line::raw(""),
-        Line::raw("j/k or ↑/↓       move / scroll"),
-        Line::raw("Ctrl-d/u PgDn/Up page"),
-        Line::raw("g/G Home/End     first / last"),
-        Line::raw("Enter / q        open / back / quit"),
-        Line::raw("/ · n/N          search · next/previous"),
-        Line::raw(":                searchable command palette"),
-        Line::raw("f                searchable changed-file picker"),
-        Line::raw("[ ] · { }        hunk · file"),
-        Line::raw("m/r/s/t/b/z       history · refs · status · tree · blame · stash"),
-        Line::raw("v · c · x · M      mark · compare · swap · compare mode"),
-        Line::raw("Tab · p · P       section/file · preview · parent"),
-        Line::raw("y · Ctrl-l        OSC 52 copy · redraw"),
-        Line::raw(""),
-        Line::styled(context, Style::default().fg(muted())),
-        Line::raw("Esc closes this help"),
-    ]);
-    frame.render_widget(
-        Paragraph::new(text)
-            .block(
-                Block::default()
-                    .borders(Borders::ALL)
-                    .title(" Help ")
-                    .border_style(Style::default().fg(accent())),
+    let critical = if app.has_errors() {
+        Some(("request failed".to_owned(), context.error(), true))
+    } else if let Some(selection) = &app.selection_contract {
+        Some((
+            format!("select {}", selection.target.label().to_ascii_lowercase()),
+            context.accent(),
+            true,
+        ))
+    } else if app.inspect.compare_picker {
+        Some(("choose comparison base".into(), context.warning(), true))
+    } else if app.inspect.loading || app.history_loading || app.preview_loading {
+        Some((
+            format!("loading{}", context.glyphs().ellipsis),
+            context.warning(),
+            false,
+        ))
+    } else {
+        app.marked_oid.as_ref().map(|marked| {
+            (
+                format!("marked {}", marked.short(10)),
+                context.muted(),
+                false,
             )
-            .wrap(Wrap { trim: false }),
-        popup,
+        })
+    };
+
+    if let Some((label, color, strong)) = critical {
+        let width = display_width(&label)
+            .saturating_add(1)
+            .min(usize::from(area.width / 2));
+        let parts = Layout::horizontal([
+            Constraint::Min(1),
+            Constraint::Length(u16::try_from(width).unwrap_or(area.width)),
+        ])
+        .split(area);
+        frame.render_widget(Paragraph::new(Line::from(left)), parts[0]);
+        frame.render_widget(
+            Paragraph::new(label)
+                .alignment(Alignment::Right)
+                .style(if strong {
+                    context.strong(color)
+                } else {
+                    context.style(color)
+                }),
+            parts[1],
+        );
+    } else {
+        frame.render_widget(Paragraph::new(Line::from(left)), area);
+    }
+}
+
+fn index_position(selected: usize, count: usize) -> String {
+    if count == 0 {
+        "0/0".into()
+    } else {
+        format!("{}/{}", selected.min(count - 1) + 1, count)
+    }
+}
+
+fn position(app: &App) -> String {
+    match app.view {
+        View::Log => index_position(app.selected, app.commits.len()),
+        View::Refs => index_position(app.inspect.selected, app.inspect.refs.len()),
+        View::Status => index_position(app.inspect.selected, app.inspect.status_entries().len()),
+        View::Tree => index_position(app.inspect.selected, app.inspect.tree.len()),
+        View::Blame => index_position(app.inspect.selected, app.inspect.blame.len()),
+        View::Stash => index_position(app.inspect.selected, app.inspect.stashes.len()),
+        View::Blob | View::Detail | View::Compare | View::StatusDiff => {
+            format!("line {}", app.diff_scroll + 1)
+        }
+    }
+}
+
+fn key_pair(context: &RenderContext, first: &Action, second: &Action) -> String {
+    format!("{}/{}", context.key(first), context.key(second))
+}
+
+fn hints(app: &App, context: &RenderContext) -> Vec<String> {
+    let move_keys = key_pair(context, &Action::Move(1), &Action::Move(-1));
+    match app.view {
+        View::Log | View::Refs | View::Blame | View::Stash => vec![
+            format!("{move_keys} move"),
+            format!("{} open", context.key(&Action::Open)),
+            format!("{} search", context.key(&Action::StartSearch)),
+        ],
+        View::Status => {
+            let preview_hint = if app.inspect.status_entries().is_empty() {
+                "no changes".into()
+            } else if app.inspect.working_diff.is_some() {
+                format!("{} open", context.key(&Action::Open))
+            } else if app.inspect.loading || app.inspect.working_diff_pending.is_some() {
+                "loading diff".into()
+            } else {
+                "no diff".into()
+            };
+            vec![
+                format!("{move_keys} move"),
+                preview_hint,
+                format!("{} search", context.key(&Action::StartSearch)),
+            ]
+        }
+        View::Tree => vec![
+            format!("{move_keys} move"),
+            format!("{} open", context.key(&Action::Open)),
+            format!("{} up", context.key(&Action::Ascend)),
+        ],
+        View::Detail | View::StatusDiff => vec![
+            format!("{move_keys} scroll"),
+            format!("{} files", context.key(&Action::StartFilePicker)),
+            format!(
+                "{}/{} hunk",
+                context.key(&Action::NextHunk(-1)),
+                context.key(&Action::NextHunk(1))
+            ),
+        ],
+        View::Compare => vec![
+            format!("{move_keys} scroll"),
+            format!("{} swap", context.key(&Action::SwapCompare)),
+            format!("{} mode", context.key(&Action::ToggleCompareMode)),
+        ],
+        View::Blob => vec![
+            format!("{move_keys} scroll"),
+            format!("{} search", context.key(&Action::StartSearch)),
+            format!("{} blame", context.key(&Action::ViewBlame)),
+        ],
+    }
+}
+
+pub(super) fn render_footer(frame: &mut Frame<'_>, app: &App, area: Rect, context: &RenderContext) {
+    let position = position(app);
+    let position_width = u16::try_from(display_width(&position)).unwrap_or(area.width);
+    let parts = Layout::horizontal([
+        Constraint::Min(1),
+        Constraint::Length(position_width.min(area.width)),
+    ])
+    .split(area);
+    let left_width = usize::from(parts[0].width);
+
+    let left = if let Some(selection) = &app.selection_contract {
+        format!(
+            " {} emit {} {} {} cancel",
+            selection.accept_key,
+            selection.target.label().to_ascii_lowercase(),
+            context.glyphs().separator,
+            selection.cancel_keys
+        )
+    } else if let Some(notice) = &app.notice {
+        format!(" {notice}")
+    } else {
+        let mut text = String::from(" ");
+        for hint in hints(app, context).into_iter().take(3) {
+            let next = if text.trim().is_empty() {
+                hint
+            } else {
+                format!(" {} {hint}", context.glyphs().separator)
+            };
+            if display_width(&text) + display_width(&next) > left_width {
+                break;
+            }
+            text.push_str(&next);
+        }
+        text
+    };
+    frame.render_widget(
+        Paragraph::new(left).style(context.style(context.muted())),
+        parts[0],
+    );
+    frame.render_widget(
+        Paragraph::new(position)
+            .alignment(Alignment::Right)
+            .style(context.style(context.muted())),
+        parts[1],
     );
 }
 
-pub(super) fn render_search(frame: &mut Frame<'_>, draft: &str, body: Rect) {
+fn overlay_regions(
+    frame: &mut Frame<'_>,
+    area: Rect,
+    width: u16,
+    height: u16,
+    title: &'static str,
+    error: bool,
+    context: &RenderContext,
+) -> (Rect, Rect) {
+    let popup = centered_rect(
+        width.min(area.width.saturating_sub(2)),
+        height.min(area.height),
+        area,
+    );
+    let clear_band = Rect::new(area.x, popup.y, area.width, popup.height);
+    frame.render_widget(Clear, clear_band);
+    let color = if error {
+        context.error()
+    } else {
+        context.accent()
+    };
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .border_set(context.glyphs().border())
+        .title(format!(" {title} "))
+        .title_style(context.strong(color))
+        .border_style(context.style(context.muted()));
+    let inner = block.inner(popup);
+    frame.render_widget(block, popup);
+    let parts = Layout::vertical([Constraint::Min(1), Constraint::Length(1)]).split(inner);
+    (parts[0], parts[1])
+}
+
+pub(super) fn render_help(frame: &mut Frame<'_>, app: &App, area: Rect, context: &RenderContext) {
+    let (body, footer) = overlay_regions(frame, area, 68, 16, "Help", false, context);
+    let move_keys = key_pair(context, &Action::Move(1), &Action::Move(-1));
+    let lines = vec![
+        Line::raw(format!("{} move / scroll", pad_right(&move_keys, 14))),
+        Line::raw(format!(
+            "{} open {s} {} back",
+            pad_right(&context.key(&Action::Open), 14),
+            context.key(&Action::Back),
+            s = context.glyphs().separator,
+        )),
+        Line::raw(format!(
+            "{} search {s} {}/{} matches",
+            pad_right(&context.key(&Action::StartSearch), 14),
+            context.key(&Action::NextMatch),
+            context.key(&Action::PreviousMatch),
+            s = context.glyphs().separator,
+        )),
+        Line::raw(format!(
+            "{} commands {s} {} changed files",
+            pad_right(&context.key(&Action::StartPalette), 14),
+            context.key(&Action::StartFilePicker),
+            s = context.glyphs().separator,
+        )),
+        Line::raw(format!(
+            "{}/{} hunks {s} {}/{} files",
+            context.key(&Action::NextHunk(-1)),
+            context.key(&Action::NextHunk(1)),
+            context.key(&Action::NextFile(-1)),
+            context.key(&Action::NextFile(1)),
+            s = context.glyphs().separator,
+        )),
+        Line::raw(format!(
+            "{} refs {s} {} status {s} {} tree {s} {} blame {s} {} stash",
+            context.key(&Action::ViewRefs),
+            context.key(&Action::ViewStatus),
+            context.key(&Action::ViewTree),
+            context.key(&Action::ViewBlame),
+            context.key(&Action::ViewStash),
+            s = context.glyphs().separator,
+        )),
+        Line::raw(format!(
+            "{} mark {s} {} compare {s} {} copy {s} {} preview",
+            context.key(&Action::Mark),
+            context.key(&Action::StartCompare),
+            context.key(&Action::CopySelection),
+            context.key(&Action::TogglePreview),
+            s = context.glyphs().separator,
+        )),
+        Line::raw(""),
+        Line::styled(
+            format!("{} view", view_label(app.view).to_ascii_lowercase()),
+            context.style(context.muted()),
+        ),
+    ];
+    frame.render_widget(Paragraph::new(lines).wrap(Wrap { trim: false }), body);
+    frame.render_widget(
+        Paragraph::new(format!("{} close", context.key(&Action::ToggleHelp)))
+            .style(context.style(context.muted())),
+        footer,
+    );
+}
+
+pub(super) fn render_search(
+    frame: &mut Frame<'_>,
+    draft: &str,
+    body: Rect,
+    context: &RenderContext,
+) {
     let area = Rect::new(body.x, body.bottom().saturating_sub(1), body.width, 1);
     frame.render_widget(Clear, area);
     frame.render_widget(
         Paragraph::new(Line::from(vec![
-            Span::styled("/", Style::default().fg(accent()).bold()),
+            Span::styled("/", context.strong(context.accent())),
             Span::raw(draft.to_owned()),
-            Span::styled("  Enter accept · Esc cancel", Style::default().fg(muted())),
-        ]))
-        .style(Style::default().bg(Color::Black)),
+            Span::styled(
+                format!("  Enter accept {} Esc cancel", context.glyphs().separator),
+                context.style(context.muted()),
+            ),
+        ])),
         area,
     );
 }
 
-pub(super) fn render_palette(frame: &mut Frame<'_>, draft: &str, selected: usize, area: Rect) {
+pub(super) fn render_palette(
+    frame: &mut Frame<'_>,
+    draft: &str,
+    selected: usize,
+    area: Rect,
+    context: &RenderContext,
+) {
     let commands = palette_commands(draft);
-    let height = (commands.len().min(8) as u16).saturating_add(3);
-    let popup = centered_rect(
-        64.min(area.width.saturating_sub(4)),
-        height.min(area.height.saturating_sub(2)),
-        area,
-    );
-    frame.render_widget(Clear, popup);
-    let inner = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([Constraint::Length(1), Constraint::Min(1)])
-        .split(popup.inner(ratatui::layout::Margin {
-            horizontal: 1,
-            vertical: 1,
-        }));
+    let height = (commands.len().min(8) as u16).saturating_add(5);
+    let (body, footer) = overlay_regions(frame, area, 62, height, "Commands", false, context);
+    let parts = Layout::vertical([Constraint::Length(1), Constraint::Min(1)]).split(body);
     frame.render_widget(
         Paragraph::new(Line::from(vec![
-            Span::styled(":", Style::default().fg(accent()).bold()),
+            Span::styled(":", context.strong(context.accent())),
             Span::raw(draft.to_owned()),
         ])),
-        inner[0],
+        parts[0],
     );
-    let visible = usize::from(inner[1].height.max(1));
+    let visible = usize::from(parts[1].height.max(1));
     let selected = selected.min(commands.len().saturating_sub(1));
     let start = selected
         .saturating_sub(visible / 2)
@@ -353,21 +415,20 @@ pub(super) fn render_palette(frame: &mut Frame<'_>, draft: &str, selected: usize
     let mut state = ListState::default()
         .with_selected((!commands.is_empty()).then_some(selected.saturating_sub(start)));
     frame.render_stateful_widget(
-        List::new(items).highlight_symbol("› ").highlight_style(
-            Style::default()
-                .fg(selection_fg())
-                .bg(selection_bg())
-                .bold(),
-        ),
-        inner[1],
+        List::new(items)
+            .highlight_symbol(context.glyphs().selected)
+            .highlight_style(context.selection_style(true)),
+        parts[1],
         &mut state,
     );
     frame.render_widget(
-        Block::default()
-            .borders(Borders::ALL)
-            .title(" Commands · type to filter · Enter run · Esc close ")
-            .border_style(Style::default().fg(accent())),
-        popup,
+        Paragraph::new(format!(
+            "{} move {s} Enter run {s} Esc close",
+            context.glyphs().up_down,
+            s = context.glyphs().separator,
+        ))
+        .style(context.style(context.muted())),
+        footer,
     );
 }
 
@@ -377,29 +438,20 @@ pub(super) fn render_file_picker(
     draft: &str,
     selected: usize,
     area: Rect,
+    context: &RenderContext,
 ) {
     let files = app.file_picker_entries(draft);
-    let height = (files.len().min(12) as u16).saturating_add(3);
-    let popup = centered_rect(
-        72.min(area.width.saturating_sub(4)),
-        height.min(area.height.saturating_sub(2)),
-        area,
-    );
-    frame.render_widget(Clear, popup);
-    let inner = Layout::vertical([Constraint::Length(1), Constraint::Min(1)]).split(popup.inner(
-        ratatui::layout::Margin {
-            horizontal: 1,
-            vertical: 1,
-        },
-    ));
+    let height = (files.len().min(12) as u16).saturating_add(5);
+    let (body, footer) = overlay_regions(frame, area, 68, height, "Changed files", false, context);
+    let parts = Layout::vertical([Constraint::Length(1), Constraint::Min(1)]).split(body);
     frame.render_widget(
         Paragraph::new(Line::from(vec![
-            Span::styled("file: ", Style::default().fg(accent()).bold()),
+            Span::styled("file: ", context.strong(context.accent())),
             Span::raw(draft.to_owned()),
         ])),
-        inner[0],
+        parts[0],
     );
-    let visible = usize::from(inner[1].height.max(1));
+    let visible = usize::from(parts[1].height.max(1));
     let selected = selected.min(files.len().saturating_sub(1));
     let start = selected
         .saturating_sub(visible / 2)
@@ -416,25 +468,24 @@ pub(super) fn render_file_picker(
     let mut state = ListState::default()
         .with_selected((!files.is_empty()).then_some(selected.saturating_sub(start)));
     frame.render_stateful_widget(
-        List::new(items).highlight_symbol("› ").highlight_style(
-            Style::default()
-                .fg(selection_fg())
-                .bg(selection_bg())
-                .bold(),
-        ),
-        inner[1],
+        List::new(items)
+            .highlight_symbol(context.glyphs().selected)
+            .highlight_style(context.selection_style(true)),
+        parts[1],
         &mut state,
     );
     frame.render_widget(
-        Block::default()
-            .borders(Borders::ALL)
-            .title(" Changed files · type to filter · Enter jump · Esc close ")
-            .border_style(Style::default().fg(accent())),
-        popup,
+        Paragraph::new(format!(
+            "{} move {s} Enter jump {s} Esc close",
+            context.glyphs().up_down,
+            s = context.glyphs().separator,
+        ))
+        .style(context.style(context.muted())),
+        footer,
     );
 }
 
-pub(super) fn render_errors(frame: &mut Frame<'_>, app: &App, area: Rect) {
+pub(super) fn render_errors(frame: &mut Frame<'_>, app: &App, area: Rect, context: &RenderContext) {
     let failures = [&app.history_error, &app.preview_error, &app.inspect_error]
         .into_iter()
         .flatten()
@@ -443,41 +494,32 @@ pub(super) fn render_errors(frame: &mut Frame<'_>, app: &App, area: Rect) {
     for failure in &failures {
         lines.push(Line::styled(
             format!("Failed to {}", failure.operation),
-            Style::default().fg(error_color()).bold(),
+            context.strong(context.error()),
         ));
         lines.push(Line::raw(failure.detail.clone()));
     }
     let height = if failures.len() > 1 { 10 } else { 8 };
-    let popup = centered_rect(
-        76.min(area.width.saturating_sub(2)),
-        height.min(area.height),
-        area,
-    );
-    frame.render_widget(Clear, popup);
-    let block = Block::default()
-        .borders(Borders::ALL)
-        .title(" Request error ")
-        .border_style(Style::default().fg(error_color()));
-    let inner = block.inner(popup);
-    frame.render_widget(block, popup);
-    let sections = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([Constraint::Min(1), Constraint::Length(1)])
-        .split(inner);
-    frame.render_widget(
-        Paragraph::new(lines).wrap(Wrap { trim: false }),
-        sections[0],
-    );
+    let (body, footer) = overlay_regions(frame, area, 72, height, "Request failed", true, context);
+    frame.render_widget(Paragraph::new(lines).wrap(Wrap { trim: false }), body);
     let recovery = if failures
         .iter()
         .any(|failure| failure.operation == "open blame")
     {
-        "Esc dismiss · select a file path, then press b"
+        format!(
+            "{} dismiss {s} select a path, then {}",
+            context.key(&Action::Back),
+            context.key(&Action::ViewBlame),
+            s = context.glyphs().separator,
+        )
     } else {
-        "r retry failed request(s) · Esc dismiss"
+        format!(
+            "r retry {} {} dismiss",
+            context.glyphs().separator,
+            context.key(&Action::Back)
+        )
     };
     frame.render_widget(
-        Paragraph::new(recovery).style(Style::default().fg(warning())),
-        sections[1],
+        Paragraph::new(recovery).style(context.style(context.warning())),
+        footer,
     );
 }

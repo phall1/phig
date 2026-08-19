@@ -74,6 +74,7 @@ pub struct UiConfig {
     pub mouse: bool,
     pub date: String,
     pub color: String,
+    pub glyphs: String,
     pub clipboard: String,
 }
 impl Default for UiConfig {
@@ -84,6 +85,7 @@ impl Default for UiConfig {
             mouse: false,
             date: "relative".into(),
             color: "auto".into(),
+            glyphs: "auto".into(),
             clipboard: "osc52".into(),
         }
     }
@@ -170,8 +172,8 @@ impl Default for ThemeConfig {
             removed: "red".into(),
             warning: "yellow".into(),
             error: "red".into(),
-            selection_fg: "black".into(),
-            selection_bg: "cyan".into(),
+            selection_fg: "cyan".into(),
+            selection_bg: "reset".into(),
         }
     }
 }
@@ -220,6 +222,56 @@ impl KeyBindings {
             return Some(action.clone());
         }
         default.filter(|action| !self.overridden.contains(action.semantic_name()))
+    }
+
+    pub fn action_key_label(&self, action: &Action) -> String {
+        if self.overridden.contains(action.semantic_name()) {
+            return self
+                .by_key
+                .iter()
+                .find_map(|(key, candidate)| (candidate == action).then(|| key.label()))
+                .unwrap_or_else(|| "unbound".into());
+        }
+        match action {
+            Action::Move(1) => "j",
+            Action::Move(-1) => "k",
+            Action::Page(1) => "Ctrl+d",
+            Action::Page(-1) => "Ctrl+u",
+            Action::First => "g",
+            Action::Last => "G",
+            Action::Open => "Enter",
+            Action::Back => "Esc",
+            Action::Quit => "q",
+            Action::TogglePreview => "p",
+            Action::ToggleFocus => "Tab",
+            Action::StartSearch => "/",
+            Action::StartPalette => ":",
+            Action::StartFilePicker => "f",
+            Action::ToggleHelp => "?",
+            Action::NextMatch => "n",
+            Action::PreviousMatch => "N",
+            Action::NextHunk(1) => "]",
+            Action::NextHunk(-1) => "[",
+            Action::NextFile(1) => "}",
+            Action::NextFile(-1) => "{",
+            Action::NextParent => "P",
+            Action::ViewLog => "m",
+            Action::ViewRefs => "r",
+            Action::ViewStatus => "s",
+            Action::ViewTree => "t",
+            Action::ViewBlame => "b",
+            Action::ViewStash => "z",
+            Action::Mark => "v",
+            Action::StartCompare => "c",
+            Action::SwapCompare => "x",
+            Action::ToggleCompareMode => "M",
+            Action::ToggleStatusDiff => "d",
+            Action::Ascend => "Backspace",
+            Action::CopySelection => "y",
+            Action::Redraw => "Ctrl+l",
+            _ => "unbound",
+        }
+        .into()
     }
 
     pub fn selection_key_labels(&self) -> (String, String) {
@@ -280,7 +332,7 @@ impl KeyBindings {
         }
     }
 
-    fn from_config(values: &BTreeMap<String, String>) -> Result<Self, String> {
+    pub(crate) fn from_config(values: &BTreeMap<String, String>) -> Result<Self, String> {
         let mut by_key = HashMap::new();
         let mut overridden = HashSet::new();
         for (requested_action, key_name) in values {
@@ -490,6 +542,9 @@ pub fn validate(config: &Config, path: &Path) -> Result<(), ConfigError> {
     if !["auto", "always", "never"].contains(&config.ui.color.as_str()) {
         return Err(bad("ui.color must be auto, always, or never".into()));
     }
+    if !["auto", "unicode", "ascii"].contains(&config.ui.glyphs.as_str()) {
+        return Err(bad("ui.glyphs must be auto, unicode, or ascii".into()));
+    }
     if !["off", "osc52"].contains(&config.ui.clipboard.as_str()) {
         return Err(bad("ui.clipboard must be off or osc52".into()));
     }
@@ -590,9 +645,24 @@ mod tests {
     fn zero_config_enables_osc52_copy_and_off_remains_valid() {
         let default = Config::default();
         assert_eq!(default.ui.clipboard, "osc52");
+        assert_eq!(default.ui.glyphs, "auto");
+        assert_eq!(default.theme.selection_fg, "cyan");
+        assert_eq!(default.theme.selection_bg, "reset");
         let mut disabled = default;
         disabled.ui.clipboard = "off".into();
         validate(&disabled, Path::new("disabled.toml")).unwrap();
+    }
+
+    #[test]
+    fn rejects_invalid_glyph_policy() {
+        let mut config = Config::default();
+        config.ui.glyphs = "emoji".into();
+        assert!(
+            validate(&config, Path::new("glyphs.toml"))
+                .unwrap_err()
+                .to_string()
+                .contains("ui.glyphs must be auto, unicode, or ascii")
+        );
     }
 
     #[test]

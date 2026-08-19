@@ -8,32 +8,50 @@ mod inspect;
 mod layout;
 mod theme;
 
-use std::sync::atomic::Ordering;
-
 use ratatui::{
     Frame,
-    buffer::Buffer,
-    layout::{Constraint, Direction, Layout, Rect},
-    style::Style,
+    layout::{Constraint, Direction, Layout},
+    text::{Line, Text},
+    widgets::Paragraph,
 };
 
 use crate::app::{App, Overlay, View};
 
-use chrome::{
-    render_errors, render_file_picker, render_footer, render_header, render_help, render_palette,
-    render_search,
-};
-use diff::render_detail;
-use history::render_log;
-use inspect::{
-    render_blame, render_blob, render_compare, render_refs, render_stashes, render_status,
-    render_status_diff, render_tree,
-};
 pub(crate) use layout::{page_rows, preview_focus_available};
-use theme::COLOR_MODE;
-pub use theme::{RenderTheme, set_color_mode, set_date_mode, set_theme};
+pub(crate) use theme::legacy_config;
+pub use theme::{
+    ColorMode, DateMode, GlyphMode, RenderConfig, RenderContext, RenderTheme, set_color_mode,
+    set_date_mode, set_theme,
+};
 
 pub fn render(frame: &mut Frame<'_>, app: &App) {
+    let context = theme::legacy_context();
+    render_with_context(frame, app, &context);
+}
+
+fn render_divider(frame: &mut Frame<'_>, layout: layout::PaneLayout, context: &RenderContext) {
+    let Some(area) = layout.divider else {
+        return;
+    };
+    let glyphs = context.glyphs();
+    let text = match layout.direction {
+        Some(layout::SplitDirection::Vertical) => Text::from(
+            (0..area.height)
+                .map(|_| Line::from(glyphs.vertical))
+                .collect::<Vec<_>>(),
+        ),
+        Some(layout::SplitDirection::Horizontal) => {
+            Text::from(glyphs.horizontal.repeat(usize::from(area.width)))
+        }
+        None => return,
+    };
+    frame.render_widget(
+        Paragraph::new(text).style(context.style(context.muted())),
+        area,
+    );
+}
+
+pub fn render_with_context(frame: &mut Frame<'_>, app: &App, context: &RenderContext) {
     let area = frame.area();
     let rows = Layout::default()
         .direction(Direction::Vertical)
@@ -44,46 +62,34 @@ pub fn render(frame: &mut Frame<'_>, app: &App) {
         ])
         .split(area);
 
-    render_header(frame, app, rows[0]);
+    chrome::render_header(frame, app, rows[0], context);
     match app.view {
-        View::Log => render_log(frame, app, rows[1]),
-        View::Detail => render_detail(frame, app, rows[1]),
-        View::Compare => render_compare(frame, app, rows[1]),
-        View::Refs => render_refs(frame, app, rows[1]),
-        View::Status => render_status(frame, app, rows[1]),
-        View::StatusDiff => render_status_diff(frame, app, rows[1]),
-        View::Tree => render_tree(frame, app, rows[1]),
-        View::Blob => render_blob(frame, app, rows[1]),
-        View::Blame => render_blame(frame, app, rows[1]),
-        View::Stash => render_stashes(frame, app, rows[1]),
+        View::Log => history::render_log(frame, app, rows[1], context),
+        View::Detail => diff::render_detail(frame, app, rows[1], context),
+        View::Compare => inspect::render_compare(frame, app, rows[1], context),
+        View::Refs => inspect::render_refs(frame, app, rows[1], context),
+        View::Status => inspect::render_status(frame, app, rows[1], context),
+        View::StatusDiff => inspect::render_status_diff(frame, app, rows[1], context),
+        View::Tree => inspect::render_tree(frame, app, rows[1], context),
+        View::Blob => inspect::render_blob(frame, app, rows[1], context),
+        View::Blame => inspect::render_blame(frame, app, rows[1], context),
+        View::Stash => inspect::render_stashes(frame, app, rows[1], context),
     }
-    render_footer(frame, app, rows[2]);
+    chrome::render_footer(frame, app, rows[2], context);
 
     if app.has_errors() && matches!(app.overlay, Overlay::None) {
-        render_errors(frame, app, rows[1]);
+        chrome::render_errors(frame, app, rows[1], context);
     }
     match &app.overlay {
-        Overlay::Help => render_help(frame, app, area),
-        Overlay::Search { draft, .. } => render_search(frame, draft, rows[1]),
-        Overlay::Palette { draft, selected } => render_palette(frame, draft, *selected, area),
+        Overlay::Help => chrome::render_help(frame, app, area, context),
+        Overlay::Search { draft, .. } => chrome::render_search(frame, draft, rows[1], context),
+        Overlay::Palette { draft, selected } => {
+            chrome::render_palette(frame, draft, *selected, area, context)
+        }
         Overlay::FilePicker {
             draft, selected, ..
-        } => render_file_picker(frame, app, draft, *selected, area),
+        } => chrome::render_file_picker(frame, app, draft, *selected, area, context),
         Overlay::None => {}
-    }
-
-    if COLOR_MODE.load(Ordering::SeqCst) < 0
-        || (COLOR_MODE.load(Ordering::SeqCst) == 0 && std::env::var_os("NO_COLOR").is_some())
-    {
-        reset_styles(frame.buffer_mut(), area);
-    }
-}
-
-fn reset_styles(buffer: &mut Buffer, area: Rect) {
-    for y in area.top()..area.bottom() {
-        for x in area.left()..area.right() {
-            buffer[(x, y)].set_style(Style::reset());
-        }
     }
 }
 

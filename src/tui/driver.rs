@@ -19,15 +19,17 @@ use super::{
     TuiError,
     effects::{apply_response, dispatch_effects, invalidate_for_transition, retry_pending},
     input::resolve_action,
-    render,
+    render::{self, RenderConfig, RenderContext},
     session::TerminalSession,
 };
 
-#[derive(Debug, Clone, Copy)]
-pub(super) struct TerminalOptions {
-    no_alt_screen: bool,
-    mouse: bool,
-    clipboard_osc52: bool,
+#[derive(Debug, Clone, Default)]
+pub struct TuiOptions {
+    pub no_alt_screen: bool,
+    pub mouse: bool,
+    pub clipboard_osc52: bool,
+    pub bindings: KeyBindings,
+    pub render: RenderConfig,
 }
 
 pub fn run(app: App, client: GitClient, no_alt_screen: bool) -> Result<(), TuiError> {
@@ -49,13 +51,23 @@ pub fn run_configured(
     mouse: bool,
     clipboard_osc52: bool,
 ) -> Result<(), TuiError> {
-    let options = TerminalOptions {
-        no_alt_screen,
-        mouse,
-        clipboard_osc52,
-    };
-    let session = TerminalSession::enter_configured(no_alt_screen, mouse)?;
-    run_loop(app, client, bindings, None, options, session).map(|_| ())
+    let render_config = render::legacy_config();
+    run_with_options(
+        app,
+        client,
+        TuiOptions {
+            no_alt_screen,
+            mouse,
+            clipboard_osc52,
+            bindings,
+            render: render_config,
+        },
+    )
+}
+
+pub fn run_with_options(app: App, client: GitClient, options: TuiOptions) -> Result<(), TuiError> {
+    let session = TerminalSession::enter_configured(options.no_alt_screen, options.mouse)?;
+    run_loop(app, client, None, options, session).map(|_| ())
 }
 
 pub fn run_select(
@@ -67,36 +79,59 @@ pub fn run_select(
     mouse: bool,
     clipboard_osc52: bool,
 ) -> Result<Option<SelectionPayload>, TuiError> {
-    let options = TerminalOptions {
-        no_alt_screen,
-        mouse,
-        clipboard_osc52,
-    };
-    let session =
-        TerminalSession::enter_controlling_tty(no_alt_screen, mouse).map_err(|error| {
+    let render_config = render::legacy_config();
+    run_select_with_options(
+        app,
+        client,
+        kind,
+        TuiOptions {
+            no_alt_screen,
+            mouse,
+            clipboard_osc52,
+            bindings,
+            render: render_config,
+        },
+    )
+}
+
+pub fn run_select_with_options(
+    app: App,
+    client: GitClient,
+    kind: SelectionKind,
+    options: TuiOptions,
+) -> Result<Option<SelectionPayload>, TuiError> {
+    let session = TerminalSession::enter_controlling_tty(options.no_alt_screen, options.mouse)
+        .map_err(|error| {
             if error.to_string().contains("controlling terminal") {
                 TuiError::NoControllingTerminal(error.to_string())
             } else {
                 TuiError::Terminal(error)
             }
         })?;
-    run_loop(app, client, bindings, Some(kind), options, session)
+    run_loop(app, client, Some(kind), options, session)
 }
 
 fn run_loop(
     mut app: App,
     client: GitClient,
-    bindings: KeyBindings,
     selection_kind: Option<SelectionKind>,
-    options: TerminalOptions,
+    options: TuiOptions,
     mut session: TerminalSession,
 ) -> Result<Option<SelectionPayload>, TuiError> {
     let coordinator = Coordinator::new(client, 2, 128);
+    let render_context =
+        RenderContext::with_bindings(options.render.clone(), options.bindings.clone());
     let mut pending = HashMap::new();
     #[cfg(unix)]
     let signals = SignalMonitor::new()?;
     let mut terminating_signal = None;
     let mut selection = None;
+    let size = session.terminal_mut().size()?;
+    app.set_preview_focus_available(render::preview_focus_available(
+        &app,
+        size.width,
+        size.height,
+    ));
     dispatch_effects(&coordinator, &app, app.initial_effects(), &mut pending)?;
     while !app.should_quit {
         #[cfg(unix)]
@@ -118,6 +153,12 @@ fn run_loop(
                     } else {
                         TerminalSession::enter_configured(options.no_alt_screen, options.mouse)?
                     };
+                    let size = session.terminal_mut().size()?;
+                    app.set_preview_focus_available(render::preview_focus_available(
+                        &app,
+                        size.width,
+                        size.height,
+                    ));
                     app.dirty = true;
                 }
                 _ => {}
@@ -130,7 +171,7 @@ fn run_loop(
         if app.dirty {
             session
                 .terminal_mut()
-                .draw(|frame| render::render(frame, &app))?;
+                .draw(|frame| render::render_with_context(frame, &app, &render_context))?;
             app.dirty = false;
         }
         if event::poll(Duration::from_millis(50))? {
@@ -146,7 +187,13 @@ fn run_loop(
                         app.should_quit = true;
                         continue;
                     }
-                    let action = resolve_action(&app, &bindings, key);
+                    let size = session.terminal_mut().size()?;
+                    app.set_preview_focus_available(render::preview_focus_available(
+                        &app,
+                        size.width,
+                        size.height,
+                    ));
+                    let action = resolve_action(&app, &options.bindings, key);
                     if let Some(kind) = selection_kind
                         && matches!(app.overlay, Overlay::None)
                     {
@@ -163,7 +210,6 @@ fn run_loop(
                         }
                     }
                     if let Some(action) = action {
-                        let size = session.terminal_mut().size()?;
                         let rows = render::page_rows(&app, size.width, size.height);
                         let previous_view = app.view;
                         let effects = app.update(action, rows);
@@ -217,6 +263,11 @@ fn run_loop(
                     };
                     if let Some(action) = action {
                         let size = session.terminal_mut().size()?;
+                        app.set_preview_focus_available(render::preview_focus_available(
+                            &app,
+                            size.width,
+                            size.height,
+                        ));
                         let rows = render::page_rows(&app, size.width, size.height);
                         let effects = app.update(action, rows);
                         dispatch_effects(&coordinator, &app, effects, &mut pending)?;

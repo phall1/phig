@@ -191,6 +191,44 @@ fn unavailable_preview_returns_focus_to_visible_history() {
     app.focus = Focus::Preview;
     app.set_preview_focus_available(false);
     assert_eq!(app.focus, Focus::List);
+    let _ = app.update(Action::ToggleFocus, 10);
+    assert_eq!(app.focus, Focus::List, "hidden preview accepted focus");
+    app.set_preview_focus_available(true);
+    let _ = app.update(Action::ToggleFocus, 10);
+    assert_eq!(app.focus, Focus::Preview);
+}
+
+#[test]
+fn empty_preview_views_clear_unrelated_commit_detail() {
+    let detail = || CommitDetail {
+        commit: commit('a', "stale"),
+        diff: working_diff("+stale"),
+        selected_parent: None,
+    };
+    let mut app = app();
+    app.preview = Some(detail());
+    let _ = app.update(Action::ViewRefs, 10);
+    assert!(app.preview.is_none());
+    app.preview = Some(detail());
+    assert!(app.apply_refs(Vec::new()).is_empty());
+    assert!(app.preview.is_none());
+
+    app.view = View::Log;
+    app.paths = vec![GitPath::new(b"src/lib.rs".to_vec())];
+    app.preview = Some(detail());
+    let _ = app.update(Action::ViewBlame, 10);
+    assert!(app.preview.is_none());
+    app.preview = Some(detail());
+    assert!(app.apply_blame(Vec::new()).is_empty());
+    assert!(app.preview.is_none());
+
+    app.view = View::Log;
+    app.preview = Some(detail());
+    let _ = app.update(Action::ViewStash, 10);
+    assert!(app.preview.is_none());
+    app.preview = Some(detail());
+    assert!(app.apply_stashes(Vec::new()).is_empty());
+    assert!(app.preview.is_none());
 }
 
 #[test]
