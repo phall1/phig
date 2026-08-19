@@ -6,6 +6,43 @@ All notable changes to phig are documented here. The format follows
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-08-19
+
+### Added
+
+- Explicit `auto`, `unicode`, and `ascii` glyph policies with coherent graph,
+  selection, divider, and overlay fallbacks.
+- Style-aware golden coverage for every primary view, adaptive breakpoints,
+  overlays, themes, remapped keys, ASCII, and monochrome rendering.
+- Typed per-session rendering options for themes, color, dates, glyphs, and
+  effective key labels while retaining the 1.0 compatibility entry points.
+
+### Changed
+
+- Refined the interface around native terminal backgrounds, marker-led
+  selection, thin functional dividers, quieter contextual footers,
+  width-prioritized headers, and compact adaptive overlays.
+- Reorganized the application core, terminal adapter, renderer, and
+  configuration system into small responsibility-based modules with stable
+  public façades.
+- Made all width budgeting terminal-cell aware and kept commit subjects useful
+  across narrow layouts and every date mode.
+- Made the benchmark fixture self-identifying so performance gates cannot
+  silently reuse an unrelated repository.
+
+### Fixed
+
+- Honored semantic key remaps consistently in help and text-entry overlays,
+  including bracketed paste in the changed-file picker.
+- Rejected stale cross-view Git responses and prevented hidden preview focus in
+  narrow layouts.
+- Kept page movement aligned with visible compare, status-diff, and truncated
+  patch rows.
+- Cleared stale previews and reported honest positions and footer state for
+  empty refs, status, blame, tree, and stash views.
+- Normalized uppercase key bindings and rejected the reserved `Ctrl-C` binding
+  with an actionable configuration error.
+
 ## [1.0.0] - 2026-08-19
 
 ### Added
@@ -36,5 +73,6 @@ All notable changes to phig are documented here. The format follows
   pagers, lazy object fetching, replacements, and terminal control sequences
   are disabled or sanitized on inspection paths.
 
-[Unreleased]: https://github.com/phall1/phig/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/phall1/phig/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/phall1/phig/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/phall1/phig/releases/tag/v1.0.0
