@@ -1,4 +1,7 @@
-use std::{io, path::PathBuf};
+use std::{
+    io,
+    path::{Path, PathBuf},
+};
 
 use phig_cli::{
     app::{
@@ -6,7 +9,10 @@ use phig_cli::{
         SelectionContract, SelectionTarget, View, palette_commands,
     },
     cli::SelectionKind,
-    config::KeyBindings,
+    config::{
+        CONFIG_VERSION, CompareConfig, Config, ConfigError, DiffConfig, KeyBindings, LimitsConfig,
+        LoadedConfig, ThemeConfig, UiConfig, default_path, init, load, parse_color, validate,
+    },
     domain::{ObjectFormat, Repository},
     git::GitClient,
     inspect,
@@ -47,6 +53,24 @@ fn documented_public_facades_remain_source_compatible() {
     let _: Option<Action> = Action::from_semantic_name("open");
     assert_eq!(Action::Open.semantic_name(), "open");
     assert!(!palette_commands("").is_empty());
+
+    let _config_types = (
+        CONFIG_VERSION,
+        std::mem::size_of::<Config>(),
+        std::mem::size_of::<UiConfig>(),
+        std::mem::size_of::<DiffConfig>(),
+        std::mem::size_of::<CompareConfig>(),
+        std::mem::size_of::<LimitsConfig>(),
+        std::mem::size_of::<ThemeConfig>(),
+        std::mem::size_of::<LoadedConfig>(),
+        std::mem::size_of::<ConfigError>(),
+    );
+    let _config = Config::default();
+    let _default_path: fn() -> Result<PathBuf, ConfigError> = default_path;
+    let _load: for<'a> fn(Option<&'a Path>, bool) -> Result<LoadedConfig, ConfigError> = load;
+    let _validate: fn(&Config, &Path) -> Result<(), ConfigError> = validate;
+    let _parse_color: fn(&str) -> Option<ratatui::style::Color> = parse_color;
+    let _init: fn(&Path, bool) -> Result<(), ConfigError> = init;
 
     let _types = (
         std::mem::size_of::<Effect>(),

@@ -35,7 +35,9 @@ installed executable and product are `phig`.
 ## Source seams
 
 - `cli`: syntax, validation, mode dispatch, completions, and exit mapping
-- `config`: XDG discovery, TOML decoding, defaults, themes, and key overrides
+- `config`: XDG discovery, TOML decoding, defaults, themes, and key overrides.
+  Its façade separates the persisted model, compiled semantic bindings, and
+  source discovery/loading/validation paths.
 - `domain`: byte-preserving repository identities and normalized records
 - `git`: repository discovery, command construction, parsers, bounds, errors,
   capability detection, and cancellation
