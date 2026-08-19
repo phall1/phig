@@ -11,7 +11,12 @@ fn help_and_version_are_clean_cli_surfaces() {
             "terminal Git history and diff browser",
         ))
         .stdout(predicate::str::contains("log"))
-        .stdout(predicate::str::contains("show"));
+        .stdout(predicate::str::contains("show"))
+        .stdout(predicate::str::contains("compare"))
+        .stdout(predicate::str::contains("refs"))
+        .stdout(predicate::str::contains("status"))
+        .stdout(predicate::str::contains("blame"))
+        .stdout(predicate::str::contains("stash"));
 
     cargo_bin_cmd!("phig")
         .arg("--version")

@@ -46,7 +46,10 @@ phig show HEAD~3             # inspect one commit
 phig compare main            # compare merge-base(main, HEAD) to HEAD
 phig diff v1.0.0 HEAD -- src # exact endpoint comparison, path-filtered
 phig refs                    # browse branches and tags
-phig status                  # inspect working-tree changes
+phig status                  # inspect working-tree and index changes
+phig tree HEAD               # browse a revision's files
+phig blame HEAD -- src/lib.rs
+phig stash                   # inspect stashes without applying them
 ```
 
 The default navigation is intentionally familiar: `j/k`, arrows, `Enter`,

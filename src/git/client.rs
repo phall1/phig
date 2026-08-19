@@ -482,6 +482,83 @@ impl GitClient {
         parse_stashes(&output.stdout, repository.object_format)
     }
 
+    /// Pick a local comparison base without contacting a remote.
+    pub fn infer_compare_base(
+        &self,
+        repository: &Repository,
+        cancellation: &CancellationToken,
+    ) -> Result<(String, String), GitError> {
+        let refs = self.refs(repository, cancellation)?;
+        if let Some(upstream) = refs
+            .iter()
+            .find(|reference| reference.is_head)
+            .and_then(|reference| reference.upstream.as_ref())
+            && let Some(reference) = refs.iter().find(|reference| {
+                reference.short_name.bytes() == upstream.bytes()
+                    || reference.full_name.bytes() == upstream.bytes()
+            })
+        {
+            let oid = reference.peeled.as_ref().unwrap_or(&reference.target);
+            return Ok((oid.to_string(), upstream.display().to_owned()));
+        }
+        for preferred in [b"main".as_slice(), b"master".as_slice()] {
+            if let Some(reference) = refs.iter().find(|reference| {
+                reference.kind == crate::domain::RefKind::LocalBranch
+                    && reference.short_name.bytes() == preferred
+                    && !reference.is_head
+            }) {
+                let oid = reference.peeled.as_ref().unwrap_or(&reference.target);
+                return Ok((oid.to_string(), reference.short_name.display().to_owned()));
+            }
+        }
+        refs.iter()
+            .find(|reference| {
+                reference.kind == crate::domain::RefKind::LocalBranch && !reference.is_head
+            })
+            .map(|reference| {
+                (
+                    reference
+                        .peeled
+                        .as_ref()
+                        .unwrap_or(&reference.target)
+                        .to_string(),
+                    reference.short_name.display().to_owned(),
+                )
+            })
+            .ok_or_else(|| GitError::Unsupported("no local comparison base is available".into()))
+    }
+
+    /// Read a staged or working-tree patch for one literal path.
+    pub fn working_diff(
+        &self,
+        repository: &Repository,
+        path: &GitPath,
+        staged: bool,
+        cancellation: &CancellationToken,
+    ) -> Result<Diff, GitError> {
+        if repository.bare {
+            return Err(GitError::Unsupported(
+                "working-tree diff is unavailable in a bare repository".into(),
+            ));
+        }
+        let mut suffix = Vec::new();
+        if staged {
+            suffix.push(OsString::from("--cached"));
+        }
+        suffix.push(OsString::from("--"));
+        suffix.push(path.to_os_string()?);
+        let patch_args = diff_args("diff", "--patch", &suffix);
+        let metadata_args = diff_args("diff", "--raw", &suffix);
+        self.load_diff(
+            repository,
+            "working-diff",
+            patch_args,
+            "working-diff-metadata",
+            metadata_args,
+            cancellation,
+        )
+    }
+
     pub fn compare(
         &self,
         repository: &Repository,

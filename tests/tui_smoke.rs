@@ -45,6 +45,170 @@ fn git(repo: &std::path::Path, args: &[&str]) {
     );
 }
 
+fn run_view(repo: &std::path::Path, args: &[&str]) -> String {
+    let pty = native_pty_system();
+    let pair = pty
+        .openpty(PtySize {
+            rows: 28,
+            cols: 100,
+            pixel_width: 0,
+            pixel_height: 0,
+        })
+        .unwrap();
+    let mut command = CommandBuilder::new(assert_cmd::cargo::cargo_bin!("phig"));
+    command.args(args);
+    command.cwd(repo);
+    command.env("TERM", "xterm-256color");
+    command.env("NO_COLOR", "1");
+    let mut child = pair.slave.spawn_command(command).unwrap();
+    drop(pair.slave);
+    let mut reader = pair.master.try_clone_reader().unwrap();
+    let reader_thread = thread::spawn(move || {
+        let mut output = Vec::new();
+        reader.read_to_end(&mut output).unwrap();
+        output
+    });
+    let mut writer = pair.master.take_writer().unwrap();
+    thread::sleep(Duration::from_millis(800));
+    writer.write_all(b"qq").unwrap();
+    writer.flush().unwrap();
+    let deadline = Instant::now() + Duration::from_secs(8);
+    loop {
+        if child.try_wait().unwrap().is_some() {
+            break;
+        }
+        if Instant::now() >= deadline {
+            child.kill().unwrap();
+            panic!("phig view {args:?} did not exit");
+        }
+        thread::sleep(Duration::from_millis(25));
+    }
+    drop(writer);
+    drop(pair.master);
+    String::from_utf8_lossy(&reader_thread.join().unwrap()).into_owned()
+}
+
+#[test]
+fn all_daily_inspection_views_render_through_a_real_pty() {
+    let _guard = PTY_LOCK
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    let repo = tempfile::tempdir().unwrap();
+    git(repo.path(), &["init", "-q", "-b", "main"]);
+    git(repo.path(), &["config", "user.name", "Phig PTY"]);
+    git(
+        repo.path(),
+        &["config", "user.email", "pty@example.invalid"],
+    );
+    fs::write(repo.path().join("file.txt"), "one\n").unwrap();
+    git(repo.path(), &["add", "file.txt"]);
+    git(repo.path(), &["commit", "-qm", "base commit"]);
+    git(repo.path(), &["checkout", "-qb", "feature"]);
+    fs::write(repo.path().join("file.txt"), "one\ntwo\n").unwrap();
+    git(repo.path(), &["commit", "-qam", "feature commit"]);
+    fs::write(repo.path().join("stash.txt"), "saved\n").unwrap();
+    git(repo.path(), &["add", "stash.txt"]);
+    git(repo.path(), &["stash", "push", "-qm", "saved work"]);
+    fs::write(repo.path().join("file.txt"), "one\ntwo\nworking\n").unwrap();
+
+    for (args, expected) in [
+        (
+            vec!["compare", "main", "feature"],
+            vec!["COMPARE", "merge-base"],
+        ),
+        (vec!["diff", "main", "feature"], vec!["COMPARE", "exact"]),
+        (vec!["refs"], vec!["REFS", "feature"]),
+        (vec!["status"], vec!["STATUS", "file.txt"]),
+        (vec!["tree", "HEAD"], vec!["TREE", "file.txt"]),
+        (
+            vec!["blame", "HEAD", "--", "file.txt"],
+            vec!["BLAME", "Phig PTY"],
+        ),
+        (vec!["stash"], vec!["STASH", "saved work"]),
+    ] {
+        let output = run_view(repo.path(), &args);
+        for needle in expected {
+            assert!(
+                output.contains(needle),
+                "view {args:?} omitted {needle}: {output}"
+            );
+        }
+        assert!(
+            output.contains("\u{1b}[?25h"),
+            "view {args:?} did not restore cursor"
+        );
+    }
+}
+
+#[test]
+fn narrow_status_enter_opens_full_working_diff_and_returns() {
+    let _guard = PTY_LOCK
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    let repo = tempfile::tempdir().unwrap();
+    git(repo.path(), &["init", "-q", "-b", "main"]);
+    git(repo.path(), &["config", "user.name", "Phig PTY"]);
+    git(
+        repo.path(),
+        &["config", "user.email", "pty@example.invalid"],
+    );
+    fs::write(repo.path().join("file.txt"), "base\n").unwrap();
+    git(repo.path(), &["add", "file.txt"]);
+    git(repo.path(), &["commit", "-qm", "base"]);
+    fs::write(repo.path().join("file.txt"), "base\nstaged\n").unwrap();
+    git(repo.path(), &["add", "file.txt"]);
+    fs::write(repo.path().join("file.txt"), "base\nstaged\nunstaged\n").unwrap();
+
+    let pty = native_pty_system();
+    let pair = pty
+        .openpty(PtySize {
+            rows: 16,
+            cols: 60,
+            pixel_width: 0,
+            pixel_height: 0,
+        })
+        .unwrap();
+    let mut command = CommandBuilder::new(assert_cmd::cargo::cargo_bin!("phig"));
+    command.arg("status");
+    command.cwd(repo.path());
+    command.env("TERM", "xterm-256color");
+    command.env("NO_COLOR", "1");
+    let mut child = pair.slave.spawn_command(command).unwrap();
+    drop(pair.slave);
+    let mut reader = pair.master.try_clone_reader().unwrap();
+    let reader_thread = thread::spawn(move || {
+        let mut output = Vec::new();
+        reader.read_to_end(&mut output).unwrap();
+        output
+    });
+    let mut writer = pair.master.take_writer().unwrap();
+    thread::sleep(Duration::from_millis(800));
+    writer.write_all(b"\r").unwrap();
+    thread::sleep(Duration::from_millis(150));
+    writer.write_all(b"qqq").unwrap();
+    writer.flush().unwrap();
+    let status = wait_bounded(
+        &mut child,
+        Duration::from_secs(8),
+        "waiting for narrow status flow",
+    );
+    drop(writer);
+    drop(pair.master);
+    let output = String::from_utf8_lossy(&reader_thread.join().unwrap()).into_owned();
+    assert!(status.success());
+    assert!(
+        output.contains("staged working"),
+        "Enter did not open dominant status diff: {output}"
+    );
+    assert!(
+        output.contains("+staged"),
+        "staged working diff was not visible: {output}"
+    );
+    assert!(output.contains("mixed"));
+    assert!(output.contains("MM"));
+    assert!(output.contains("\u{1b}[?25h"));
+}
+
 #[test]
 fn real_pty_exercises_navigation_overlays_resize_and_cleanup() {
     let _guard = PTY_LOCK
@@ -101,7 +265,7 @@ fn real_pty_exercises_navigation_overlays_resize_and_cleanup() {
     writer.write_all(b"j").unwrap();
     thread::sleep(Duration::from_millis(100));
     writer.write_all(b"\r").unwrap(); // inspect
-    thread::sleep(Duration::from_millis(150));
+    thread::sleep(Duration::from_millis(300));
     writer.write_all(b"]}").unwrap(); // hunk and file navigation
     thread::sleep(Duration::from_millis(75));
     writer.write_all(b"/\x1b[200~first\x1b[201~\r").unwrap(); // pasted diff search
@@ -272,7 +436,7 @@ fn external_termination_signal_restores_the_terminal() {
             assert!(signal.success(), "failed to send {name}");
         };
 
-        thread::sleep(Duration::from_millis(300));
+        thread::sleep(Duration::from_millis(500));
         if exercise_suspend {
             send_signal("-TSTP");
             thread::sleep(Duration::from_millis(150));

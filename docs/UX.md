@@ -33,9 +33,12 @@ without decorative borders at larger sizes.
 | `s` | status view |
 | `t` | tree view |
 | `b` | blame selected path |
-| `S` | stash view |
+| `z` | stash view |
+| `v` | mark comparison endpoint |
 | `c` | begin/complete comparison |
 | `x` | swap comparison sides |
+| `M` | toggle exact/merge-base comparison |
+| `d` | toggle staged/unstaged patch for a mixed status entry |
 | `p` | toggle preview |
 | `y` | copy selected stable identifier |
 | `:` | command palette |
@@ -80,14 +83,17 @@ changes the viewed history; it never checks anything out.
 
 ### Status
 
-Porcelain-v2 records are grouped into staged, unstaged, untracked, conflicted,
-and ignored only when requested. Opening an entry displays the relevant
-read-only diff. No key mutates the index or worktree.
+Porcelain-v2 records use compact `XY` codes and are grouped into conflicted,
+staged, mixed staged+unstaged, unstaged, and untracked entries. `d` switches
+between the two patches for mixed entries. Opening an entry displays the
+relevant read-only diff as the dominant surface, including on narrow terminals.
+No key mutates the index or worktree.
 
 ### Tree
 
 Lists the selected revision's tree with type, mode, size when known, and name.
-Directories descend; blobs open content or a safe binary summary. `Esc` ascends.
+Directories descend; blobs open content or a safe binary summary. `Backspace`
+ascends and the header retains the current tree breadcrumb.
 
 ### Blame
 

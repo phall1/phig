@@ -278,6 +278,22 @@ pub enum StatusCode {
 }
 
 impl StatusCode {
+    pub fn porcelain_char(self) -> char {
+        match self {
+            Self::Unmodified => '.',
+            Self::Modified => 'M',
+            Self::Added => 'A',
+            Self::Deleted => 'D',
+            Self::Renamed => 'R',
+            Self::Copied => 'C',
+            Self::UpdatedButUnmerged => 'U',
+            Self::Untracked => '?',
+            Self::Ignored => '!',
+            Self::Unknown(value) if !value.is_control() => value,
+            Self::Unknown(_) => '?',
+        }
+    }
+
     pub fn from_byte(byte: u8) -> Self {
         match byte {
             b'.' | b' ' => Self::Unmodified,

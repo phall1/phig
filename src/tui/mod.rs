@@ -146,12 +146,31 @@ fn apply_response(
             dispatch_effects(coordinator, app, effects, pending)?;
         }
         Ok(GitResult::CommitDetail(detail)) => app.apply_preview(detail),
-        Ok(_) => {}
+        Ok(GitResult::Refs(refs)) => {
+            let effects = app.apply_refs(refs);
+            dispatch_effects(coordinator, app, effects, pending)?;
+        }
+        Ok(GitResult::Status(status)) => {
+            let effects = app.apply_status(status);
+            dispatch_effects(coordinator, app, effects, pending)?;
+        }
+        Ok(GitResult::Tree(tree)) => app.apply_tree(tree),
+        Ok(GitResult::Blob(blob)) => app.apply_blob(blob),
+        Ok(GitResult::Blame(blame)) => {
+            let effects = app.apply_blame(blame);
+            dispatch_effects(coordinator, app, effects, pending)?;
+        }
+        Ok(GitResult::Stashes(stashes)) => {
+            let effects = app.apply_stashes(stashes);
+            dispatch_effects(coordinator, app, effects, pending)?;
+        }
+        Ok(GitResult::Compare(comparison)) => app.apply_comparison(comparison),
+        Ok(GitResult::Diff(diff)) => app.apply_working_diff(diff),
         Err(error) => {
             let request = match response.key {
                 RequestKey::History => RequestKind::History,
                 RequestKey::Preview => RequestKind::Preview,
-                _ => return Ok(()),
+                _ => RequestKind::Inspect,
             };
             app.apply_error(request, &error);
         }
@@ -189,10 +208,87 @@ fn dispatch_effects(
                     repository: app.repository.clone(),
                     revision,
                     parent_index,
-                    paths: app.paths.clone(),
+                    paths: app.preview_paths(),
                 };
                 submit_or_defer(coordinator, pending, RequestKey::Preview, query)?;
             }
+            Effect::LoadRefs => submit_or_defer(
+                coordinator,
+                pending,
+                RequestKey::Refs,
+                GitQuery::Refs {
+                    repository: app.repository.clone(),
+                },
+            )?,
+            Effect::LoadStatus => submit_or_defer(
+                coordinator,
+                pending,
+                RequestKey::Status,
+                GitQuery::Status {
+                    repository: app.repository.clone(),
+                    include_ignored: false,
+                },
+            )?,
+            Effect::LoadTree { revision, path } => submit_or_defer(
+                coordinator,
+                pending,
+                RequestKey::Tree,
+                GitQuery::Tree {
+                    repository: app.repository.clone(),
+                    revision,
+                    path,
+                },
+            )?,
+            Effect::LoadBlob { id, path } => submit_or_defer(
+                coordinator,
+                pending,
+                RequestKey::Tree,
+                GitQuery::Blob {
+                    repository: app.repository.clone(),
+                    id,
+                    path,
+                },
+            )?,
+            Effect::LoadBlame { revision, path } => submit_or_defer(
+                coordinator,
+                pending,
+                RequestKey::Blame,
+                GitQuery::Blame {
+                    repository: app.repository.clone(),
+                    revision,
+                    path,
+                },
+            )?,
+            Effect::LoadStashes => submit_or_defer(
+                coordinator,
+                pending,
+                RequestKey::Stashes,
+                GitQuery::Stashes {
+                    repository: app.repository.clone(),
+                },
+            )?,
+            Effect::LoadCompare => submit_or_defer(
+                coordinator,
+                pending,
+                RequestKey::Compare,
+                GitQuery::Compare {
+                    repository: app.repository.clone(),
+                    base: app.inspect.compare_base.clone(),
+                    head: app.inspect.compare_head.clone(),
+                    mode: app.inspect.compare_mode,
+                    paths: app.paths.clone(),
+                },
+            )?,
+            Effect::LoadWorkingDiff { path, staged } => submit_or_defer(
+                coordinator,
+                pending,
+                RequestKey::Status,
+                GitQuery::WorkingDiff {
+                    repository: app.repository.clone(),
+                    path,
+                    staged,
+                },
+            )?,
         }
     }
     Ok(())
@@ -300,8 +396,20 @@ fn key_action(app: &App, key: KeyEvent) -> Option<Action> {
         KeyCode::Home | KeyCode::Char('g') => Some(Action::First),
         KeyCode::End | KeyCode::Char('G') => Some(Action::Last),
         KeyCode::Enter => Some(Action::Open),
+        KeyCode::Backspace if app.view == View::Tree => Some(Action::Ascend),
         KeyCode::Esc | KeyCode::Backspace => Some(Action::Back),
         KeyCode::Char('q') => Some(Action::Quit),
+        KeyCode::Char('m') => Some(Action::ViewLog),
+        KeyCode::Char('r') => Some(Action::ViewRefs),
+        KeyCode::Char('s') => Some(Action::ViewStatus),
+        KeyCode::Char('t') => Some(Action::ViewTree),
+        KeyCode::Char('b') => Some(Action::ViewBlame),
+        KeyCode::Char('z') => Some(Action::ViewStash),
+        KeyCode::Char('v') => Some(Action::Mark),
+        KeyCode::Char('c') => Some(Action::StartCompare),
+        KeyCode::Char('x') if app.view == View::Compare => Some(Action::SwapCompare),
+        KeyCode::Char('M') if app.view == View::Compare => Some(Action::ToggleCompareMode),
+        KeyCode::Char('d') if app.view == View::Status => Some(Action::ToggleStatusDiff),
         KeyCode::Char('/') => Some(Action::StartSearch),
         KeyCode::Char(':') => Some(Action::StartPalette),
         KeyCode::Char('n') => Some(Action::NextMatch),
@@ -549,6 +657,21 @@ mod tests {
             key_action(&app, KeyEvent::new(KeyCode::Char(':'), KeyModifiers::NONE)),
             Some(Action::StartPalette)
         );
+        for (key, expected) in [
+            ('m', Action::ViewLog),
+            ('r', Action::ViewRefs),
+            ('s', Action::ViewStatus),
+            ('t', Action::ViewTree),
+            ('b', Action::ViewBlame),
+            ('z', Action::ViewStash),
+            ('v', Action::Mark),
+            ('c', Action::StartCompare),
+        ] {
+            assert_eq!(
+                key_action(&app, KeyEvent::new(KeyCode::Char(key), KeyModifiers::NONE)),
+                Some(expected)
+            );
+        }
         app.apply_error(
             RequestKind::History,
             &crate::git::GitError::Timeout("history"),

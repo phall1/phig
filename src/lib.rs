@@ -7,6 +7,7 @@ pub mod app;
 pub mod cli;
 pub mod domain;
 pub mod git;
+pub mod inspect;
 pub mod runtime;
 pub mod sanitize;
 pub mod tui;

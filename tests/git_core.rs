@@ -1,7 +1,7 @@
 use std::{ffi::OsStr, fs, path::Path, process::Command};
 
 use phig_cli::{
-    domain::{ComparisonMode, GitPath, RefKind, StatusCode, TreeEntryKind},
+    domain::{ComparisonMode, GitPath, Oid, RefKind, StatusCode, TreeEntryKind},
     git::{CancellationToken, GitClient, GitError, GitLimits, GitRunner},
     runtime::{Coordinator, GitQuery, RequestKey},
 };
@@ -971,4 +971,108 @@ fn control_byte_paths_remain_lossless_and_safe_to_display() {
     assert!(entry.path.display.contains("\\e"));
     assert!(!entry.path.display.contains('\n'));
     assert!(!entry.path.display.contains('\u{1b}'));
+}
+
+#[test]
+fn bare_and_empty_inspection_states_are_explicit() {
+    let repo = TestRepo::new();
+    repo.write("file", "x\n");
+    repo.commit_all("base");
+    let bare = tempfile::tempdir().unwrap();
+    let source = repo.path().to_str().unwrap();
+    git(bare.path(), ["clone", "--bare", source, "."]);
+    let client = GitClient::default();
+    let repository = client.discover(bare.path()).unwrap();
+    assert!(repository.bare);
+    assert!(matches!(
+        client.status(&repository, false, &CancellationToken::new()),
+        Err(GitError::Unsupported(_))
+    ));
+    let normal = client.discover(repo.path()).unwrap();
+    assert!(
+        client
+            .stashes(&normal, &CancellationToken::new())
+            .unwrap()
+            .is_empty()
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn inferred_non_utf8_ref_uses_oid_not_sanitized_display_as_revision() {
+    let repo = TestRepo::new();
+    repo.write("file.txt", "one\n");
+    repo.commit_all("base");
+    let head = String::from_utf8(git(repo.path(), ["rev-parse", "HEAD"])).unwrap();
+    git(repo.path(), ["checkout", "-b", "feature"]);
+    git(repo.path(), ["branch", "-D", "main"]);
+    let mut packed = b"# pack-refs with: peeled fully-peeled sorted\n".to_vec();
+    packed.extend_from_slice(head.trim().as_bytes());
+    packed.extend_from_slice(b" refs/heads/base-\xff\n");
+    fs::write(repo.path().join(".git/packed-refs"), packed).unwrap();
+
+    let client = GitClient::default();
+    let repository = client.discover(repo.path()).unwrap();
+    let (revision, label) = client
+        .infer_compare_base(&repository, &CancellationToken::new())
+        .unwrap();
+    assert!(revision.parse::<Oid>().is_ok());
+    assert!(label.contains("\\xFF"));
+    let comparison = client
+        .compare(
+            &repository,
+            &revision,
+            "HEAD",
+            ComparisonMode::MergeBase,
+            &[],
+            &CancellationToken::new(),
+        )
+        .unwrap();
+    assert_eq!(comparison.resolved_base, comparison.resolved_head);
+}
+
+#[test]
+fn comparison_base_inference_and_working_diffs_are_read_only() {
+    let repo = TestRepo::new();
+    repo.write("file.txt", "one\n");
+    repo.commit_all("base");
+    git(repo.path(), ["branch", "main-base"]);
+    git(repo.path(), ["checkout", "-b", "feature"]);
+    repo.write("file.txt", "one\ntwo\n");
+
+    let client = GitClient::default();
+    let repository = client.discover(repo.path()).unwrap();
+    let token = CancellationToken::new();
+    let (base, label) = client.infer_compare_base(&repository, &token).unwrap();
+    assert_eq!(label, "main");
+    assert!(
+        base.parse::<Oid>().is_ok(),
+        "inferred input must be an authoritative OID"
+    );
+    let diff = client
+        .working_diff(
+            &repository,
+            &GitPath::new(b"file.txt".to_vec()),
+            false,
+            &token,
+        )
+        .unwrap();
+    assert!(diff.lines.iter().any(|line| line.text == "+two"));
+
+    git(repo.path(), ["add", "file.txt"]);
+    let staged = client
+        .working_diff(
+            &repository,
+            &GitPath::new(b"file.txt".to_vec()),
+            true,
+            &token,
+        )
+        .unwrap();
+    assert!(staged.lines.iter().any(|line| line.text == "+two"));
+    let status = client.status(&repository, false, &token).unwrap();
+    assert_eq!(
+        status.entries.len(),
+        1,
+        "inspection changed repository state"
+    );
 }

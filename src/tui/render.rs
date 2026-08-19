@@ -8,7 +8,7 @@ use ratatui::{
 
 use crate::{
     app::{App, Focus, Overlay, View, palette_commands},
-    domain::{Commit, DiffLine, DiffLineKind, Oid},
+    domain::{Commit, Diff, DiffLine, DiffLineKind, Oid, RefKind, StatusCode, TreeEntryKind},
     sanitize::sanitize_str,
 };
 
@@ -30,6 +30,14 @@ pub fn render(frame: &mut Frame<'_>, app: &App) {
     match app.view {
         View::Log => render_log(frame, app, rows[1]),
         View::Detail => render_detail(frame, app, rows[1]),
+        View::Compare => render_compare(frame, app, rows[1]),
+        View::Refs => render_refs(frame, app, rows[1]),
+        View::Status => render_status(frame, app, rows[1]),
+        View::StatusDiff => render_status_diff(frame, app, rows[1]),
+        View::Tree => render_tree(frame, app, rows[1]),
+        View::Blob => render_blob(frame, app, rows[1]),
+        View::Blame => render_blame(frame, app, rows[1]),
+        View::Stash => render_stashes(frame, app, rows[1]),
     }
     render_footer(frame, app, rows[2]);
 
@@ -65,6 +73,14 @@ fn render_header(frame: &mut Frame<'_>, app: &App, area: Rect) {
     let view = match app.view {
         View::Log => "LOG",
         View::Detail => "SHOW",
+        View::Compare => "COMPARE",
+        View::Refs => "REFS",
+        View::Status => "STATUS",
+        View::StatusDiff => "STATUS DIFF",
+        View::Tree => "TREE",
+        View::Blob => "BLOB",
+        View::Blame => "BLAME",
+        View::Stash => "STASH",
     };
     let mut spans = vec![
         Span::styled(
@@ -74,9 +90,24 @@ fn render_header(frame: &mut Frame<'_>, app: &App, area: Rect) {
         Span::raw(" "),
         Span::styled(repository, Style::default().bold()),
         Span::styled(format!("  {view}  "), Style::default().fg(ACCENT)),
-        Span::raw(sanitize_str(&app.revision)),
+        Span::raw(app.revision_label.as_ref().map_or_else(
+            || sanitize_str(&app.revision),
+            |label| format!("{}@{}", sanitize_str(label), truncate(&app.revision, 10)),
+        )),
         Span::styled(format!("  {branch}"), Style::default().fg(MUTED)),
     ];
+    if let Some(marked) = &app.marked_oid {
+        spans.push(Span::styled(
+            format!("  marked:{}", marked.short(10)),
+            Style::default().fg(Color::Magenta).bold(),
+        ));
+    }
+    if app.inspect.compare_picker {
+        spans.push(Span::styled(
+            "  choose comparison base",
+            Style::default().fg(Color::Yellow).bold(),
+        ));
+    }
     if !app.paths.is_empty() {
         let paths = app
             .paths
@@ -89,7 +120,32 @@ fn render_header(frame: &mut Frame<'_>, app: &App, area: Rect) {
             Style::default().fg(MUTED),
         ));
     }
-    match (app.history_loading, app.preview_loading) {
+    if app.view == View::Tree {
+        spans.push(Span::styled(
+            format!(
+                "  /{}",
+                app.inspect
+                    .tree_path
+                    .as_ref()
+                    .map_or("", |path| path.display.as_str())
+            ),
+            Style::default().fg(MUTED),
+        ));
+    }
+    if app.inspect.loading {
+        spans.push(Span::styled(
+            "  loading…",
+            Style::default().fg(Color::Yellow),
+        ));
+    }
+    match (
+        app.history_loading && matches!(app.view, View::Log | View::Detail),
+        app.preview_loading
+            && matches!(
+                app.view,
+                View::Log | View::Detail | View::Refs | View::Blame | View::Stash
+            ),
+    ) {
         (true, true) => spans.push(Span::styled(
             "  loading history+detail…",
             Style::default().fg(Color::Yellow),
@@ -146,7 +202,19 @@ pub(crate) fn page_rows(app: &App, width: u16, height: u16) -> usize {
     if app.view == View::Log && app.focus == Focus::List {
         return usize::from(log_areas(app, body).0.height.max(1));
     }
-    let preview = if app.view == View::Detail {
+    if matches!(
+        app.view,
+        View::Refs | View::Status | View::Blame | View::Stash
+    ) {
+        return usize::from(list_preview_areas(app, body).0.height.max(1));
+    }
+    if app.view == View::Tree {
+        return usize::from(body.height.max(1));
+    }
+    let preview = if matches!(
+        app.view,
+        View::Detail | View::Compare | View::StatusDiff | View::Blob
+    ) {
         body
     } else {
         log_areas(app, body).1.unwrap_or(body)
@@ -190,6 +258,7 @@ fn render_history(frame: &mut Frame<'_>, app: &App, area: Rect) {
                 commit,
                 area.width,
                 graph[start + offset].clone(),
+                app.marked_oid.as_ref() == Some(&commit.id),
             ))
         })
         .collect();
@@ -206,7 +275,7 @@ fn render_history(frame: &mut Frame<'_>, app: &App, area: Rect) {
     frame.render_stateful_widget(list, area, &mut state);
 }
 
-fn history_line(commit: &Commit, width: u16, graph: String) -> Line<'static> {
+fn history_line(commit: &Commit, width: u16, graph: String, marked: bool) -> Line<'static> {
     let author = if width >= 78 {
         truncate(&commit.author.name, 18)
     } else if width >= 54 {
@@ -221,6 +290,10 @@ fn history_line(commit: &Commit, width: u16, graph: String) -> Line<'static> {
         format!(" ({})", truncate(&commit.decorations.join(", "), 22))
     };
     let mut spans = vec![
+        Span::styled(
+            if marked { "◆ " } else { "  " },
+            Style::default().fg(Color::Magenta).bold(),
+        ),
         Span::styled(graph, Style::default().fg(ACCENT)),
         Span::styled(
             commit.id.short(8).to_owned(),
@@ -322,6 +395,9 @@ fn render_preview(frame: &mut Frame<'_>, app: &App, area: Rect) {
 }
 
 fn metadata_height(app: &App, available: u16) -> u16 {
+    if app.view != View::Detail && app.view != View::Log {
+        return 0;
+    }
     let Some(detail) = &app.preview else {
         return 0;
     };
@@ -438,6 +514,11 @@ fn format_commit_date(timestamp: i64, timezone: &str) -> String {
     )
 }
 
+fn compact_date(timestamp: i64) -> String {
+    let (year, month, day) = civil_from_days(timestamp.div_euclid(86_400));
+    format!("{year:04}-{month:02}-{day:02}")
+}
+
 fn parse_timezone_offset(timezone: &str) -> i64 {
     let bytes = timezone.as_bytes();
     if !matches!(bytes.first(), Some(b'+' | b'-')) {
@@ -487,22 +568,31 @@ fn render_diff(frame: &mut Frame<'_>, app: &App, area: Rect) {
     let Some(detail) = &app.preview else {
         return;
     };
+    render_diff_value(
+        frame,
+        &detail.diff,
+        app.diff_scroll,
+        area,
+        app.focus == Focus::Preview || app.view == View::Detail,
+    );
+}
+
+fn render_diff_value(frame: &mut Frame<'_>, diff: &Diff, scroll: usize, area: Rect, active: bool) {
     let visible = usize::from(area.height);
-    let lines: Vec<Line<'_>> = detail
-        .diff
+    let lines: Vec<Line<'_>> = diff
         .lines
         .iter()
-        .skip(app.diff_scroll)
+        .skip(scroll)
         .take(visible)
         .map(diff_line)
         .collect();
-    let style = if app.focus == Focus::Preview || app.view == View::Detail {
+    let style = if active {
         Style::default()
     } else {
         Style::default().fg(Color::Gray)
     };
     frame.render_widget(Paragraph::new(lines).style(style), area);
-    if detail.diff.truncated && area.height > 0 {
+    if diff.truncated && area.height > 0 {
         let warning = Rect::new(area.x, area.bottom().saturating_sub(1), area.width, 1);
         frame.render_widget(
             Paragraph::new("diff truncated at configured limit")
@@ -524,25 +614,438 @@ fn diff_line(line: &DiffLine) -> Line<'_> {
     Line::styled(line.text.as_str(), style)
 }
 
-fn render_footer(frame: &mut Frame<'_>, app: &App, area: Rect) {
-    let position = if app.view == View::Log {
-        if app.commits.is_empty() {
-            "0/0".to_owned()
-        } else {
-            format!("{}/{}", app.selected + 1, app.commits.len())
-        }
-    } else if let Some(detail) = &app.preview {
-        format!(
-            "line {}/{}",
-            app.diff_scroll.saturating_add(1),
-            detail.diff.lines.len()
-        )
+fn list_preview_areas(app: &App, area: Rect) -> (Rect, Rect) {
+    if !app.show_preview || area.height < 16 {
+        return (area, Rect::default());
+    }
+    let parts =
+        Layout::vertical([Constraint::Percentage(50), Constraint::Percentage(50)]).split(area);
+    (parts[0], parts[1])
+}
+
+fn render_string_list(
+    frame: &mut Frame<'_>,
+    rows: Vec<Line<'static>>,
+    selected: usize,
+    area: Rect,
+) {
+    if rows.is_empty() {
+        frame.render_widget(
+            Paragraph::new("Nothing to show")
+                .alignment(Alignment::Center)
+                .style(Style::default().fg(MUTED)),
+            area,
+        );
+        return;
+    }
+    let visible = usize::from(area.height.max(1));
+    let selected = selected.min(rows.len().saturating_sub(1));
+    let start = selected
+        .saturating_sub(visible / 2)
+        .min(rows.len().saturating_sub(visible));
+    let items = rows[start..]
+        .iter()
+        .take(visible)
+        .cloned()
+        .map(ListItem::new)
+        .collect::<Vec<_>>();
+    let mut state = ListState::default().with_selected(Some(selected - start));
+    frame.render_stateful_widget(
+        List::new(items)
+            .highlight_symbol("› ")
+            .highlight_style(Style::default().fg(Color::Black).bg(ACCENT).bold()),
+        area,
+        &mut state,
+    );
+}
+
+fn render_compare(frame: &mut Frame<'_>, app: &App, area: Rect) {
+    let Some(comparison) = &app.inspect.comparison else {
+        frame.render_widget(
+            Paragraph::new(if app.inspect.loading {
+                "Resolving comparison…"
+            } else {
+                "Comparison unavailable"
+            })
+            .alignment(Alignment::Center)
+            .style(Style::default().fg(MUTED)),
+            area,
+        );
+        return;
+    };
+    let parts = Layout::vertical([Constraint::Length(3), Constraint::Min(1)]).split(area);
+    let base_label = app
+        .inspect
+        .compare_base_label
+        .as_deref()
+        .unwrap_or(&comparison.requested_base);
+    let head_label = app
+        .inspect
+        .compare_head_label
+        .as_deref()
+        .unwrap_or(&comparison.requested_head);
+    let semantics = match comparison.mode {
+        crate::domain::ComparisonMode::Exact => format!(
+            "exact {base_label}@{} → {head_label}@{}",
+            comparison.resolved_base.short(10),
+            comparison.resolved_head.short(10)
+        ),
+        crate::domain::ComparisonMode::MergeBase => format!(
+            "merge-base({base_label}, {head_label})={} → {}",
+            comparison
+                .merge_base
+                .as_ref()
+                .map_or("?", |oid| oid.short(10)),
+            comparison.resolved_head.short(10)
+        ),
+    };
+    frame.render_widget(
+        Paragraph::new(vec![
+            Line::styled(semantics, Style::default().fg(ACCENT).bold()),
+            Line::raw(format!(
+                "resolved inputs: {} → {}",
+                comparison.requested_base, comparison.requested_head
+            )),
+            Line::styled(
+                format!(
+                    "ahead {} · behind {} · files {}",
+                    comparison.ahead,
+                    comparison.behind,
+                    comparison.diff.files.len()
+                ),
+                Style::default().fg(MUTED),
+            ),
+        ]),
+        parts[0],
+    );
+    render_diff_value(frame, &comparison.diff, app.diff_scroll, parts[1], true);
+}
+
+fn render_refs(frame: &mut Frame<'_>, app: &App, area: Rect) {
+    let (list, preview) = list_preview_areas(app, area);
+    let rows = app
+        .inspect
+        .refs
+        .iter()
+        .map(|reference| {
+            let kind = match reference.kind {
+                RefKind::LocalBranch => "branch",
+                RefKind::RemoteBranch => "remote",
+                RefKind::Tag => "tag",
+                RefKind::Stash => "stash",
+                RefKind::Other => "ref",
+            };
+            let head = if reference.is_head { "*" } else { " " };
+            let upstream = if area.width >= 84 {
+                reference
+                    .upstream
+                    .as_ref()
+                    .map_or(String::new(), |name| format!(" ↑{}", name.display()))
+            } else {
+                String::new()
+            };
+            let oid = if area.width >= 54 {
+                format!(" {}", reference.target.short(8))
+            } else {
+                String::new()
+            };
+            let subject = if area.width >= 70 {
+                format!("  {}", reference.subject)
+            } else {
+                String::new()
+            };
+            Line::from(vec![
+                Span::styled(format!("{head} {kind:<7} "), Style::default().fg(MUTED)),
+                Span::styled(
+                    reference.short_name.display().to_owned(),
+                    Style::default().fg(Color::Yellow),
+                ),
+                Span::styled(oid, Style::default().fg(MUTED)),
+                Span::styled(upstream, Style::default().fg(Color::Blue)),
+                Span::raw(subject),
+            ])
+        })
+        .collect();
+    render_string_list(frame, rows, app.inspect.selected, list);
+    if preview.height > 0 {
+        render_preview(frame, app, preview);
+    }
+}
+
+fn status_group(entry: &crate::domain::StatusEntry) -> &'static str {
+    if entry.conflict.is_some() {
+        "conflict"
+    } else if entry.index == StatusCode::Untracked {
+        "untracked"
+    } else if entry.index != StatusCode::Unmodified && entry.worktree != StatusCode::Unmodified {
+        "mixed"
+    } else if entry.index != StatusCode::Unmodified {
+        "staged"
     } else {
-        "loading".to_owned()
+        "unstaged"
+    }
+}
+
+fn render_status(frame: &mut Frame<'_>, app: &App, area: Rect) {
+    let (list, preview) = list_preview_areas(app, area);
+    let rows = app
+        .inspect
+        .status_entries()
+        .iter()
+        .map(|entry| {
+            Line::from(vec![
+                Span::styled(
+                    format!("{:<9} ", status_group(entry)),
+                    Style::default().fg(MUTED),
+                ),
+                Span::styled(
+                    format!(
+                        "{}{} ",
+                        entry.index.porcelain_char(),
+                        entry.worktree.porcelain_char()
+                    ),
+                    Style::default().fg(Color::Yellow),
+                ),
+                Span::raw(entry.path.display.clone()),
+            ])
+        })
+        .collect();
+    render_string_list(frame, rows, app.inspect.selected, list);
+    if preview.height > 0 {
+        if let Some(diff) = &app.inspect.working_diff {
+            let parts =
+                Layout::vertical([Constraint::Length(1), Constraint::Min(1)]).split(preview);
+            frame.render_widget(
+                Paragraph::new(if app.inspect.status_diff_staged {
+                    "staged diff"
+                } else {
+                    "unstaged diff"
+                })
+                .style(Style::default().fg(ACCENT).bold()),
+                parts[0],
+            );
+            render_diff_value(frame, diff, app.diff_scroll, parts[1], true);
+        } else {
+            let message = if app.inspect.loading {
+                if app.inspect.status_diff_staged {
+                    "Loading staged diff…"
+                } else {
+                    "Loading unstaged diff…"
+                }
+            } else if app.inspect_error.is_some() {
+                "Working diff unavailable — r retries · Esc dismisses"
+            } else {
+                "Select a tracked change to preview"
+            };
+            frame.render_widget(
+                Paragraph::new(message).style(Style::default().fg(MUTED)),
+                preview,
+            );
+        }
+    }
+}
+
+fn render_status_diff(frame: &mut Frame<'_>, app: &App, area: Rect) {
+    let Some(diff) = &app.inspect.working_diff else {
+        frame.render_widget(
+            Paragraph::new("Working diff unavailable")
+                .alignment(Alignment::Center)
+                .style(Style::default().fg(MUTED)),
+            area,
+        );
+        return;
+    };
+    let parts = Layout::vertical([Constraint::Length(1), Constraint::Min(1)]).split(area);
+    frame.render_widget(
+        Paragraph::new(if app.inspect.status_diff_staged {
+            "staged working diff"
+        } else {
+            "unstaged working diff"
+        })
+        .style(Style::default().fg(ACCENT).bold()),
+        parts[0],
+    );
+    render_diff_value(frame, diff, app.diff_scroll, parts[1], true);
+}
+
+fn render_tree(frame: &mut Frame<'_>, app: &App, area: Rect) {
+    let rows = app
+        .inspect
+        .tree
+        .iter()
+        .map(|entry| {
+            let icon = match entry.kind {
+                TreeEntryKind::Tree => "dir ",
+                TreeEntryKind::Blob => "file",
+                TreeEntryKind::Commit => "subm",
+                TreeEntryKind::Unknown => "obj ",
+            };
+            Line::from(vec![
+                Span::styled(
+                    format!("{icon} {} ", entry.mode),
+                    Style::default().fg(MUTED),
+                ),
+                Span::styled(
+                    entry.path.display.clone(),
+                    Style::default().fg(if entry.kind == TreeEntryKind::Tree {
+                        ACCENT
+                    } else {
+                        Color::Reset
+                    }),
+                ),
+                Span::styled(
+                    entry
+                        .size
+                        .map_or(String::new(), |size| format!("  {size} B")),
+                    Style::default().fg(MUTED),
+                ),
+            ])
+        })
+        .collect();
+    render_string_list(frame, rows, app.inspect.selected, area);
+}
+
+fn render_blob(frame: &mut Frame<'_>, app: &App, area: Rect) {
+    let Some(blob) = &app.inspect.blob else {
+        frame.render_widget(Paragraph::new("Loading blob…"), area);
+        return;
+    };
+    if blob.binary == Some(true) {
+        frame.render_widget(
+            Paragraph::new(format!(
+                "Binary blob · {} bytes · {}{}",
+                blob.size,
+                blob.id.short(12),
+                if blob.truncated {
+                    " · preview truncated"
+                } else {
+                    ""
+                }
+            ))
+            .alignment(Alignment::Center)
+            .style(Style::default().fg(MUTED)),
+            area,
+        );
+    } else {
+        let bytes = blob.bytes();
+        let lines = bytes
+            .split(|byte| *byte == b'\n')
+            .skip(app.diff_scroll)
+            .take(usize::from(area.height))
+            .map(crate::sanitize::sanitize_bytes)
+            .map(Line::raw)
+            .collect::<Vec<_>>();
+        frame.render_widget(Paragraph::new(lines).wrap(Wrap { trim: false }), area);
+    }
+}
+
+fn render_blame(frame: &mut Frame<'_>, app: &App, area: Rect) {
+    let (list, preview) = list_preview_areas(app, area);
+    let rows = app
+        .inspect
+        .blame
+        .iter()
+        .enumerate()
+        .map(|(index, line)| {
+            let repeated = index > 0 && app.inspect.blame[index - 1].id == line.id;
+            let attribution = if repeated {
+                format!("{:>5} {:8} {:10} {:12} ", line.final_line, "", "", "")
+            } else {
+                format!(
+                    "{:>5} {:8} {:10} {:12} ",
+                    line.final_line,
+                    line.id.short(8),
+                    line.author_time
+                        .map_or_else(|| "----------".into(), compact_date),
+                    truncate(&line.author, 12)
+                )
+            };
+            Line::from(vec![
+                Span::styled(
+                    attribution,
+                    Style::default().fg(if repeated { MUTED } else { Color::Yellow }),
+                ),
+                Span::raw(line.content.clone()),
+            ])
+        })
+        .collect();
+    render_string_list(frame, rows, app.inspect.selected, list);
+    if preview.height > 0 {
+        render_preview(frame, app, preview);
+    }
+}
+
+fn render_stashes(frame: &mut Frame<'_>, app: &App, area: Rect) {
+    let (list, preview) = list_preview_areas(app, area);
+    let rows = app
+        .inspect
+        .stashes
+        .iter()
+        .map(|stash| {
+            Line::from(vec![
+                Span::styled(
+                    format!("{} {} ", stash.selector, stash.id.short(8)),
+                    Style::default().fg(Color::Yellow),
+                ),
+                Span::raw(stash.subject.clone()),
+            ])
+        })
+        .collect();
+    render_string_list(frame, rows, app.inspect.selected, list);
+    if preview.height > 0 {
+        render_preview(frame, app, preview);
+    }
+}
+
+fn render_footer(frame: &mut Frame<'_>, app: &App, area: Rect) {
+    let position = match app.view {
+        View::Log => {
+            if app.commits.is_empty() {
+                "0/0".into()
+            } else {
+                format!("{}/{}", app.selected + 1, app.commits.len())
+            }
+        }
+        View::Refs => format!(
+            "{}/{}",
+            app.inspect.selected.saturating_add(1),
+            app.inspect.refs.len()
+        ),
+        View::Status => format!(
+            "{}/{}",
+            app.inspect.selected.saturating_add(1),
+            app.inspect.status_entries().len()
+        ),
+        View::Tree => format!(
+            "{}/{}",
+            app.inspect.selected.saturating_add(1),
+            app.inspect.tree.len()
+        ),
+        View::Blame => format!(
+            "{}/{}",
+            app.inspect.selected.saturating_add(1),
+            app.inspect.blame.len()
+        ),
+        View::Stash => format!(
+            "{}/{}",
+            app.inspect.selected.saturating_add(1),
+            app.inspect.stashes.len()
+        ),
+        View::Blob | View::Detail | View::Compare | View::StatusDiff => {
+            format!("line {}", app.diff_scroll.saturating_add(1))
+        }
     };
     let keys = match app.view {
-        View::Log => "j/k move  Enter inspect  p preview  / search  : commands  ? help  q quit",
-        View::Detail => "j/k scroll  [/] hunk  Tab file  P parent  : commands  q back",
+        View::Log => "j/k move  Enter inspect  c compare  / search  ? help  q quit",
+        View::Detail => "j/k scroll  [/] hunk  Tab file  P parent  b blame  q back",
+        View::Compare => "j/k scroll  [/] hunk  x swap  M mode  q back",
+        View::Refs => "j/k move  Enter history/base  c compare  p preview  / search  q back",
+        View::Status => "j/k move  Enter inspect  d staged/unstaged  b blame  p preview  q back",
+        View::StatusDiff => "j/k scroll  [/] hunk  {/} file  b blame  q back",
+        View::Tree => "j/k move  Enter open  Backspace up  b blame  q back",
+        View::Blob => "j/k scroll  b blame  / search  q back",
+        View::Blame => "j/k move  Enter commit  p preview  / search  q back",
+        View::Stash => "j/k move  Enter patch  p preview  / search  q back",
     };
     frame.render_widget(
         Paragraph::new(Line::from(vec![
@@ -552,6 +1055,12 @@ fn render_footer(frame: &mut Frame<'_>, app: &App, area: Rect) {
             ),
             Span::raw(" "),
             Span::styled(keys, Style::default().fg(MUTED)),
+            Span::styled(
+                app.marked_oid
+                    .as_ref()
+                    .map_or(String::new(), |oid| format!("  marked:{}", oid.short(10))),
+                Style::default().fg(Color::Magenta),
+            ),
         ])),
         area,
     );
@@ -565,8 +1074,16 @@ fn render_help(frame: &mut Frame<'_>, app: &App, area: Rect) {
     );
     frame.render_widget(Clear, popup);
     let context = match app.view {
-        View::Log => "Log: Enter inspect · Tab focus preview · p toggle preview",
-        View::Detail => "Diff: [/] hunks · Tab files · P cycles merge parents",
+        View::Log => "Log: Enter inspect · v mark · c compare · p preview",
+        View::Detail => "Diff: [/] hunks · Tab files · P merge parent · b blame",
+        View::Compare => "Compare: x swaps · M exact/merge-base · [/] hunks",
+        View::Refs => "Refs: Enter opens history or accepts comparison base",
+        View::Status => "Status is read-only; Enter opens the selected working diff",
+        View::StatusDiff => "Working diff: [/] hunks · {/} files · q returns to status",
+        View::Tree => "Tree: Enter descends/opens · Backspace ascends",
+        View::Blob => "Blob: sanitized text or a safe binary summary",
+        View::Blame => "Blame: Enter opens the selected line's commit",
+        View::Stash => "Stash: Enter opens the selected stash patch",
     };
     let text = Text::from(vec![
         Line::styled("phig keys", Style::default().fg(ACCENT).bold()),
@@ -578,6 +1095,8 @@ fn render_help(frame: &mut Frame<'_>, app: &App, area: Rect) {
         Line::raw("/ · n/N          search · next/previous"),
         Line::raw(":                searchable command palette"),
         Line::raw("[ ] · { }        hunk · file"),
+        Line::raw("m/r/s/t/b/z       history · refs · status · tree · blame · stash"),
+        Line::raw("v · c · x · M      mark · compare · swap · compare mode"),
         Line::raw("Tab · p · P       section/file · preview · parent"),
         Line::raw("Ctrl-l            redraw"),
         Line::raw(""),
@@ -667,7 +1186,7 @@ fn render_palette(frame: &mut Frame<'_>, draft: &str, selected: usize, area: Rec
 }
 
 fn render_errors(frame: &mut Frame<'_>, app: &App, area: Rect) {
-    let failures = [&app.history_error, &app.preview_error]
+    let failures = [&app.history_error, &app.preview_error, &app.inspect_error]
         .into_iter()
         .flatten()
         .collect::<Vec<_>>();
@@ -700,9 +1219,16 @@ fn render_errors(frame: &mut Frame<'_>, app: &App, area: Rect) {
         Paragraph::new(lines).wrap(Wrap { trim: false }),
         sections[0],
     );
+    let recovery = if failures
+        .iter()
+        .any(|failure| failure.operation == "open blame")
+    {
+        "Esc dismiss · select a file path, then press b"
+    } else {
+        "r retry failed request(s) · Esc dismiss"
+    };
     frame.render_widget(
-        Paragraph::new("r retry failed request(s) · Esc dismiss")
-            .style(Style::default().fg(Color::Yellow)),
+        Paragraph::new(recovery).style(Style::default().fg(Color::Yellow)),
         sections[1],
     );
 }
@@ -751,11 +1277,13 @@ fn relative_age(timestamp: i64) -> String {
 mod tests {
     use std::path::PathBuf;
 
+    use base64::{Engine as _, engine::general_purpose::STANDARD};
     use ratatui::{Terminal, backend::TestBackend};
 
     use crate::domain::{
-        Commit, CommitDetail, Diff, DiffFile, DiffLine, DiffLineKind, HistoryPage, ObjectFormat,
-        Oid, Repository, Signature,
+        BlameLine, Blob, Commit, CommitDetail, Comparison, ComparisonMode, Diff, DiffFile,
+        DiffLine, DiffLineKind, GitPath, HistoryPage, ObjectFormat, Oid, RefInfo, RefKind, RefName,
+        Repository, Signature, Status, StatusCode, StatusEntry,
     };
 
     use super::*;
@@ -832,6 +1360,22 @@ mod tests {
         app
     }
 
+    fn status_entry(index: StatusCode, worktree: StatusCode, path: &[u8]) -> StatusEntry {
+        StatusEntry {
+            index,
+            worktree,
+            path: GitPath::new(path.to_vec()),
+            original_path: None,
+            submodule: "N...".into(),
+            head_mode: None,
+            index_mode: None,
+            worktree_mode: None,
+            head_oid: None,
+            index_oid: None,
+            conflict: None,
+        }
+    }
+
     fn screen(width: u16, height: u16, app: &App) -> String {
         let backend = TestBackend::new(width, height);
         let mut terminal = Terminal::new(backend).unwrap();
@@ -854,6 +1398,29 @@ mod tests {
         assert!(output.contains("make history pleasant"));
         assert!(!output.contains("diff --git"));
         assert!(output.contains("j/k move"));
+    }
+
+    #[test]
+    fn log_footer_keeps_core_actions_visible_at_eighty_columns() {
+        let output = screen(80, 16, &sample_app());
+        let footer = output.lines().nth(15).unwrap();
+        for hint in [
+            "j/k move",
+            "Enter inspect",
+            "c compare",
+            "/ search",
+            "? help",
+            "q quit",
+        ] {
+            assert!(
+                footer.contains(hint),
+                "missing footer hint {hint:?}: {footer}"
+            );
+        }
+        assert!(!footer.contains("refs"));
+        assert!(!footer.contains("status"));
+        assert!(!footer.contains("tree"));
+        assert!(!footer.contains("mark"));
     }
 
     #[test]
@@ -929,6 +1496,177 @@ mod tests {
         assert!(error.contains("Failed to load commit detail"));
         assert!(error.contains("timed out"));
         assert!(error.contains("r retry failed request(s)"));
+    }
+
+    #[test]
+    fn comparison_and_inspection_views_keep_one_dominant_surface() {
+        let mut app = sample_app();
+        let base: Oid = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb".parse().unwrap();
+        let head: Oid = "cccccccccccccccccccccccccccccccccccccccc".parse().unwrap();
+        app.view = View::Compare;
+        app.inspect.comparison = Some(Comparison {
+            mode: ComparisonMode::MergeBase,
+            requested_base: "main".into(),
+            requested_head: "feature".into(),
+            resolved_base: base.clone(),
+            resolved_head: head,
+            merge_base: Some(base),
+            ahead: 2,
+            behind: 0,
+            diff: app.preview.as_ref().unwrap().diff.clone(),
+        });
+        let compare = screen(100, 28, &app);
+        assert!(compare.contains("merge-base(main, feature)"));
+        assert!(compare.contains("ahead 2"));
+        app.view = View::Refs;
+        let refs = screen(60, 16, &app);
+        assert!(refs.contains("REFS"));
+        assert!(!refs.contains("diff --git"));
+    }
+
+    #[test]
+    fn status_at_60x16_opens_a_dominant_diff_and_uses_porcelain_codes() {
+        let mut app = sample_app();
+        app.view = View::Status;
+        let _ = app.apply_status(Status {
+            entries: vec![status_entry(
+                StatusCode::Modified,
+                StatusCode::Modified,
+                b"mixed.txt",
+            )],
+            ..Status::default()
+        });
+        app.apply_working_diff(app.preview.as_ref().unwrap().diff.clone());
+        let list = screen(60, 16, &app);
+        assert!(list.contains("mixed"));
+        assert!(list.contains("MM"));
+        assert!(!list.contains("diff --git"));
+        let _ = app.update(crate::app::Action::Open, 14);
+        let detail = screen(60, 16, &app);
+        assert!(detail.contains("STATUS DIFF"));
+        assert!(detail.contains("diff --git"));
+    }
+
+    #[test]
+    fn refs_mark_tree_breadcrumb_and_blame_groups_are_visible() {
+        let mut app = sample_app();
+        app.marked_oid = Some(app.commits[0].id.clone());
+        let marked = screen(100, 28, &app);
+        assert!(marked.contains("marked:aaaaaaaaaa"));
+
+        app.view = View::Refs;
+        app.inspect.refs = vec![RefInfo {
+            full_name: RefName::new(b"refs/heads/feature".to_vec()),
+            short_name: RefName::new(b"feature".to_vec()),
+            kind: RefKind::LocalBranch,
+            target: app.commits[0].id.clone(),
+            peeled: None,
+            upstream: Some(RefName::new(b"origin/feature".to_vec())),
+            subject: "work".into(),
+            timestamp: None,
+            is_head: false,
+        }];
+        let refs = screen(100, 28, &app);
+        assert!(refs.contains("aaaaaaaa"));
+        assert!(refs.contains("origin/feature"));
+
+        app.view = View::Tree;
+        app.inspect.tree_path = Some(GitPath::new(b"src/deep".to_vec()));
+        let tree = screen(80, 20, &app);
+        assert!(tree.contains("/src/deep"));
+
+        app.view = View::Blame;
+        app.marked_oid = None;
+        app.show_preview = false;
+        app.inspect.blame = (1..=2)
+            .map(|line| BlameLine {
+                final_line: line,
+                original_line: line,
+                id: app.commits[0].id.clone(),
+                author: "Pat Example".into(),
+                author_mail: "pat@example.invalid".into(),
+                author_time: Some(1_700_000_000),
+                summary: "same commit".into(),
+                filename: GitPath::new(b"src/lib.rs".to_vec()),
+                content: format!("line {line}"),
+                boundary: false,
+                previous: None,
+            })
+            .collect();
+        let blame = screen(100, 28, &app);
+        assert_eq!(blame.matches("aaaaaaaa").count(), 1);
+        assert_eq!(blame.matches("2023-11-14").count(), 1);
+    }
+
+    #[test]
+    fn inspection_preview_toggle_changes_page_height() {
+        let mut app = sample_app();
+        app.view = View::Refs;
+        assert_eq!(page_rows(&app, 100, 28), 13);
+        app.show_preview = false;
+        assert_eq!(page_rows(&app, 100, 28), 26);
+    }
+
+    #[test]
+    fn multiline_blob_renders_and_scrolls_by_raw_lines() {
+        let mut app = sample_app();
+        app.view = View::Blob;
+        app.inspect.blob = Some(Blob {
+            id: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa".parse().unwrap(),
+            path: Some(crate::domain::GitPath::new(b"notes.txt".to_vec())),
+            bytes_base64: STANDARD.encode(b"first line\nsecond \x1b line\nthird line"),
+            size: 35,
+            binary: Some(false),
+            truncated: false,
+        });
+
+        let output = screen(60, 16, &app);
+        assert!(output.lines().any(|line| line.starts_with("first line")));
+        assert!(
+            output
+                .lines()
+                .any(|line| line.starts_with("second \\e line"))
+        );
+        assert!(output.lines().any(|line| line.starts_with("third line")));
+        assert!(!output.contains("first line\\nsecond"));
+
+        let _ = app.update(crate::app::Action::Move(1), 14);
+        assert_eq!(app.diff_scroll, 1);
+        let scrolled = screen(60, 16, &app);
+        assert!(!scrolled.contains("first line"));
+        assert!(
+            scrolled
+                .lines()
+                .any(|line| line.starts_with("second \\e line"))
+        );
+        assert!(scrolled.lines().any(|line| line.starts_with("third line")));
+    }
+
+    #[test]
+    fn binary_blob_is_summarized_without_rendering_bytes() {
+        let mut app = sample_app();
+        app.view = View::Blob;
+        app.inspect.blob = Some(Blob {
+            id: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa".parse().unwrap(),
+            path: Some(crate::domain::GitPath::new(b"image.bin".to_vec())),
+            bytes_base64: "AAEC".into(),
+            size: 3,
+            binary: Some(true),
+            truncated: false,
+        });
+        let output = screen(60, 16, &app);
+        assert!(output.contains("Binary blob · 3 bytes"));
+        assert!(!output.contains('\0'));
+    }
+
+    #[test]
+    fn missing_blame_path_error_explains_recovery() {
+        let mut app = sample_app();
+        app.preview = None;
+        let _ = app.update(crate::app::Action::ViewBlame, 10);
+        let output = screen(80, 20, &app);
+        assert!(output.contains("select a file path first"));
+        assert!(output.contains("select a file path, then press b"));
     }
 
     #[test]

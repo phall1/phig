@@ -9,7 +9,7 @@ use crossbeam_channel::{Receiver, SendTimeoutError, Sender, TrySendError, bounde
 
 use crate::{
     domain::{
-        BlameLine, Blob, CommitDetail, Comparison, ComparisonMode, GitPath, HistoryPage, Oid,
+        BlameLine, Blob, CommitDetail, Comparison, ComparisonMode, Diff, GitPath, HistoryPage, Oid,
         RefInfo, Repository, StashEntry, Status, TreeEntry,
     },
     git::{CancellationToken, GitClient, GitError},
@@ -75,6 +75,11 @@ pub enum GitQuery {
         mode: ComparisonMode,
         paths: Vec<GitPath>,
     },
+    WorkingDiff {
+        repository: Repository,
+        path: GitPath,
+        staged: bool,
+    },
 }
 
 #[derive(Debug)]
@@ -88,6 +93,7 @@ pub enum GitResult {
     Blame(Vec<BlameLine>),
     Stashes(Vec<StashEntry>),
     Compare(Comparison),
+    Diff(Diff),
 }
 
 #[derive(Debug)]
@@ -326,6 +332,13 @@ fn execute(
         } => client
             .compare(repository, base, head, *mode, paths, cancellation)
             .map(GitResult::Compare),
+        GitQuery::WorkingDiff {
+            repository,
+            path,
+            staged,
+        } => client
+            .working_diff(repository, path, *staged, cancellation)
+            .map(GitResult::Diff),
     }
 }
 
