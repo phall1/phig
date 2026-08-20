@@ -6,6 +6,13 @@ All notable changes to phig are documented here. The format follows
 
 ## [Unreleased]
 
+## [1.1.1] - 2026-08-19
+
+### Fixed
+
+- Isolated shell-installer tests with an explicit temporary `CARGO_HOME` so
+  running the release suite can never shadow a developer's installed `phig`.
+
 ## [1.1.0] - 2026-08-19
 
 ### Added
@@ -73,6 +80,7 @@ All notable changes to phig are documented here. The format follows
   pagers, lazy object fetching, replacements, and terminal control sequences
   are disabled or sanitized on inspection paths.
 
-[Unreleased]: https://github.com/phall1/phig/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/phall1/phig/compare/v1.1.1...HEAD
+[1.1.1]: https://github.com/phall1/phig/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/phall1/phig/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/phall1/phig/releases/tag/v1.0.0

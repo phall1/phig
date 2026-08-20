@@ -61,7 +61,7 @@ release archive's SHA-256 checksum. Pin a release or choose a prefix when needed
 ```sh
 curl --proto '=https' --tlsv1.2 -LsSf \
   https://raw.githubusercontent.com/phall1/phig/main/install.sh -o /tmp/phig-install.sh
-PHIG_VERSION=1.1.0 sh /tmp/phig-install.sh --prefix "$HOME/.local" --yes
+PHIG_VERSION=1.1.1 sh /tmp/phig-install.sh --prefix "$HOME/.local" --yes
 ```
 
 ### Cargo
