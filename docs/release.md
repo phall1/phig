@@ -66,8 +66,8 @@ clean-installing `phig-cli` is a separate, explicit, required final release step
 The version tag must exactly match the Cargo package version:
 
 ```sh
-git tag -s v1.1.0 -m 'phig 1.1.0'
-git push origin v1.1.0
+git tag -s v1.1.1 -m 'phig 1.1.1'
+git push origin v1.1.1
 ```
 
 A signed tag is preferred; an annotated tag is acceptable only when signing is
@@ -78,8 +78,8 @@ release.
 After the workflow succeeds:
 
 ```sh
-gh release view v1.1.0 --repo phall1/phig
-gh release download v1.1.0 --repo phall1/phig --dir /tmp/phig-release
+gh release view v1.1.1 --repo phall1/phig
+gh release download v1.1.1 --repo phall1/phig --dir /tmp/phig-release
 (cd /tmp/phig-release && shasum -a 256 -c phig-cli-aarch64-apple-darwin.tar.xz.sha256)
 gh attestation verify /tmp/phig-release/phig-cli-aarch64-apple-darwin.tar.xz \
   --repo phall1/phig
@@ -102,7 +102,7 @@ healthy. Then publish and verify the required crates.io route:
 ```sh
 cargo publish --locked
 cargo search phig-cli --limit 1
-CARGO_HOME="$(mktemp -d)" cargo install phig-cli --version 1.1.0 --locked
+CARGO_HOME="$(mktemp -d)" cargo install phig-cli --version 1.1.1 --locked
 ```
 
 The release is not complete while the README's Cargo command is unavailable.

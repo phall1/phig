@@ -56,7 +56,8 @@ fn install_command(fixture: &TempDir, curl_log: &str) -> Command {
         )
         .env("PHIG_TEST_CURL_LOG", curl_log)
         .env("PHIG_TEST_INSTALL_LOG", fixture.path().join("install.log"))
-        .env("HOME", fixture.path().join("home"));
+        .env("HOME", fixture.path().join("home"))
+        .env("CARGO_HOME", fixture.path().join("cargo"));
     command
 }
 
@@ -85,6 +86,11 @@ fn installer_supports_latest_versioned_and_prefix_installs() {
         .output()
         .unwrap();
     assert!(output.status.success());
+    assert!(fixture.path().join("cargo/bin/phig").is_file());
+    assert!(
+        !fixture.path().join("home/.cargo/bin/phig").exists(),
+        "installer test escaped its explicit CARGO_HOME sandbox"
+    );
     assert!(
         fs::read_to_string(curl_log)
             .unwrap()

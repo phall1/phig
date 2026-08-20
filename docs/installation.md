@@ -49,13 +49,13 @@ For an auditable two-step install or a custom prefix:
 curl --proto '=https' --tlsv1.2 -LsSf \
   https://raw.githubusercontent.com/phall1/phig/main/install.sh -o phig-install.sh
 less phig-install.sh
-PHIG_VERSION=1.1.0 sh phig-install.sh --prefix "$HOME/.local" --yes
+PHIG_VERSION=1.1.1 sh phig-install.sh --prefix "$HOME/.local" --yes
 "$HOME/.local/bin/phig" version
 rm phig-install.sh
 ```
 
 `install.sh --help` is side-effect free. Rerunning it updates an existing release
-installation safely. `PHIG_VERSION` accepts a release such as `1.1.0`; omit it
+installation safely. `PHIG_VERSION` accepts a release such as `1.1.1`; omit it
 to install the latest stable release.
 
 To uninstall a shell installation, locate it first and remove only that binary:
