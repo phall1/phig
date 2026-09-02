@@ -5,7 +5,7 @@ expression: "format!(\"109x28\\n{}\\n110x28\\n{}\", styled_screen(109, 28, &app)
 109x28
 TEXT
  phig LOG phig-demo / main  HEAD
-›   ● aaaaaaaa 1700000000 Pat Example        make history pleasant (HEAD -> main)
+›   ◌ aaaaaaaa 1700000000 Pat Example        make history pleasant (HEAD -> main)
 
 
 
@@ -35,7 +35,7 @@ diff --git a/src/main.rs b/src/main.rs
 STYLES
 0:0-9 fg=Cyan bg=Reset mod=BOLD text=" phig LOG "
 0:19-31 fg=DarkGray bg=Reset mod=NONE text=" / main  HEAD"
-1:0-108 fg=Cyan bg=Reset mod=BOLD text="›   ● aaaaaaaa 1700000000 Pat Example        make history pleasant (HEAD -> main)                            "
+1:0-108 fg=Cyan bg=Reset mod=BOLD text="›   ◌ aaaaaaaa 1700000000 Pat Example        make history pleasant (HEAD -> main)                            "
 12:0-108 fg=DarkGray bg=Reset mod=NONE text="─────────────────────────────────────────────────────────────────────────────────────────────────────────────"
 13:0-11 fg=Yellow bg=Reset mod=NONE text="aaaaaaaaaaaa"
 14:0-20 fg=Reset bg=Reset mod=BOLD text="make history pleasant"
@@ -58,7 +58,7 @@ STYLES
 110x28
 TEXT
  phig LOG phig-demo / main  HEAD
-›   ● aaaaaaaa 1700000000 make history pleas…│aaaaaaaaaaaa
+›   ◌ aaaaaaaa 1700000000 make history pleas…│aaaaaaaaaaaa
                                              │make history pleasant
                                              │Author: Pat Example <pat@example.invalid>
                                              │Date: 2023-11-14 18:13:20 -04:00
@@ -88,7 +88,7 @@ TEXT
 STYLES
 0:0-9 fg=Cyan bg=Reset mod=BOLD text=" phig LOG "
 0:19-31 fg=DarkGray bg=Reset mod=NONE text=" / main  HEAD"
-1:0-44 fg=Cyan bg=Reset mod=BOLD text="›   ● aaaaaaaa 1700000000 make history pleas…"
+1:0-44 fg=Cyan bg=Reset mod=BOLD text="›   ◌ aaaaaaaa 1700000000 make history pleas…"
 1:45-45 fg=DarkGray bg=Reset mod=NONE text="│"
 1:46-57 fg=Yellow bg=Reset mod=NONE text="aaaaaaaaaaaa"
 2:45-45 fg=DarkGray bg=Reset mod=NONE text="│"

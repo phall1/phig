@@ -4,7 +4,7 @@ expression: "styled_screen(100, 28, &sample_app())"
 ---
 TEXT
  phig LOG phig-demo / main  HEAD
-›   ● aaaaaaaa 1700000000 Pat Example        make history pleasant (HEAD -> main)
+›   ◌ aaaaaaaa 1700000000 Pat Example        make history pleasant (HEAD -> main)
 
 
 
@@ -34,7 +34,7 @@ diff --git a/src/main.rs b/src/main.rs
 STYLES
 0:0-9 fg=Cyan bg=Reset mod=BOLD text=" phig LOG "
 0:19-31 fg=DarkGray bg=Reset mod=NONE text=" / main  HEAD"
-1:0-99 fg=Cyan bg=Reset mod=BOLD text="›   ● aaaaaaaa 1700000000 Pat Example        make history pleasant (HEAD -> main)                   "
+1:0-99 fg=Cyan bg=Reset mod=BOLD text="›   ◌ aaaaaaaa 1700000000 Pat Example        make history pleasant (HEAD -> main)                   "
 12:0-99 fg=DarkGray bg=Reset mod=NONE text="────────────────────────────────────────────────────────────────────────────────────────────────────"
 13:0-11 fg=Yellow bg=Reset mod=NONE text="aaaaaaaaaaaa"
 14:0-20 fg=Reset bg=Reset mod=BOLD text="make history pleasant"

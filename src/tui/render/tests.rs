@@ -6,15 +6,138 @@ use ratatui::{Terminal, backend::TestBackend, layout::Rect, style::Color};
 use crate::app::{App, SelectionContract, SelectionTarget, View};
 use crate::domain::{
     BlameLine, Blob, Commit, CommitDetail, Comparison, ComparisonMode, Diff, DiffFile, DiffLine,
-    DiffLineKind, GitPath, HistoryPage, ObjectFormat, Oid, RefInfo, RefKind, RefName, Repository,
-    Signature, Status, StatusCode, StatusEntry,
+    DiffLineKind, GitPath, HistoryPage, ObjectFormat, Oid, RefInfo, RefKind, RefName, RefScope,
+    Repository, Signature, Status, StatusCode, StatusEntry,
 };
 
 use super::{
+    graph::{graph_rows, lane_limit},
     history::history_line,
     layout::{diff_content_rows, list_preview_layout},
     *,
 };
+
+/// A log across several refs, the shape `--all` produces: two merges, a lane
+/// that branches and rejoins, and a topic that never merges back.
+fn branchy_app() -> App {
+    fn oid(seed: u8) -> Oid {
+        format!("{seed:02x}").repeat(20).parse().unwrap()
+    }
+    fn commit(id: u8, parents: &[u8], subject: &str, decorations: &[&str]) -> Commit {
+        let signature = Signature {
+            name: "Pat Example".into(),
+            email: "pat@example.invalid".into(),
+            timestamp: 1_700_000_000,
+            timezone: "-04:00".into(),
+        };
+        Commit {
+            id: oid(id),
+            parents: parents.iter().copied().map(oid).collect(),
+            author: signature.clone(),
+            committer: signature,
+            decorations: decorations
+                .iter()
+                .map(|value| (*value).to_string())
+                .collect(),
+            subject: subject.into(),
+            body: String::new(),
+        }
+    }
+    let commits = vec![
+        commit(1, &[2, 3], "merge other", &["HEAD -> main", "origin/main"]),
+        commit(3, &[6], "other-a", &[]),
+        commit(2, &[4], "main-b", &[]),
+        commit(4, &[7, 5], "merge feature", &[]),
+        commit(5, &[8], "feat-b", &["origin/feature"]),
+        commit(9, &[8], "topic-a", &["topic"]),
+        commit(8, &[6], "feat-a", &[]),
+        commit(7, &[6], "main-a", &[]),
+        commit(6, &[10], "one", &["tag: v1"]),
+        commit(10, &[], "base", &[]),
+    ];
+    let repository = Repository {
+        root: PathBuf::from("/tmp/phig-demo"),
+        worktree: Some(PathBuf::from("/tmp/phig-demo")),
+        git_dir: PathBuf::from("/tmp/phig-demo/.git"),
+        bare: false,
+        object_format: ObjectFormat::Sha1,
+        git_version: "2.45.1".into(),
+        head: Some(oid(1)),
+        branch: Some("main".into()),
+    };
+    let mut app = App::new(repository, "HEAD".into(), Vec::new(), false);
+    app.revision_explicit = false;
+    app.ref_scope = RefScope {
+        all: true,
+        ..RefScope::default()
+    };
+    app.revision_label = app.ref_scope.label();
+    app.show_preview = false;
+    app.apply_history(HistoryPage {
+        commits,
+        offset: 0,
+        limit: 256,
+        has_more: false,
+    });
+    app
+}
+
+#[test]
+fn golden_ref_scope_graph_100x14() {
+    let ascii = RenderContext::new(RenderConfig {
+        glyph_mode: GlyphMode::Ascii,
+        ..deterministic_config()
+    });
+    insta::assert_snapshot!(
+        "ref-scope-graph-100x14",
+        format!(
+            "unicode 100x14\n{}\nnarrow 58x14\n{}\nfolded 44x14\n{}\nascii 100x14\n{}",
+            screen(100, 14, &branchy_app()),
+            screen(58, 14, &branchy_app()),
+            screen(44, 14, &branchy_app()),
+            screen_with_context(100, 14, &branchy_app(), &ascii),
+        )
+    );
+}
+
+#[test]
+fn ref_scope_graph_connects_merges_to_their_parents() {
+    let rendered = screen(100, 14, &branchy_app());
+    // Columns four onward hold the lane cells, after the highlight symbol and
+    // the mark gutter. Slice by characters: box drawing is multi-byte.
+    let lanes: Vec<String> = rendered
+        .lines()
+        .map(|line| {
+            line.chars()
+                .skip(4)
+                .take(8)
+                .collect::<String>()
+                .trim_end()
+                .to_owned()
+        })
+        .collect();
+    // The two merges each open a lane, the topic lane closes into feat-a, and
+    // the shared ancestor collapses every remaining lane at once.
+    assert!(
+        lanes.iter().any(|lane| lane == "◆─╮"),
+        "merge did not open a lane: {lanes:?}"
+    );
+    assert!(
+        lanes.iter().any(|lane| lane == "◆─┼─╮"),
+        "merge did not cross the live lane: {lanes:?}"
+    );
+    assert!(
+        lanes.iter().any(|lane| lane == "│ │ ●─╯"),
+        "topic lane did not close: {lanes:?}"
+    );
+    assert!(
+        lanes.iter().any(|lane| lane == "●─┴─╯"),
+        "shared ancestor did not collapse its lanes: {lanes:?}"
+    );
+    // The header names the scope instead of pinning it to one object.
+    assert!(rendered.contains("all refs"), "scope missing from chrome");
+    assert!(!rendered.contains("all refs@"), "scope pinned to an object");
+}
 
 fn sample_app() -> App {
     let oid: Oid = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa".parse().unwrap();
@@ -788,7 +911,15 @@ fn history_preserves_subjects_and_cell_width_across_date_modes() {
             ..deterministic_config()
         });
         for width in [45, 60] {
-            let line = history_line(&app.commits[0], width, "● ".into(), false, &context);
+            let rows = graph_rows(&app.commits, 1, lane_limit(width), context.glyphs().graph);
+            let line = history_line(
+                &app.commits[0],
+                width,
+                &rows[0],
+                rows[0].width(),
+                false,
+                &context,
+            );
             let text = line
                 .spans
                 .iter()

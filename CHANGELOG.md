@@ -17,6 +17,11 @@ All notable changes to phig are documented here. The format follows
 
 ### Changed
 
+- Replaced the log's lane-glyph prefix with a connector graph: merges open
+  lanes, joins close them, runs cross live lanes, and root commits terminate
+  their lane. Lane colors cycle the configured theme, the full box-drawing
+  repertoire has an ASCII fallback, and lane count is budgeted from terminal
+  width.
 - The log header names an active ref scope rather than pinning it to a single
   object.
 

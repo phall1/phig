@@ -3,6 +3,7 @@
 mod chrome;
 mod diff;
 mod format;
+mod graph;
 mod history;
 mod inspect;
 mod layout;
