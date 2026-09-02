@@ -8,7 +8,7 @@ cargo-dist-version = "0.32.0"
 # CI backends to support
 ci = "github"
 # The installers to generate for each app
-installers = ["shell", "homebrew"]
+installers = ["shell"]
 # Target platforms to build apps for (Rust target-triple syntax)
 targets = ["aarch64-apple-darwin", "aarch64-unknown-linux-gnu", "x86_64-apple-darwin", "x86_64-unknown-linux-gnu"]
 # Path that installers should place binaries in
@@ -21,7 +21,13 @@ pr-run-mode = "upload"
 checksum = "sha256"
 min-glibc-version = { x86_64-unknown-linux-gnu = "2.31", aarch64-unknown-linux-gnu = "2.31" }
 github-attestations = true
-tap = "phall1/homebrew-tap"
-publish-jobs = ["homebrew"]
+# No homebrew installer and no homebrew publish job on purpose. The formula
+# lives in phall1/homebrew-tap, rendered from tools/phig.json by that repo's
+# own generator. cargo-dist's formula does not survive `brew style` — a leading
+# article in desc, a version stanza beside the urls, an unfrozen constant — and
+# because brew style runs over the whole tap, publishing it turned every package
+# in the tap red, not just phig's. Hand-fixing it there lasted exactly one
+# release. The tap re-resolves this repo's latest release every fifteen minutes,
+# so dropping the push costs only latency, not freshness.
 # Whether to install an updater program (phig supplies its own explicit command).
 install-updater = false

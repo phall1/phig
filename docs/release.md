@@ -2,15 +2,17 @@
 
 GitHub Releases are the distribution authority. cargo-dist 0.32.0 builds four
 archives, per-archive and unified SHA-256 checksums, a shell installer, source
-tarball, Homebrew formula, and GitHub attestations. Stable releases publish the
-formula to `phall1/homebrew-tap`.
+tarball, and GitHub attestations. It does not build or push a Homebrew formula:
+`phall1/homebrew-tap` renders `Formula/phig.rb` itself from `tools/phig.json`,
+re-resolving this repository's latest release on a fifteen-minute schedule.
 
 ## One-time repository setup
 
-The `phall1/phig` repository must have Actions enabled and a
-`HOMEBREW_TAP_TOKEN` Actions secret. The token needs contents write access only
-to `phall1/homebrew-tap`. GitHub's generated `GITHUB_TOKEN` creates releases and
-attestations. Private vulnerability reporting should be enabled.
+The `phall1/phig` repository must have Actions enabled. GitHub's generated
+`GITHUB_TOKEN` creates releases and attestations. No tap credential is required
+here: the tap reads this repository's public releases under its own token rather
+than being pushed to, so there is no `HOMEBREW_TAP_TOKEN` to hold or rotate.
+Private vulnerability reporting should be enabled.
 
 The release workflow intentionally has no crates.io credential. Publishing and
 clean-installing `phig-cli` is a separate, explicit, required final release step.
@@ -96,7 +98,9 @@ phig version
 phig update --check
 ```
 
-Verify `Formula/phig.rb` in the tap points to the new release and that its CI is
+The tap updates on its own schedule, so `brew install` serves the previous
+version for up to fifteen minutes after the release publishes. Once it has run,
+verify `Formula/phig.rb` in the tap points to the new release and that its CI is
 healthy. Then publish and verify the required crates.io route:
 
 ```sh
@@ -116,8 +120,10 @@ GitHub Release with incomplete assets when a tag workflow fails; do not assume i
 remains a draft. Stop onboarding, mark the release incomplete, fix the workflow,
 and rerun the failed jobs against the same immutable tag. If consumers could
 have installed a broken artifact or the tagged source itself is wrong, preserve
-the record and publish a patch version instead. A Homebrew publication failure
-can be rerun after correcting `HOMEBREW_TAP_TOKEN`; do not hand-edit checksums.
+the record and publish a patch version instead. A tap that has not caught up is
+not a release failure and never blocks one; if it stays stale, run the tap's own
+`Update packages` workflow and read its log. Do not hand-edit the formula or its
+checksums.
 
 Release assets are built from tagged source with the root `rust-toolchain.toml`
 pinning Rust 1.88.0; cargo-dist and rustup honor that repository override on each
