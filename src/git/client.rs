@@ -5,7 +5,7 @@ use base64::{Engine as _, engine::general_purpose::STANDARD};
 use crate::{
     domain::{
         BlameLine, Blob, CommitDetail, Comparison, ComparisonMode, Diff, GitPath, HistoryPage,
-        ObjectFormat, Oid, RefInfo, Repository, StashEntry, Status, TreeEntry,
+        HistoryRange, ObjectFormat, Oid, RefInfo, Repository, StashEntry, Status, TreeEntry,
     },
     git::{
         parse::{
@@ -215,10 +215,14 @@ impl GitClient {
         })
     }
 
+    /// Walk the history the range describes.
+    ///
+    /// A non-empty ref scope also selects topological order, because
+    /// interleaving independent branches by date makes the graph unreadable.
     pub fn history(
         &self,
         repository: &Repository,
-        revision: &str,
+        range: &HistoryRange,
         paths: &[GitPath],
         offset: usize,
         limit: usize,
@@ -232,10 +236,16 @@ impl GitClient {
             OsString::from(format!("--format={LOG_FORMAT}{DECORATIONS}%x00%s%x00")),
             OsString::from(format!("--max-count={}", limit + 1)),
             OsString::from(format!("--skip={offset}")),
-            OsString::from("--end-of-options"),
-            OsString::from(revision),
-            OsString::from("--"),
         ];
+        if !range.scope.is_empty() {
+            args.push(OsString::from("--topo-order"));
+            args.extend(range.scope.flags().into_iter().map(OsString::from));
+        }
+        args.push(OsString::from("--end-of-options"));
+        if let Some(revision) = &range.revision {
+            args.push(OsString::from(revision));
+        }
+        args.push(OsString::from("--"));
         append_paths(&mut args, paths)?;
         let output =
             self.runner

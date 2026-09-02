@@ -287,8 +287,9 @@ impl App {
                     self.inspect.loading = true;
                     vec![Effect::LoadCompare]
                 } else {
-                    self.revision = revision;
-                    self.revision_label = Some(label);
+                    // Opening one ref narrows the log to that endpoint, so any
+                    // active ref scope no longer applies.
+                    self.focus_revision(revision, Some(label));
                     self.commits.clear();
                     self.preview = None;
                     self.selected = 0;

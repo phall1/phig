@@ -9,13 +9,14 @@ use ratatui::{
 
 use crate::{
     app::{App, Focus, View},
-    domain::{Commit, DiffLineKind, Oid},
+    domain::{Commit, DiffLineKind},
     sanitize::sanitize_str,
 };
 
 use super::{
     diff::render_diff,
     format::{display_date, display_width, format_commit_date, pad_right, truncate_with},
+    graph::{GraphRow, graph_rows, lane_limit},
     layout::log_layout,
     render_divider,
     theme::RenderContext,
@@ -65,7 +66,19 @@ fn render_history(frame: &mut Frame<'_>, app: &App, area: Rect, context: &Render
     let maximum_start = app.commits.len().saturating_sub(visible);
     let start = app.selected.saturating_sub(visible / 2).min(maximum_start);
     let end = (start + visible).min(app.commits.len());
-    let graph = graph_prefixes(&app.commits, end, graph_lane_limit(area.width), context);
+    let rows = graph_rows(
+        &app.commits,
+        end,
+        lane_limit(area.width),
+        context.glyphs().graph,
+    );
+    // Every row is padded to the widest lane column in view so the commit text
+    // stays aligned while the graph breathes.
+    let graph_width = rows[start..end]
+        .iter()
+        .map(GraphRow::width)
+        .max()
+        .unwrap_or(0);
     let items: Vec<ListItem<'_>> = app.commits[start..end]
         .iter()
         .enumerate()
@@ -73,7 +86,8 @@ fn render_history(frame: &mut Frame<'_>, app: &App, area: Rect, context: &Render
             ListItem::new(history_line(
                 commit,
                 area.width,
-                graph[start + offset].clone(),
+                &rows[start + offset],
+                graph_width,
                 app.marked_oid.as_ref() == Some(&commit.id),
                 context,
             ))
@@ -91,7 +105,8 @@ fn render_history(frame: &mut Frame<'_>, app: &App, area: Rect, context: &Render
 pub(super) fn history_line(
     commit: &Commit,
     width: u16,
-    graph: String,
+    graph: &GraphRow,
+    graph_width: usize,
     marked: bool,
     context: &RenderContext,
 ) -> Line<'static> {
@@ -104,7 +119,10 @@ pub(super) fn history_line(
     } else {
         "  "
     };
-    let fixed_width = display_width(mark) + display_width(&graph) + 9;
+    // A row always ends on a blank lane gap, so that column doubles as the
+    // separator before the object id.
+    let graph_width = graph_width.max(graph.width());
+    let fixed_width = display_width(mark) + graph_width + 9;
     let mut remaining = item_width.saturating_sub(fixed_width);
     let minimum_subject = display_width(&commit.subject).min(12);
 
@@ -156,15 +174,18 @@ pub(super) fn history_line(
     }
     let subject = truncate_with(&commit.subject, remaining, context.glyphs().ellipsis);
 
-    let mut spans = vec![
-        Span::styled(mark, context.strong(context.accent())),
-        Span::styled(graph, context.style(context.accent())),
+    let mut spans = vec![Span::styled(mark, context.strong(context.accent()))];
+    spans.extend(graph.spans(context));
+    spans.push(Span::raw(
+        " ".repeat(graph_width.saturating_sub(graph.width())),
+    ));
+    spans.extend([
         Span::styled(
             commit.id.short(8).to_owned(),
             context.style(context.warning()),
         ),
         Span::raw(" "),
-    ];
+    ]);
     if show_age {
         spans.push(Span::styled(age_field, context.style(context.muted())));
     }
@@ -176,58 +197,6 @@ pub(super) fn history_line(
         spans.push(Span::styled(decoration, context.style(context.muted())));
     }
     Line::from(spans)
-}
-
-fn graph_lane_limit(width: u16) -> usize {
-    if width < 50 { 2 } else { 4 }
-}
-
-fn graph_prefixes(
-    commits: &[Commit],
-    end: usize,
-    lane_limit: usize,
-    context: &RenderContext,
-) -> Vec<String> {
-    let mut lanes: Vec<Oid> = Vec::new();
-    let mut prefixes = Vec::with_capacity(end);
-    let glyphs = context.glyphs();
-    for commit in commits.iter().take(end) {
-        let lane = lanes
-            .iter()
-            .position(|oid| oid == &commit.id)
-            .unwrap_or_else(|| {
-                lanes.insert(0, commit.id.clone());
-                0
-            });
-        lanes.truncate(lane_limit);
-        let visible_lane = lane.min(lane_limit.saturating_sub(1));
-        let mut prefix = String::new();
-        for index in 0..lanes.len().max(1).min(lane_limit) {
-            let symbol = if index == visible_lane {
-                if commit.parents.len() > 1 {
-                    glyphs.merge
-                } else {
-                    glyphs.commit
-                }
-            } else {
-                glyphs.lane
-            };
-            prefix.push(symbol);
-            prefix.push(' ');
-        }
-        prefixes.push(prefix);
-
-        if lane < lanes.len() {
-            lanes.remove(lane);
-        }
-        for parent in commit.parents.iter().rev() {
-            if !lanes.iter().any(|oid| oid == parent) {
-                lanes.insert(lane.min(lanes.len()), parent.clone());
-            }
-        }
-        lanes.truncate(lane_limit);
-    }
-    prefixes
 }
 
 pub(super) fn render_preview(

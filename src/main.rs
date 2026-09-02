@@ -14,7 +14,7 @@ use phig_cli::{
         Cli, Command, CompletionShell, ConfigCommand, SelectionFormat, SelectionKind, StartView,
     },
     config::{self, ConfigError, LoadedConfig},
-    domain::{ComparisonMode, GitPath},
+    domain::{ComparisonMode, GitPath, RefScope},
     git::{CancellationToken, GitClient, GitError},
     protocol::{self, Envelope, SnapshotError},
     tui::{self, ColorMode, DateMode, GlyphMode, RenderConfig, RenderTheme, TuiError, TuiOptions},
@@ -63,6 +63,13 @@ fn main() -> ExitCode {
 
 fn run() -> Result<Outcome, MainError> {
     let cli = Cli::parse();
+    if let Err(error) = cli.validate_scope() {
+        // Report through clap so a misplaced scope flag exits like any other
+        // usage error instead of masquerading as an unsupported environment.
+        Cli::command()
+            .error(clap::error::ErrorKind::ArgumentConflict, error)
+            .exit();
+    }
     match &cli.command {
         Some(Command::Completions { shell }) => {
             write_completions(*shell)?;
@@ -104,6 +111,7 @@ fn run() -> Result<Outcome, MainError> {
             &client,
             &repo,
             &args.target,
+            cli.scope.scope(),
             args.offset,
             loaded.config.limits.snapshot_items,
         )?;
@@ -179,6 +187,8 @@ fn run_config_command(cli: &Cli, command: ConfigCommand) -> Result<Outcome, Main
 
 struct AppRequest {
     revision: String,
+    revision_explicit: bool,
+    scope: RefScope,
     paths: Vec<GitPath>,
     view: View,
     compare_base: Option<String>,
@@ -195,6 +205,15 @@ fn configured_app(
     let repository = client.discover(repo_path)?;
     let show = request.view == View::Detail;
     let mut app = App::new(repository, request.revision, request.paths, show);
+    app.revision_explicit = request.revision_explicit;
+    app.ref_scope = request.scope;
+    app.revision_label = request.scope.label().map(|scope| {
+        if request.revision_explicit {
+            format!("{} + {scope}", app.revision)
+        } else {
+            scope
+        }
+    });
     app.set_history_page_size(config.config.limits.history_page);
     app.show_preview = config.config.ui.preview;
     if request.view == View::Tree {
@@ -250,6 +269,8 @@ fn run_interactive(cli: Cli, loaded: LoadedConfig, client: GitClient) -> Result<
         &launch.repo,
         AppRequest {
             revision: launch.revision,
+            revision_explicit: launch.revision_explicit,
+            scope: launch.scope,
             paths,
             view,
             compare_base: launch.compare_base,
@@ -289,6 +310,8 @@ fn run_select(
         &cli.repo,
         AppRequest {
             revision: args.revision.clone(),
+            revision_explicit: true,
+            scope: RefScope::default(),
             paths,
             view,
             compare_base: args.base,

@@ -123,13 +123,41 @@ impl Default for RenderConfig {
     }
 }
 
+/// Box-drawing repertoire for the commit graph.
+///
+/// Every edge the graph can draw resolves to exactly one of these, so the
+/// Unicode and ASCII sets stay provably parallel.
+#[derive(Debug, Clone, Copy)]
+pub struct GraphGlyphs {
+    pub commit: char,
+    pub merge: char,
+    pub root: char,
+    pub vertical: char,
+    pub horizontal: char,
+    pub cross: char,
+    /// `┤` — through lane with an edge leaving to the left.
+    pub tee_left: char,
+    /// `├` — through lane with an edge leaving to the right.
+    pub tee_right: char,
+    /// `┴` — horizontal run with an edge leaving upward.
+    pub tee_up: char,
+    /// `┬` — horizontal run with an edge leaving downward.
+    pub tee_down: char,
+    /// `╯` — turn connecting up and left.
+    pub up_left: char,
+    /// `╰` — turn connecting up and right.
+    pub up_right: char,
+    /// `╮` — turn connecting down and left.
+    pub down_left: char,
+    /// `╭` — turn connecting down and right.
+    pub down_right: char,
+}
+
 #[derive(Debug, Clone, Copy)]
 pub struct GlyphSet {
     pub selected: &'static str,
     pub marked: &'static str,
-    pub commit: char,
-    pub merge: char,
-    pub lane: char,
+    pub graph: GraphGlyphs,
     pub vertical: &'static str,
     pub horizontal: &'static str,
     pub separator: &'static str,
@@ -156,9 +184,22 @@ impl GlyphSet {
         Self {
             selected: "› ",
             marked: "◆ ",
-            commit: '●',
-            merge: '◆',
-            lane: '│',
+            graph: GraphGlyphs {
+                commit: '●',
+                merge: '◆',
+                root: '◌',
+                vertical: '│',
+                horizontal: '─',
+                cross: '┼',
+                tee_left: '┤',
+                tee_right: '├',
+                tee_up: '┴',
+                tee_down: '┬',
+                up_left: '╯',
+                up_right: '╰',
+                down_left: '╮',
+                down_right: '╭',
+            },
             vertical: "│",
             horizontal: "─",
             separator: "·",
@@ -174,9 +215,22 @@ impl GlyphSet {
         Self {
             selected: "> ",
             marked: "* ",
-            commit: 'o',
-            merge: '*',
-            lane: '|',
+            graph: GraphGlyphs {
+                commit: 'o',
+                merge: '*',
+                root: '.',
+                vertical: '|',
+                horizontal: '-',
+                cross: '+',
+                tee_left: '+',
+                tee_right: '+',
+                tee_up: '+',
+                tee_down: '+',
+                up_left: '/',
+                up_right: '\\',
+                down_left: '\\',
+                down_right: '/',
+            },
             vertical: "|",
             horizontal: "-",
             separator: "|",
@@ -270,6 +324,23 @@ impl RenderContext {
     }
     pub fn error(&self) -> Color {
         self.color(self.config.theme.error)
+    }
+
+    /// Color for graph lane `lane`, cycling the configured theme so branches
+    /// stay visually separable without inventing colors outside the theme.
+    pub fn lane_color(&self, lane: usize) -> Color {
+        if self.monochrome {
+            return Color::Reset;
+        }
+        let theme = &self.config.theme;
+        let palette = [
+            theme.accent,
+            theme.added,
+            theme.warning,
+            theme.removed,
+            theme.muted,
+        ];
+        palette[lane % palette.len()]
     }
 
     pub fn style(&self, color: Color) -> Style {

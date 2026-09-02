@@ -232,6 +232,76 @@ pub struct CommitDetail {
     pub selected_parent: Option<Oid>,
 }
 
+/// Additional ref families to walk alongside an explicit revision.
+///
+/// Every field maps to one fixed, literal `git log` flag. The set is closed on
+/// purpose: history argv is always built from these constants, never from
+/// user-supplied option text.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RefScope {
+    pub all: bool,
+    pub branches: bool,
+    pub remotes: bool,
+    pub tags: bool,
+}
+
+impl RefScope {
+    pub const fn is_empty(self) -> bool {
+        !(self.all || self.branches || self.remotes || self.tags)
+    }
+
+    /// Literal `git log` flags for this scope, in a stable order.
+    pub fn flags(self) -> Vec<&'static str> {
+        let mut flags = Vec::new();
+        if self.all {
+            flags.push("--all");
+        }
+        if self.branches {
+            flags.push("--branches");
+        }
+        if self.remotes {
+            flags.push("--remotes");
+        }
+        if self.tags {
+            flags.push("--tags");
+        }
+        flags
+    }
+
+    /// Short label for chrome, e.g. `all refs`.
+    pub fn label(self) -> Option<String> {
+        if self.all {
+            return Some("all refs".to_owned());
+        }
+        let names: Vec<&str> = self
+            .flags()
+            .into_iter()
+            .map(|flag| flag.trim_start_matches("--"))
+            .collect();
+        (!names.is_empty()).then(|| names.join("+"))
+    }
+}
+
+/// What one history walk covers: an optional explicit endpoint plus the ref
+/// families to include. An absent revision means the scope defines the walk on
+/// its own, so `--remotes` does not silently fold HEAD back in.
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HistoryRange {
+    pub revision: Option<String>,
+    pub scope: RefScope,
+}
+
+impl HistoryRange {
+    pub fn revision(revision: impl Into<String>) -> Self {
+        Self {
+            revision: Some(revision.into()),
+            scope: RefScope::default(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct HistoryPage {
     pub commits: Vec<Commit>,

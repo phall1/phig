@@ -1,0 +1,67 @@
+---
+source: src/tui/render/tests.rs
+expression: "format!(\"unicode 100x14\\n{}\\nnarrow 58x14\\n{}\\nfolded 44x14\\n{}\\nascii 100x14\\n{}\",\nscreen(100, 14, &branchy_app()), screen(58, 14, &branchy_app()),\nscreen(44, 14, &branchy_app()),\nscreen_with_context(100, 14, &branchy_app(), &ascii),)"
+---
+unicode 100x14
+ phig LOG phig-demo / main  all refs                                                        loading…
+›   ◆─╮     01010101 2y Pat Example        merge other (HEAD -> main, origin/…)                     
+    │ ●     03030303 2y Pat Example        other-a                                                  
+    ● │     02020202 2y Pat Example        main-b                                                   
+    ◆─┼─╮   04040404 2y Pat Example        merge feature                                            
+    │ │ ●   05050505 2y Pat Example        feat-b (origin/feature)                                  
+    │ │ │ ● 09090909 2y Pat Example        topic-a (topic)                                          
+    │ │ ●─╯ 08080808 2y Pat Example        feat-a                                                   
+    ● │ │   07070707 2y Pat Example        main-a                                                   
+    ●─┴─╯   06060606 2y Pat Example        one (tag: v1)                                            
+    ◌       0a0a0a0a 2y Pat Example        base                                                     
+                                                                                                    
+                                                                                                    
+ j/k move · Enter open · / search                                                               1/10
+
+narrow 58x14
+ phig LOG phig-demo / main  all refs              loading…
+›   ◆─╮     01010101 2y Pat Examp… merge other            
+    │ ●     03030303 2y Pat Examp… other-a                
+    ● │     02020202 2y Pat Examp… main-b                 
+    ◆─┼─╮   04040404 2y Pat Examp… merge feature          
+    │ │ ●   05050505 2y Pat Examp… feat-b (origin/feature)
+    │ │ │ ● 09090909 2y Pat Examp… topic-a (topic)        
+    │ │ ●─╯ 08080808 2y Pat Examp… feat-a                 
+    ● │ │   07070707 2y Pat Examp… main-a                 
+    ●─┴─╯   06060606 2y Pat Examp… one (tag: v1)          
+    ◌       0a0a0a0a 2y Pat Examp… base                   
+                                                          
+                                                          
+ j/k move · Enter open · / search                     1/10
+
+folded 44x14
+ phig LOG phig-demo / main  all ref loading…
+›   ◆─╮   01010101 2y Pat Examp… merge other
+    │ ●   03030303 2y Pat Examp… other-a    
+    ● │   02020202 2y Pat Examp… main-b     
+    ◆─┼─╮ 04040404 2y merge feature         
+    │ │ ● 05050505 2y Pat Examp… feat-b     
+    │ │ ● 09090909 2y Pat Examp… topic-a    
+    │ │ ● 08080808 2y Pat Examp… feat-a     
+    ● │ │ 07070707 2y Pat Examp… main-a     
+    ●─┴─╯ 06060606 2y Pat Examp… one        
+    ◌     0a0a0a0a 2y Pat Examp… base       
+                                            
+                                            
+ j/k move · Enter open · / search       1/10
+
+ascii 100x14
+ phig LOG phig-demo / main  all refs                                                      loading...
+>   *-\     01010101 2y Pat Example        merge other (HEAD -> main, origi...)                     
+    | o     03030303 2y Pat Example        other-a                                                  
+    o |     02020202 2y Pat Example        main-b                                                   
+    *-+-\   04040404 2y Pat Example        merge feature                                            
+    | | o   05050505 2y Pat Example        feat-b (origin/feature)                                  
+    | | | o 09090909 2y Pat Example        topic-a (topic)                                          
+    | | o-/ 08080808 2y Pat Example        feat-a                                                   
+    o | |   07070707 2y Pat Example        main-a                                                   
+    o-+-/   06060606 2y Pat Example        one (tag: v1)                                            
+    .       0a0a0a0a 2y Pat Example        base                                                     
+                                                                                                    
+                                                                                                    
+ j/k move | Enter open | / search                                                               1/10

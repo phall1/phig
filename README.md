@@ -79,6 +79,8 @@ Verify any installation with `phig version`. See the complete
 
 ```sh
 phig                         # exactly phig log HEAD
+phig --all                   # every ref, drawn as one graph
+phig --remotes               # only remote-tracking branches
 phig log main                # browse another revision
 phig show HEAD~3             # inspect one commit
 phig compare main            # merge-base(main, HEAD) → HEAD

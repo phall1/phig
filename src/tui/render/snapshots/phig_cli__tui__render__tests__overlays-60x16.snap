@@ -55,7 +55,7 @@ STYLES
 FILES
 TEXT
  phig LOG phig-demo / main  HEAD
-›   ● aaaaaaaa 1700000000 Pat Examp… make history pleasant
+›   ◌ aaaaaaaa 1700000000 Pat Examp… make history pleasant
 
 
 
@@ -73,7 +73,7 @@ TEXT
 STYLES
 0:0-9 fg=Cyan bg=Reset mod=BOLD text=" phig LOG "
 0:19-31 fg=DarkGray bg=Reset mod=NONE text=" / main  HEAD"
-1:0-59 fg=Cyan bg=Reset mod=BOLD text="›   ● aaaaaaaa 1700000000 Pat Examp… make history pleasant  "
+1:0-59 fg=Cyan bg=Reset mod=BOLD text="›   ◌ aaaaaaaa 1700000000 Pat Examp… make history pleasant  "
 5:1-1 fg=DarkGray bg=Reset mod=NONE text="╭"
 5:2-16 fg=Cyan bg=Reset mod=BOLD text=" Changed files "
 5:17-58 fg=DarkGray bg=Reset mod=NONE text="─────────────────────────────────────────╮"
@@ -92,7 +92,7 @@ STYLES
 ERROR
 TEXT
  phig LOG phig-demo / main  HEAD              request failed
-›   ● aaaaaaaa 1700000000 Pat Examp… make history pleasant
+›   ◌ aaaaaaaa 1700000000 Pat Examp… make history pleasant
 
 
  ╭ Request failed ────────────────────────────────────────╮
@@ -111,7 +111,7 @@ STYLES
 0:0-9 fg=Cyan bg=Reset mod=BOLD text=" phig LOG "
 0:19-31 fg=DarkGray bg=Reset mod=NONE text=" / main  HEAD"
 0:45-59 fg=Red bg=Reset mod=BOLD text=" request failed"
-1:0-59 fg=Cyan bg=Reset mod=BOLD text="›   ● aaaaaaaa 1700000000 Pat Examp… make history pleasant  "
+1:0-59 fg=Cyan bg=Reset mod=BOLD text="›   ◌ aaaaaaaa 1700000000 Pat Examp… make history pleasant  "
 4:1-1 fg=DarkGray bg=Reset mod=NONE text="╭"
 4:2-17 fg=Red bg=Reset mod=BOLD text=" Request failed "
 4:18-58 fg=DarkGray bg=Reset mod=NONE text="────────────────────────────────────────╮"

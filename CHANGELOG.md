@@ -6,6 +6,25 @@ All notable changes to phig are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Ref scope flags `--all`, `--branches`, `--remotes`, and `--tags` for `phig`,
+  `phig log`, and `phig snapshot log`, so history can span remote-tracking
+  branches and tags instead of only HEAD's ancestry. Naming a revision unions it
+  with the scope; omitting one lets the scope define the walk. A scope also
+  selects topological ordering, and commands that never walk history reject the
+  flags as a usage error.
+
+### Changed
+
+- Replaced the log's lane-glyph prefix with a connector graph: merges open
+  lanes, joins close them, runs cross live lanes, and root commits terminate
+  their lane. Lane colors cycle the configured theme, the full box-drawing
+  repertoire has an ASCII fallback, and lane count is budgeted from terminal
+  width.
+- The log header names an active ref scope rather than pinning it to a single
+  object.
+
 ## [1.1.1] - 2026-08-19
 
 ### Fixed

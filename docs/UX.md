@@ -70,6 +70,19 @@ available width, author, decorations, and subject. Graph and text degrade
 cleanly on narrow terminals. Preview shows selected commit metadata and patch.
 Additional history loads before the cursor reaches the end.
 
+The graph draws one row per commit. Lanes carry real connecting edges: a merge
+opens a lane and marks its node distinctly, a lane closes into the commit that
+absorbs it, a run crossing a live lane draws a crossing, and a commit with no
+parents ends its lane with a root glyph. Lane colors cycle the configured theme
+so adjacent branches stay separable, and the whole repertoire has an ASCII
+fallback. Lane count is budgeted from terminal width; beyond that budget lanes
+fold into the last column rather than pushing the commit text off screen.
+
+A ref scope (`--all`, `--branches`, `--remotes`, `--tags`) widens the walk from
+one revision to whole ref families, which is what makes remote branches visible
+as graph lanes. The header names the active scope instead of pinning it to a
+single object, because a scope has no single target.
+
 ### Commit/diff
 
 Metadata precedes file summary and patch. `f` opens a searchable changed-file

@@ -43,16 +43,17 @@ pub(super) fn render_header(frame: &mut Frame<'_>, app: &App, area: Rect, contex
         .filter(|name| !name.is_empty())
         .unwrap_or_else(|| sanitize_str(&app.repository.root.to_string_lossy()));
     let branch = sanitize_str(app.repository.branch.as_deref().unwrap_or("detached"));
-    let revision = app.revision_label.as_ref().map_or_else(
-        || sanitize_str(&app.revision),
-        |label| {
-            format!(
-                "{}@{}",
-                sanitize_str(label),
-                truncate_with(&app.revision, 10, context.glyphs().ellipsis)
-            )
-        },
-    );
+    // A ref label resolves to one object, so it is shown pinned to that object.
+    // A ref scope names a family of refs and has no single target to pin to.
+    let revision = match (&app.revision_label, app.ref_scope.is_empty()) {
+        (Some(label), true) => format!(
+            "{}@{}",
+            sanitize_str(label),
+            truncate_with(&app.revision, 10, context.glyphs().ellipsis)
+        ),
+        (Some(label), false) => sanitize_str(label),
+        (None, _) => sanitize_str(&app.revision),
+    };
     let mut left = vec![
         Span::styled(" phig ", context.strong(context.accent())),
         Span::styled(

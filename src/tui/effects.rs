@@ -116,7 +116,7 @@ pub(super) fn dispatch_effects(
             Effect::LoadHistory { offset, limit } => {
                 let query = GitQuery::History {
                     repository: app.repository.clone(),
-                    revision: app.revision.clone(),
+                    range: app.history_range(),
                     paths: if app.show_mode {
                         Vec::new()
                     } else {

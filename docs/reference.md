@@ -4,6 +4,7 @@
 
 ```text
 phig                                # equivalent to phig log HEAD
+phig --all                          # every ref, drawn as one graph
 phig log [REV] [-- PATH…]
 phig show REV [-- PATH…]
 phig compare [BASE] [HEAD] [-- PATH…]   # merge-base semantics
@@ -16,6 +17,34 @@ phig blame [REV] -- PATH
 Global options are `--repo PATH`, `--config PATH`, `--no-config`, and
 `--no-alt-screen`. Bare `phig` is `phig log HEAD`. Paths are always literal and
 must follow `--` so revisions and paths cannot be confused.
+
+### Ref scope
+
+History walks one revision by default, so refs outside HEAD's ancestry are
+invisible. The ref scope flags widen that walk:
+
+| Flag | Walks |
+|---|---|
+| `--all` | every ref: local branches, remote-tracking branches, tags, and HEAD |
+| `--branches` | every local branch |
+| `--remotes` | every remote-tracking branch |
+| `--tags` | every tag |
+
+They combine, and they apply to `phig`, `phig log`, and `phig snapshot log`.
+Any other command rejects them as a usage error rather than ignoring them.
+
+```sh
+phig --all                  # everything, including remote branches
+phig --remotes              # only remote-tracking branches
+phig --branches --tags      # local branches and tags
+phig --all log main         # main unioned with every ref
+```
+
+Naming a revision unions it with the scope; omitting one lets the scope define
+the walk on its own, so `phig --remotes` does not fold local HEAD commits back
+in. A ref scope also selects topological ordering, because interleaving
+independent branches by date makes the graph unreadable. Opening a ref from the
+refs view narrows the log back to that one endpoint and drops the scope.
 
 ## Machine commands
 
@@ -31,6 +60,7 @@ phig snapshot status
 phig snapshot tree HEAD -- src
 phig snapshot blame HEAD -- src/lib.rs
 phig snapshot stash
+phig snapshot log --all
 phig snapshot --format json --offset 256 log HEAD
 phig snapshot refs --format json --offset 50
 ```
