@@ -8,7 +8,7 @@ use thiserror::Error;
 use crate::{
     app::{App, View},
     cli::{BlameArgs, SelectionKind, SnapshotTarget, TreeArgs},
-    domain::{ComparisonMode, Diff, GitPath, Oid, Repository},
+    domain::{ComparisonMode, Diff, GitPath, HistoryRange, Oid, RefScope, Repository},
     git::{CancellationToken, GitClient, GitError},
 };
 
@@ -253,16 +253,21 @@ pub fn snapshot(
     client: &GitClient,
     repo: &Repository,
     target: &SnapshotTarget,
+    scope: RefScope,
     offset: usize,
     limit: usize,
 ) -> Result<Envelope<SnapshotPayload>, SnapshotError> {
-    let request = snapshot_request(target);
+    let request = snapshot_request(target, scope);
     let token = CancellationToken::new();
     let truncated;
     let (name, data, continuation) = match target {
         SnapshotTarget::Log(a) => {
             let paths = git_paths(&a.paths);
-            let page = client.history(repo, &a.revision, &paths, offset, limit, &token)?;
+            let range = HistoryRange {
+                revision: a.revision(scope),
+                scope,
+            };
+            let page = client.history(repo, &range, &paths, offset, limit, &token)?;
             truncated = page.has_more;
             (
                 "log",
@@ -398,9 +403,16 @@ fn paginate<T>(values: Vec<T>, offset: usize, limit: usize) -> (Vec<T>, bool, Op
     (page, more, more.then_some(end))
 }
 
-fn snapshot_request(target: &SnapshotTarget) -> Value {
+fn snapshot_request(target: &SnapshotTarget, scope: RefScope) -> Value {
     match target {
-        SnapshotTarget::Log(args) | SnapshotTarget::Show(args) => {
+        SnapshotTarget::Log(args) => {
+            json!({
+                "revision": args.revision(scope),
+                "scope": scope,
+                "paths": git_paths(&args.paths),
+            })
+        }
+        SnapshotTarget::Show(args) => {
             json!({"revision": args.revision, "paths": git_paths(&args.paths)})
         }
         SnapshotTarget::Compare(args) => {

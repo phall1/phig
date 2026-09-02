@@ -6,6 +6,20 @@ All notable changes to phig are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Ref scope flags `--all`, `--branches`, `--remotes`, and `--tags` for `phig`,
+  `phig log`, and `phig snapshot log`, so history can span remote-tracking
+  branches and tags instead of only HEAD's ancestry. Naming a revision unions it
+  with the scope; omitting one lets the scope define the walk. A scope also
+  selects topological ordering, and commands that never walk history reject the
+  flags as a usage error.
+
+### Changed
+
+- The log header names an active ref scope rather than pinning it to a single
+  object.
+
 ## [1.1.1] - 2026-08-19
 
 ### Fixed

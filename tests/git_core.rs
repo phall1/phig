@@ -1,7 +1,9 @@
 use std::{ffi::OsStr, fs, path::Path, process::Command};
 
 use phig_cli::{
-    domain::{ComparisonMode, GitPath, Oid, RefKind, StatusCode, TreeEntryKind},
+    domain::{
+        ComparisonMode, GitPath, HistoryRange, Oid, RefKind, RefScope, StatusCode, TreeEntryKind,
+    },
     git::{CancellationToken, GitClient, GitError, GitLimits, GitRunner},
     runtime::{Coordinator, GitQuery, RequestKey},
 };
@@ -84,7 +86,14 @@ fn exercises_read_only_repository_surface() {
 
     let token = CancellationToken::new();
     let history = client
-        .history(&repository, "HEAD", &[], 0, 1, &token)
+        .history(
+            &repository,
+            &HistoryRange::revision("HEAD"),
+            &[],
+            0,
+            1,
+            &token,
+        )
         .unwrap();
     assert_eq!(history.commits.len(), 1);
     assert!(history.has_more);
@@ -309,7 +318,14 @@ fn structured_queries_reject_incomplete_bounded_output() {
             timeout: std::time::Duration::from_secs(5),
         },
     ));
-    let result = client.history(&repository, "HEAD", &[], 0, 10, &CancellationToken::new());
+    let result = client.history(
+        &repository,
+        &HistoryRange::revision("HEAD"),
+        &[],
+        0,
+        10,
+        &CancellationToken::new(),
+    );
     assert!(matches!(result, Err(GitError::OutputLimit { .. })));
 }
 
@@ -559,7 +575,14 @@ fn discovers_sha256_repository_when_git_supports_it() {
     );
     assert_eq!(repository.head.as_ref().unwrap().hex.len(), 64);
     let history = client
-        .history(&repository, "HEAD", &[], 0, 10, &CancellationToken::new())
+        .history(
+            &repository,
+            &HistoryRange::revision("HEAD"),
+            &[],
+            0,
+            10,
+            &CancellationToken::new(),
+        )
         .unwrap();
     assert_eq!(history.commits[0].id.hex.len(), 64);
     let detail = client
@@ -721,7 +744,7 @@ fn pathspec_magic_is_always_treated_literally() {
     let glob_history = client
         .history(
             &repository,
-            "HEAD",
+            &HistoryRange::revision("HEAD"),
             &[GitPath::new(b"*.rs".to_vec())],
             0,
             10,
@@ -733,7 +756,7 @@ fn pathspec_magic_is_always_treated_literally() {
     let magic_history = client
         .history(
             &repository,
-            "HEAD",
+            &HistoryRange::revision("HEAD"),
             &[GitPath::new(b":(glob)*".to_vec())],
             0,
             10,
@@ -764,7 +787,14 @@ fn replacement_objects_do_not_change_inspected_history() {
     let client = GitClient::default();
     let repository = client.discover(repo.path()).unwrap();
     let history = client
-        .history(&repository, "HEAD", &[], 0, 1, &CancellationToken::new())
+        .history(
+            &repository,
+            &HistoryRange::revision("HEAD"),
+            &[],
+            0,
+            1,
+            &CancellationToken::new(),
+        )
         .unwrap();
     assert_eq!(history.commits[0].subject, "current subject");
 }
@@ -1075,4 +1105,88 @@ fn comparison_base_inference_and_working_diffs_are_read_only() {
         1,
         "inspection changed repository state"
     );
+}
+
+#[test]
+fn ref_scope_walks_ref_families_instead_of_only_head() {
+    let repo = TestRepo::new();
+    repo.write("base.txt", "base\n");
+    repo.commit_all("base");
+    git(repo.path(), ["checkout", "-b", "side"]);
+    repo.write("side.txt", "side\n");
+    repo.commit_all("side-only");
+    git(repo.path(), ["checkout", "main"]);
+    repo.write("main.txt", "main\n");
+    repo.commit_all("main-only");
+    git(repo.path(), ["tag", "release", "side"]);
+    git(
+        repo.path(),
+        ["update-ref", "refs/remotes/origin/side", "refs/heads/side"],
+    );
+
+    let client = GitClient::default();
+    let repository = client.discover(repo.path()).unwrap();
+    let subjects = |revision: Option<&str>, scope: RefScope| {
+        let range = HistoryRange {
+            revision: revision.map(str::to_owned),
+            scope,
+        };
+        let page = client
+            .history(&repository, &range, &[], 0, 50, &CancellationToken::new())
+            .unwrap();
+        page.commits
+            .into_iter()
+            .map(|commit| commit.subject)
+            .collect::<Vec<_>>()
+    };
+
+    // The default walk still sees only HEAD's ancestry.
+    let head = subjects(Some("HEAD"), RefScope::default());
+    assert!(head.contains(&"main-only".to_owned()));
+    assert!(!head.contains(&"side-only".to_owned()));
+
+    for scope in [
+        RefScope {
+            all: true,
+            ..RefScope::default()
+        },
+        RefScope {
+            branches: true,
+            ..RefScope::default()
+        },
+    ] {
+        let walked = subjects(None, scope);
+        assert!(
+            walked.contains(&"side-only".to_owned()) && walked.contains(&"main-only".to_owned()),
+            "{scope:?} missed a branch: {walked:?}"
+        );
+    }
+
+    // A scope naming only non-HEAD families must not fold HEAD back in.
+    for scope in [
+        RefScope {
+            remotes: true,
+            ..RefScope::default()
+        },
+        RefScope {
+            tags: true,
+            ..RefScope::default()
+        },
+    ] {
+        let walked = subjects(None, scope);
+        assert!(
+            walked.contains(&"side-only".to_owned()) && !walked.contains(&"main-only".to_owned()),
+            "{scope:?} leaked HEAD: {walked:?}"
+        );
+    }
+
+    // An explicit endpoint is unioned with the scope rather than replaced.
+    let union = subjects(
+        Some("HEAD"),
+        RefScope {
+            remotes: true,
+            ..RefScope::default()
+        },
+    );
+    assert!(union.contains(&"main-only".to_owned()) && union.contains(&"side-only".to_owned()));
 }

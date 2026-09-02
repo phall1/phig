@@ -29,7 +29,8 @@ permanent grid.
 ### Browse history
 
 Bare `phig` opens `phig log HEAD`; use `phig log [REV] [-- PATH…]` for another
-revision. The initial
+revision, or a ref scope (`--all`, `--branches`, `--remotes`, `--tags`) to walk
+whole ref families and see remote branches as graph lanes. The initial
 selection is visible as soon as data arrives. Movement updates an optional diff
 preview without blocking input. Users can search commit metadata, constrain a
 path, copy an object ID, or open commit detail.

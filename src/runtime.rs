@@ -9,8 +9,8 @@ use crossbeam_channel::{Receiver, SendTimeoutError, Sender, TrySendError, bounde
 
 use crate::{
     domain::{
-        BlameLine, Blob, CommitDetail, Comparison, ComparisonMode, Diff, GitPath, HistoryPage, Oid,
-        RefInfo, Repository, StashEntry, Status, TreeEntry,
+        BlameLine, Blob, CommitDetail, Comparison, ComparisonMode, Diff, GitPath, HistoryPage,
+        HistoryRange, Oid, RefInfo, Repository, StashEntry, Status, TreeEntry,
     },
     git::{CancellationToken, GitClient, GitError},
 };
@@ -32,7 +32,7 @@ pub enum RequestKey {
 pub enum GitQuery {
     History {
         repository: Repository,
-        revision: String,
+        range: HistoryRange,
         paths: Vec<GitPath>,
         offset: usize,
         limit: usize,
@@ -288,12 +288,12 @@ fn execute(
     match query {
         GitQuery::History {
             repository,
-            revision,
+            range,
             paths,
             offset,
             limit,
         } => client
-            .history(repository, revision, paths, *offset, *limit, cancellation)
+            .history(repository, range, paths, *offset, *limit, cancellation)
             .map(GitResult::History),
         GitQuery::CommitDetail {
             repository,

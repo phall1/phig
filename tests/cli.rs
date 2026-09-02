@@ -44,3 +44,22 @@ fn paths_require_the_explicit_separator() {
         .code(2)
         .stderr(predicate::str::contains("unexpected argument"));
 }
+
+#[test]
+fn ref_scope_flags_reach_history_and_are_refused_elsewhere() {
+    cargo_bin_cmd!("phig")
+        .arg("--help")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("--all"))
+        .stdout(predicate::str::contains("--remotes"));
+
+    // A scope flag on a command that never walks history is a usage error, not
+    // a silently ignored argument.
+    cargo_bin_cmd!("phig")
+        .args(["--all", "status"])
+        .assert()
+        .code(2)
+        .stdout(predicate::str::is_empty())
+        .stderr(predicate::str::contains("is not supported by `status`"));
+}

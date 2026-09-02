@@ -70,6 +70,11 @@ available width, author, decorations, and subject. Graph and text degrade
 cleanly on narrow terminals. Preview shows selected commit metadata and patch.
 Additional history loads before the cursor reaches the end.
 
+A ref scope (`--all`, `--branches`, `--remotes`, `--tags`) widens the walk from
+one revision to whole ref families, which is what makes remote branches visible
+as graph lanes. The header names the active scope instead of pinning it to a
+single object, because a scope has no single target.
+
 ### Commit/diff
 
 Metadata precedes file summary and patch. `f` opens a searchable changed-file

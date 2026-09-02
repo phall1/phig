@@ -1,6 +1,8 @@
 //! Application state and public state-machine vocabulary.
 
-use crate::domain::{Commit, CommitDetail, ComparisonMode, GitPath, Oid, Repository};
+use crate::domain::{
+    Commit, CommitDetail, ComparisonMode, GitPath, HistoryRange, Oid, RefScope, Repository,
+};
 
 use super::{PAGE_SIZE, inspect::InspectState};
 
@@ -192,6 +194,10 @@ impl SelectionContract {
 pub struct App {
     pub repository: Repository,
     pub revision: String,
+    /// Whether `revision` was named by the user rather than defaulted.
+    pub revision_explicit: bool,
+    /// Extra ref families the log walks alongside `revision`.
+    pub ref_scope: RefScope,
     pub revision_label: Option<String>,
     pub paths: Vec<GitPath>,
     pub show_mode: bool,
@@ -239,6 +245,8 @@ impl App {
         Self {
             repository,
             revision,
+            revision_explicit: true,
+            ref_scope: RefScope::default(),
             revision_label: None,
             paths,
             show_mode: start_in_detail,
@@ -336,6 +344,24 @@ impl App {
             View::Stash => vec![Effect::LoadStashes],
             View::Blob => Vec::new(),
         }
+    }
+
+    /// What the history walk covers. The endpoint is carried only when the user
+    /// named it or when no ref scope defines the walk on its own.
+    pub fn history_range(&self) -> HistoryRange {
+        HistoryRange {
+            revision: (self.revision_explicit || self.ref_scope.is_empty())
+                .then(|| self.revision.clone()),
+            scope: self.ref_scope,
+        }
+    }
+
+    /// Narrow the log back to one endpoint, dropping any ref scope.
+    pub fn focus_revision(&mut self, revision: String, label: Option<String>) {
+        self.revision = revision;
+        self.revision_label = label;
+        self.revision_explicit = true;
+        self.ref_scope = RefScope::default();
     }
 
     pub fn selected_commit(&self) -> Option<&Commit> {
