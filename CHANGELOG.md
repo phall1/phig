@@ -8,6 +8,9 @@ All notable changes to phig are documented here. The format follows
 
 ### Added
 
+- Ranked fuzzy matching in the command palette and changed-file picker, with
+  highlighted matches, live result counts, effective shortcut labels, stable
+  overlay geometry, and a visible insertion point for long queries.
 - Ref scope flags `--all`, `--branches`, `--remotes`, and `--tags` for `phig`,
   `phig log`, and `phig snapshot log`, so history can span remote-tracking
   branches and tags instead of only HEAD's ancestry. Naming a revision unions it

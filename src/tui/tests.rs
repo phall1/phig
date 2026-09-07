@@ -101,6 +101,49 @@ fn a_full_worker_queue_coalesces_instead_of_failing_the_tui() {
 }
 
 #[test]
+fn fuzzy_palette_keys_render_ranked_results_and_execute_with_custom_bindings() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("config.toml");
+    std::fs::write(&path, "version = 1\n[keys]\ntoggle-preview = \"Ctrl+p\"\n").unwrap();
+    let bindings = config::load(Some(&path), false).unwrap().bindings;
+    let mut app = app();
+    for character in ":tglpr".chars() {
+        let key = KeyEvent::new(KeyCode::Char(character), KeyModifiers::NONE);
+        let action = resolve_action(&app, &bindings, key).unwrap();
+        app.update(action, 14);
+    }
+    let context =
+        render::RenderContext::with_bindings(render::RenderConfig::default(), bindings.clone());
+    let backend = ratatui::backend::TestBackend::new(60, 16);
+    let mut terminal = ratatui::Terminal::new(backend).unwrap();
+    terminal
+        .draw(|frame| render::render_with_context(frame, &app, &context))
+        .unwrap();
+    let buffer = terminal.backend().buffer();
+    let rows: Vec<String> = (0..16)
+        .map(|y| (0..60).map(|x| buffer[(x, y)].symbol()).collect())
+        .collect();
+    let row = rows
+        .iter()
+        .find(|row| row.contains("Toggle preview"))
+        .unwrap();
+    assert!(
+        row.contains("Ctrl+p"),
+        "palette must teach the effective shortcut: {row}"
+    );
+    assert!(rows.iter().any(|row| row.contains("2 results")));
+    let action = resolve_action(
+        &app,
+        &bindings,
+        KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE),
+    )
+    .unwrap();
+    app.update(action, 14);
+    assert!(!app.show_preview);
+    assert_eq!(app.overlay, Overlay::None);
+}
+
+#[test]
 fn pasted_search_returns_every_generated_effect_for_dispatch() {
     let mut app = app();
     let oid: Oid = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa".parse().unwrap();

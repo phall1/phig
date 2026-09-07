@@ -109,12 +109,8 @@ impl Action {
 }
 
 pub fn palette_commands(query: &str) -> Vec<PaletteCommand> {
-    let needle = query.to_lowercase();
-    COMMANDS
-        .iter()
-        .filter(|command| {
-            needle.is_empty() || command.palette_label.to_lowercase().contains(&needle)
-        })
+    crate::fuzzy::ranked(COMMANDS, query, |command| command.palette_label)
+        .into_iter()
         .map(|command| PaletteCommand {
             name: command.palette_label,
             action: command.action.clone(),

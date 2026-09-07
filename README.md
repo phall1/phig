@@ -108,6 +108,11 @@ Set `ui.glyphs = "ascii"` when a terminal cannot display Unicode line art.
 | `v` | mark endpoint | `c` | compare marked/current |
 | `:` | command palette | `?` | contextual help |
 
+The command palette (`:`) and changed-file picker (`f`) support ranked fuzzy
+matching: try `tglpr` for **Toggle preview**, or `smrs` for **src/main.rs**.
+Matching letters are highlighted, result counts update as you type, and the
+palette shows your effective shortcuts. Use arrows to choose and `Enter` to go.
+
 The footer is always the local source of truth. Documented semantic navigation
 and view actions are remappable; see [configuration](docs/configuration.md).
 

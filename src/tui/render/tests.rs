@@ -739,6 +739,51 @@ fn page_steps_match_visible_compare_and_status_diff_rows() {
 }
 
 #[test]
+fn fuzzy_picker_layout_is_stable_with_matches_and_empty_results() {
+    let mut app = sample_app();
+    app.update(crate::app::Action::StartPalette, 14);
+    let initial = screen(60, 16, &app);
+    for character in "tglpr".chars() {
+        app.update(crate::app::Action::SearchInput(character), 14);
+    }
+    let filtered = screen(60, 16, &app);
+    let top = |text: &str| {
+        text.lines()
+            .position(|line| line.contains("Commands"))
+            .unwrap()
+    };
+    assert_eq!(top(&initial), top(&filtered));
+    assert!(filtered.contains("2 results"));
+    app.update(crate::app::Action::SearchInput('☃'), 14);
+    let empty = screen(60, 16, &app);
+    assert_eq!(top(&initial), top(&empty));
+    assert!(empty.contains("0 results"));
+    assert!(empty.contains("Try fewer letters"));
+}
+
+#[test]
+fn golden_fuzzy_discovery_at_narrow_and_wide_sizes() {
+    let mut app = sample_app();
+    app.update(crate::app::Action::StartPalette, 14);
+    for character in "tgl".chars() {
+        app.update(crate::app::Action::SearchInput(character), 14);
+    }
+    let palette = styled_screen(60, 16, &app);
+    app.update(crate::app::Action::CancelOverlay, 14);
+    app.update(crate::app::Action::StartFilePicker, 14);
+    for character in "smrs".chars() {
+        app.update(crate::app::Action::SearchInput(character), 14);
+    }
+    insta::assert_snapshot!(
+        "fuzzy-discovery",
+        format!(
+            "palette 60x16\n{palette}\nfiles 120x28\n{}",
+            styled_screen(120, 28, &app)
+        )
+    );
+}
+
+#[test]
 fn changed_file_picker_is_visible_and_filterable() {
     let mut app = sample_app();
     let _ = app.update(crate::app::Action::StartFilePicker, 20);

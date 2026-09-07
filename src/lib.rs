@@ -10,6 +10,7 @@ pub mod app;
 pub mod cli;
 pub mod config;
 pub mod domain;
+mod fuzzy;
 pub mod git;
 pub mod inspect;
 pub mod protocol;

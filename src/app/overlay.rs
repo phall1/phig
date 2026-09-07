@@ -4,8 +4,10 @@ use super::{Action, App, Effect, Focus, Overlay, View, commands::palette_command
 
 impl App {
     pub(super) fn update_overlay(&mut self, action: Action, page_rows: usize) -> Vec<Effect> {
-        let file_picker_count = match &self.overlay {
-            Overlay::FilePicker { draft, .. } => self.file_picker_entries(draft).len(),
+        let file_picker_count = match (&self.overlay, &action) {
+            (Overlay::FilePicker { draft, .. }, Action::FilePickerMove(_)) => {
+                self.file_picker_entries(draft).len()
+            }
             _ => 0,
         };
         let mut seek = false;
@@ -130,6 +132,23 @@ impl App {
             (_, Action::CancelOverlay) => self.overlay = Overlay::None,
             _ => {}
         }
+        self.overlay_effects(
+            palette_action,
+            file_selection,
+            seek,
+            restore_preview,
+            page_rows,
+        )
+    }
+
+    fn overlay_effects(
+        &mut self,
+        palette_action: Option<Action>,
+        file_selection: Option<(String, usize)>,
+        seek: bool,
+        restore_preview: bool,
+        page_rows: usize,
+    ) -> Vec<Effect> {
         if let Some(action) = palette_action {
             self.update(action, page_rows)
         } else if let Some((query, selected)) = file_selection {
@@ -154,15 +173,17 @@ impl App {
     }
 
     pub fn file_picker_entries(&self, query: &str) -> Vec<(String, usize)> {
-        let needle = query.to_lowercase();
-        self.active_diff()
+        let files = self
+            .active_diff()
             .into_iter()
             .flat_map(|diff| &diff.files)
             .filter_map(|file| {
                 let path = file.new_path.as_ref().or(file.old_path.as_ref())?;
-                (needle.is_empty() || path.display.to_lowercase().contains(&needle))
-                    .then(|| (path.display.clone(), file.header_line))
-            })
+                Some((path.display.as_str(), file.header_line))
+            });
+        crate::fuzzy::ranked(files, query, |(path, _)| path)
+            .into_iter()
+            .map(|(path, header_line)| (path.to_owned(), header_line))
             .collect()
     }
 

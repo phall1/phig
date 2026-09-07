@@ -85,7 +85,7 @@ single object, because a scope has no single target.
 
 ### Commit/diff
 
-Metadata precedes file summary and patch. `f` opens a searchable changed-file
+Metadata precedes file summary and patch. `f` opens a fuzzy-searchable changed-file
 index; `Enter` jumps directly to the selected file header. Hunk headers are
 anchors. Merge commits expose explicit parent cycling with `P`; version 1 does
 not claim a combined-diff display.
@@ -137,6 +137,21 @@ context, include the failed operation, and offer retry/copy where applicable.
 The palette exposes every semantic action by searchable name. This makes
 features discoverable without consuming permanent footer space and gives custom
 keymaps a universal fallback.
+
+Both the palette and changed-file picker accept case-insensitive subsequences:
+`tglpr` finds **Toggle preview**, and `smrs` finds **src/main.rs**. Exact matches
+rank first, followed by contiguous matches (favoring word/path boundaries), then
+abbreviations with fewer gaps. Empty queries retain the original list order;
+equal-ranked results retain their relative order. Leading/trailing query spaces
+are ignored; internal spaces remain literal. Active-view `/` search remains
+literal text search.
+
+The pickers highlight matching characters, show a live result count, and keep
+their geometry steady while typing. The palette also shows effective remapped
+shortcuts. Long queries scroll to keep the insertion point visible; empty results
+offer a recovery hint. Arrows move through the ranked results, `Enter` runs or
+jumps, and `Esc` closes without changing the original diff position. Monochrome
+uses the normal marker-led selection without colored match styling.
 
 ## Selection mode
 

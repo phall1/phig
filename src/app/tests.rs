@@ -291,6 +291,77 @@ fn request_failures_are_isolated_and_retryable() {
 }
 
 #[test]
+fn fuzzy_palette_ranks_executes_and_cancels_semantic_actions() {
+    let mut app = app();
+    app.update(Action::StartPalette, 10);
+    for character in "tglpr".chars() {
+        app.update(Action::SearchInput(character), 10);
+    }
+    assert_eq!(palette_commands("tglpr")[0].action, Action::TogglePreview);
+    app.update(Action::CancelOverlay, 10);
+    assert!(app.show_preview);
+
+    app.update(Action::StartPalette, 10);
+    for character in "tglpr".chars() {
+        app.update(Action::SearchInput(character), 10);
+    }
+    app.update(Action::ExecutePalette, 10);
+    assert!(!app.show_preview);
+    assert_eq!(app.overlay, Overlay::None);
+
+    app.update(Action::StartPalette, 10);
+    app.update(Action::SearchInput('☃'), 10);
+    app.update(Action::PaletteMove(-1), 10);
+    app.update(Action::ExecutePalette, 10);
+    assert!(
+        !app.should_quit,
+        "no-match Enter must not execute a command"
+    );
+}
+
+#[test]
+fn fuzzy_file_ranking_keeps_patch_anchors_and_cancel_position() {
+    let mut app = app();
+    app.view = View::StatusDiff;
+    let mut diff = working_diff("+change");
+    diff.files = [("src/deep/main.rs", 40), ("src/main.rs", 8), ("old.rs", 20)]
+        .into_iter()
+        .map(|(path, header_line)| DiffFile {
+            header_line,
+            old_path: Some(GitPath::new(path.as_bytes().to_vec())),
+            new_path: None,
+            hunks: Vec::new(),
+        })
+        .collect();
+    app.inspect.working_diff = Some(diff);
+    assert_eq!(app.file_picker_entries("")[0].1, 40);
+    assert_eq!(app.file_picker_entries("smrs")[0].1, 8);
+
+    app.diff_scroll = 3;
+    app.update(Action::StartFilePicker, 10);
+    for character in "smrs".chars() {
+        app.update(Action::SearchInput(character), 10);
+    }
+    app.update(Action::FilePickerMove(-1), 10);
+    assert!(matches!(
+        app.overlay,
+        Overlay::FilePicker { selected: 1, .. }
+    ));
+    app.update(Action::CancelOverlay, 10);
+    assert_eq!(app.diff_scroll, 3);
+
+    app.update(Action::StartFilePicker, 10);
+    for character in "smrs".chars() {
+        app.update(Action::SearchInput(character), 10);
+    }
+    app.update(Action::AcceptFilePicker, 10);
+    assert_eq!(
+        app.diff_scroll, 8,
+        "ranked row must retain its original anchor"
+    );
+}
+
+#[test]
 fn searchable_palette_executes_semantic_actions() {
     let mut app = app();
     let _ = app.update(Action::StartPalette, 10);

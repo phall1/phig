@@ -7,6 +7,7 @@ mod graph;
 mod history;
 mod inspect;
 mod layout;
+mod picker;
 mod theme;
 
 use ratatui::{

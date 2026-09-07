@@ -16,6 +16,7 @@ use crate::{
 use super::{
     format::{display_width, pad_right, truncate_with},
     layout::centered_rect,
+    picker::{command_item, matched_label, render_prompt},
     theme::RenderContext,
 };
 
@@ -389,28 +390,32 @@ pub(super) fn render_palette(
     context: &RenderContext,
 ) {
     let commands = palette_commands(draft);
-    let height = (commands.len().min(8) as u16).saturating_add(5);
-    let (body, footer) = overlay_regions(frame, area, 62, height, "Commands", false, context);
+    let query = crate::fuzzy::Query::new(draft);
+    let (body, footer) = overlay_regions(frame, area, 62, 13, "Commands", false, context);
     let parts = Layout::vertical([Constraint::Length(1), Constraint::Min(1)]).split(body);
-    frame.render_widget(
-        Paragraph::new(Line::from(vec![
-            Span::styled(":", context.strong(context.accent())),
-            Span::raw(draft.to_owned()),
-        ])),
-        parts[0],
-    );
+    render_prompt(frame, draft, ": ", commands.len(), parts[0], context);
     let visible = usize::from(parts[1].height.max(1));
     let selected = selected.min(commands.len().saturating_sub(1));
     let start = selected
         .saturating_sub(visible / 2)
         .min(commands.len().saturating_sub(visible));
     let items = if commands.is_empty() {
-        vec![ListItem::new("No matching commands")]
+        vec![
+            ListItem::new("No matching commands"),
+            ListItem::new("Try fewer letters or Backspace to broaden"),
+        ]
     } else {
         commands[start..]
             .iter()
             .take(visible)
-            .map(|command| ListItem::new(command.name))
+            .map(|command| {
+                command_item(
+                    command,
+                    &query,
+                    usize::from(parts[1].width).saturating_sub(2),
+                    context,
+                )
+            })
             .collect()
     };
     let mut state = ListState::default()
@@ -442,28 +447,34 @@ pub(super) fn render_file_picker(
     context: &RenderContext,
 ) {
     let files = app.file_picker_entries(draft);
-    let height = (files.len().min(12) as u16).saturating_add(5);
+    let query = crate::fuzzy::Query::new(draft);
+    let total = app.active_diff().map_or(0, |diff| diff.files.len());
+    let height = (total.clamp(2, 12) as u16 + 5).min(area.height.saturating_sub(2));
     let (body, footer) = overlay_regions(frame, area, 68, height, "Changed files", false, context);
     let parts = Layout::vertical([Constraint::Length(1), Constraint::Min(1)]).split(body);
-    frame.render_widget(
-        Paragraph::new(Line::from(vec![
-            Span::styled("file: ", context.strong(context.accent())),
-            Span::raw(draft.to_owned()),
-        ])),
-        parts[0],
-    );
+    render_prompt(frame, draft, "file: ", files.len(), parts[0], context);
     let visible = usize::from(parts[1].height.max(1));
     let selected = selected.min(files.len().saturating_sub(1));
     let start = selected
         .saturating_sub(visible / 2)
         .min(files.len().saturating_sub(visible));
     let items = if files.is_empty() {
-        vec![ListItem::new("No matching changed files")]
+        vec![
+            ListItem::new("No matching changed files"),
+            ListItem::new("Try fewer letters or Backspace to broaden"),
+        ]
     } else {
         files[start..]
             .iter()
             .take(visible)
-            .map(|(path, _)| ListItem::new(path.clone()))
+            .map(|(path, _)| {
+                ListItem::new(matched_label(
+                    path,
+                    &query,
+                    usize::from(parts[1].width).saturating_sub(2),
+                    context,
+                ))
+            })
             .collect()
     };
     let mut state = ListState::default()
