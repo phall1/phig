@@ -15,8 +15,11 @@ targets = ["aarch64-apple-darwin", "aarch64-unknown-linux-gnu", "x86_64-apple-da
 install-path = "CARGO_HOME"
 # Where to host releases
 hosting = "github"
-# Build and upload every release artifact on pull requests before tagging.
-pr-run-mode = "upload"
+# Validate release planning on PRs; tags build and upload every artifact.
+# ci.yml rehearses the native installer for release-relevant changes and weekly.
+pr-run-mode = "plan"
+# Keep the existing release build cache when PR builds are disabled.
+cache-builds = true
 # Release integrity and publication.
 checksum = "sha256"
 min-glibc-version = { x86_64-unknown-linux-gnu = "2.31", aarch64-unknown-linux-gnu = "2.31" }

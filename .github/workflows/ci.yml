@@ -4,6 +4,9 @@ on:
   pull_request:
   push:
     branches: [main]
+  workflow_dispatch:
+  schedule:
+    - cron: '23 6 * * 1'
 
 permissions:
   contents: read
@@ -13,8 +16,39 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  changes:
+    name: Select release validation
+    runs-on: ubuntu-22.04
+    outputs:
+      release_required: ${{ steps.scope.outputs.release_required }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: scope
+        name: Check release-relevant paths
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          required=true
+          if [[ "$GITHUB_EVENT_NAME" != schedule && "$GITHUB_EVENT_NAME" != workflow_dispatch && "$BASE_SHA" =~ ^[0-9a-f]{40}$ ]] && git cat-file -e "$BASE_SHA^{commit}" 2>/dev/null; then
+            git diff --name-only -z "$BASE_SHA" HEAD > "$RUNNER_TEMP/changed-paths"
+            required=false
+            while IFS= read -r -d '' path; do
+              case "$path" in
+                Cargo.toml|Cargo.lock|.cargo/*|rust-toolchain.toml|dist-workspace.toml|deny.toml|install.sh|build.rs|LICENSE*|scripts/*|src/main.rs|src/cli.rs|src/update.rs|tests/installer.rs|tests/update.rs|.github/workflows/*|docs/release.md)
+                  required=true
+                  break
+                  ;;
+              esac
+            done < "$RUNNER_TEMP/changed-paths"
+          fi
+          echo "release_required=$required" >> "$GITHUB_OUTPUT"
+
   quality:
     name: Quality and release plan
+    needs: changes
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
@@ -27,10 +61,8 @@ jobs:
         run: cargo fmt --all -- --check
       - name: Clippy
         run: cargo clippy --all-targets --all-features -- -D warnings
-      - name: Tests and documentation
-        run: |
-          cargo test --all-targets --all-features --locked
-          cargo test --doc --all-features --locked
+      - name: Documentation tests
+        run: cargo test --doc --all-features --locked
       - name: Shell lint
         run: shellcheck install.sh scripts/*.sh
       - name: Dependency policy
@@ -40,14 +72,17 @@ jobs:
             tar -C "$RUNNER_TEMP/cargo-deny" --strip-components=1 -xz cargo-deny-0.20.2-x86_64-unknown-linux-musl/cargo-deny
           "$RUNNER_TEMP/cargo-deny/cargo-deny" check
       - name: Release plan
+        if: needs.changes.outputs.release_required == 'true'
         run: |
           curl --proto '=https' --tlsv1.2 -LsSf https://github.com/axodotdev/cargo-dist/releases/download/v0.32.0/cargo-dist-installer.sh | sh
           dist plan
       - name: Crate package
+        if: needs.changes.outputs.release_required == 'true'
         run: cargo package --locked
 
   platform:
     name: Platform (${{ matrix.os }})
+    needs: changes
     strategy:
       fail-fast: false
       matrix:
@@ -59,14 +94,14 @@ jobs:
         with:
           toolchain: 1.88.0
       - uses: Swatinem/rust-cache@v2
-      - name: PTY and integration tests
-        run: cargo test --tests --locked
+      - name: Unit, PTY and integration tests
+        run: cargo test --all-targets --all-features --locked
       - name: Release build
         run: cargo build --release --locked
       - name: Performance regression gate
         run: python3 scripts/benchmark.py --repository "$RUNNER_TEMP/phig-benchmark" --commits 1000 --snapshot-samples 5 --pty-samples 5 --snapshot-p95-ms 1000 --first-frame-p95-ms 1500 --skip-build --json
       - name: Build real cargo-dist installer fixture
-        if: runner.os == 'macOS'
+        if: runner.os == 'macOS' && needs.changes.outputs.release_required == 'true'
         shell: bash
         run: |
           curl --proto '=https' --tlsv1.2 -LsSf https://github.com/axodotdev/cargo-dist/releases/download/v0.32.0/cargo-dist-installer.sh | sh
@@ -76,7 +111,7 @@ jobs:
           dist build --allow-dirty --artifacts=global --output-format=json > "$RUNNER_TEMP/global-dist-manifest.json"
           cp "$RUNNER_TEMP/global-dist-manifest.json" target/distrib/global-dist-manifest.json
       - name: Verify real cargo-dist installer compatibility
-        if: runner.os == 'macOS'
+        if: runner.os == 'macOS' && needs.changes.outputs.release_required == 'true'
         env:
           PHIG_REQUIRE_DIST_ARTIFACTS: "1"
         run: cargo test --test installer --locked

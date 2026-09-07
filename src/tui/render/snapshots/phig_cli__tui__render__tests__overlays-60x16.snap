@@ -6,7 +6,7 @@ PALETTE
 TEXT
  phig LOG phig-demo / main  HEAD
  ╭ Commands ──────────────────────────────────────────────╮
- │: type to fuzzy-find                          38 results│
+ │: type to fuzzy-find                          39 results│
  │› Move down                                            j│
  │  Move up                                              k│
  │  Page down                                       Ctrl+d│
@@ -29,7 +29,7 @@ STYLES
 2:1-1 fg=DarkGray bg=Reset mod=NONE text="│"
 2:2-3 fg=Cyan bg=Reset mod=BOLD text=": "
 2:4-21 fg=DarkGray bg=Reset mod=NONE text="type to fuzzy-find"
-2:48-58 fg=DarkGray bg=Reset mod=NONE text="38 results│"
+2:48-58 fg=DarkGray bg=Reset mod=NONE text="39 results│"
 3:1-1 fg=DarkGray bg=Reset mod=NONE text="│"
 3:2-57 fg=Cyan bg=Reset mod=BOLD text="› Move down                                            j"
 3:58-58 fg=DarkGray bg=Reset mod=NONE text="│"

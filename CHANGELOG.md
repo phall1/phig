@@ -8,6 +8,8 @@ All notable changes to phig are documented here. The format follows
 
 ### Added
 
+- `F` expands/restores the active diff while retaining its selection and scroll,
+  with sticky file/hunk context and patch-aware search/paging on narrow terminals.
 - Ranked fuzzy matching in the command palette and changed-file picker, with
   highlighted matches, live result counts, effective shortcut labels, stable
   overlay geometry, and a visible insertion point for long queries.
@@ -20,6 +22,13 @@ All notable changes to phig are documented here. The format follows
 
 ### Changed
 
+- Crowded graphs preserve logical ancestry beyond screen width, explicitly mark
+  folded lanes, retain branch colors, and emphasize the selected branch.
+- Cache history graph prefixes and changed-file query results during navigation;
+  deduplicate history pages with an OID set and batch bounded input bursts before
+  drawing the next frame.
+- Run Linux tests once in CI; validate release plans on PRs and scope heavy
+  installer/package rehearsals to release-related changes, weekly and manual runs.
 - Replaced the log's lane-glyph prefix with a connector graph: merges open
   lanes, joins close them, runs cross live lanes, and root commits terminate
   their lane. Lane colors cycle the configured theme, the full box-drawing

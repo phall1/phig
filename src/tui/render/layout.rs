@@ -95,6 +95,18 @@ pub(super) fn list_preview_layout(app: &App, area: Rect) -> PaneLayout {
 
 pub(crate) fn page_rows(app: &App, width: u16, height: u16) -> usize {
     let body = Rect::new(0, 1, width, height.saturating_sub(2));
+    if app.diff_fullscreen {
+        let header = if app.view == View::Compare {
+            COMPARE_HEADER_ROWS
+        } else {
+            1
+        };
+        let truncated = app.active_diff().is_some_and(|diff| diff.truncated);
+        return usize::from(diff_content_rows(
+            body.height.saturating_sub(header),
+            truncated,
+        ));
+    }
     if app.view == View::Log && app.focus == Focus::List {
         return usize::from(log_layout(app, body).primary.height.max(1));
     }

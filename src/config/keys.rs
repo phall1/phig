@@ -164,6 +164,7 @@ fn default_binding(action: &Action) -> Option<(KeySpec, &'static str)> {
         Action::Back => (KeyCodeSpec::Esc, 0, "Esc"),
         Action::Quit => (KeyCodeSpec::Char('q'), 0, "q"),
         Action::TogglePreview => (KeyCodeSpec::Char('p'), 0, "p"),
+        Action::ToggleDiffFullscreen => (KeyCodeSpec::Char('f'), 4, "F"),
         Action::ToggleFocus => (KeyCodeSpec::Tab, 0, "Tab"),
         Action::StartSearch => (KeyCodeSpec::Char('/'), 0, "/"),
         Action::StartPalette => (KeyCodeSpec::Char(':'), 0, ":"),

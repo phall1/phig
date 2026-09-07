@@ -130,6 +130,7 @@ pub(super) fn key_action(app: &App, key: KeyEvent) -> Option<Action> {
         KeyCode::Char('/') => Some(Action::StartSearch),
         KeyCode::Char(':') => Some(Action::StartPalette),
         KeyCode::Char('f') => Some(Action::StartFilePicker),
+        KeyCode::Char('F') => Some(Action::ToggleDiffFullscreen),
         KeyCode::Char('n') => Some(Action::NextMatch),
         KeyCode::Char('N') => Some(Action::PreviousMatch),
         KeyCode::Tab if app.view == View::Detail => Some(Action::NextFile(1)),

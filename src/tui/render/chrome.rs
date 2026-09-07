@@ -150,6 +150,13 @@ fn index_position(selected: usize, count: usize) -> String {
 }
 
 fn position(app: &App) -> String {
+    if app.diff_fullscreen {
+        return format!(
+            "line {}/{}",
+            app.diff_scroll + 1,
+            app.active_diff().map_or(0, |diff| diff.lines.len())
+        );
+    }
     match app.view {
         View::Log => index_position(app.selected, app.commits.len()),
         View::Refs => index_position(app.inspect.selected, app.inspect.refs.len()),
@@ -168,6 +175,17 @@ fn key_pair(context: &RenderContext, first: &Action, second: &Action) -> String 
 }
 
 fn hints(app: &App, context: &RenderContext) -> Vec<String> {
+    if app.diff_fullscreen {
+        return vec![
+            format!("{} restore", context.key(&Action::ToggleDiffFullscreen)),
+            format!(
+                "{}/{} hunk",
+                context.key(&Action::NextHunk(-1)),
+                context.key(&Action::NextHunk(1))
+            ),
+            format!("{} files", context.key(&Action::StartFilePicker)),
+        ];
+    }
     let move_keys = key_pair(context, &Action::Move(1), &Action::Move(-1));
     match app.view {
         View::Log | View::Refs | View::Blame | View::Stash => vec![
@@ -323,6 +341,10 @@ pub(super) fn render_help(frame: &mut Frame<'_>, app: &App, area: Rect, context:
             s = context.glyphs().separator,
         )),
         Line::raw(format!(
+            "{} expand/restore diff",
+            pad_right(&context.key(&Action::ToggleDiffFullscreen), 14)
+        )),
+        Line::raw(format!(
             "{}/{} hunks {s} {}/{} files",
             context.key(&Action::NextHunk(-1)),
             context.key(&Action::NextHunk(1)),
@@ -446,7 +468,7 @@ pub(super) fn render_file_picker(
     area: Rect,
     context: &RenderContext,
 ) {
-    let files = app.file_picker_entries(draft);
+    let files = app.cached_file_picker_entries(draft);
     let query = crate::fuzzy::Query::new(draft);
     let total = app.active_diff().map_or(0, |diff| diff.files.len());
     let height = (total.clamp(2, 12) as u16 + 5).min(area.height.saturating_sub(2));

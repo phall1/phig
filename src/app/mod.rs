@@ -4,11 +4,14 @@ const PAGE_SIZE: usize = 256;
 const PREFETCH_DISTANCE: usize = 24;
 
 mod commands;
+mod files;
 mod inspect;
 mod model;
 mod navigation;
 mod overlay;
+mod presentation;
 mod reducer;
+mod search;
 
 pub use commands::palette_commands;
 pub use inspect::InspectState;

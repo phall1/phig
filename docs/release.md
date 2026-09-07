@@ -59,9 +59,30 @@ clean-installing `phig-cli` is a separate, explicit, required final release step
 
 3. Test `install.sh`, `phig update --check`, the PTY selector, and the primary
    views on macOS and Linux CI. Review `git diff` and ensure the tree is clean.
-4. Merge the release commit to `main` and wait for CI. The cargo-dist pull-request
-   job uses `pr-run-mode = "upload"`, so all four native archives and global
-   installers must build and upload successfully before an irreversible tag.
+4. Merge the release commit to `main` and wait for CI. cargo-dist PRs validate
+   the release plan (`pr-run-mode = "plan"`). Release-related CI changes rehearse
+   the native macOS archive and installer; tags build all four target archives.
+   Complete the local rehearsal above before tagging.
+
+### CI coverage and cost
+
+Every PR and push to `main` runs format, strict Clippy, documentation tests,
+shell lint, dependency policy, all-feature tests on Linux and macOS, and the
+performance regression gate. Linux unit/integration tests run once, in the
+platform job. Local `just check` is useful fast feedback; Actions also validates
+the pinned toolchain and clean checkout on both operating systems.
+
+Package verification, the extra release-plan check on `main`, and the real
+macOS cargo-dist installer fixture run when manifests, lockfiles, toolchain,
+build/release configuration, installer/update/CLI code, scripts, workflows, or
+release documentation change. They also run weekly and with
+`gh workflow run ci.yml`. Missing comparison history falls back to full checks.
+The generated release workflow validates PR plans and builds all artifacts on
+version tags. Regenerate it with `dist generate` after changing dist settings.
+
+The local Beads pre-push hook performs issue bookkeeping; it does not run Rust
+tests. Its default timeout is 300 seconds. `BEADS_HOOK_TIMEOUT=15 git push`
+limits that bookkeeping wait without suppressing Actions.
 
 ## Publish
 

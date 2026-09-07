@@ -89,6 +89,229 @@ fn app() -> App {
 }
 
 #[test]
+fn fullscreen_preserves_view_selection_scroll_and_focus_across_resize() {
+    let mut app = app();
+    app.apply_preview(CommitDetail {
+        commit: commit('a', "first"),
+        selected_parent: None,
+        diff: working_diff("+patch"),
+    });
+    app.focus = Focus::Preview;
+    app.diff_scroll = 3;
+    let selected = app.selected_oid.clone();
+    assert!(app.update(Action::ToggleDiffFullscreen, 10).is_empty());
+    assert!(app.diff_fullscreen);
+    assert_eq!(app.view, View::Log);
+    app.set_preview_focus_available(false);
+    assert_eq!(app.focus, Focus::Preview);
+    app.update(Action::ToggleDiffFullscreen, 10);
+    assert!(!app.diff_fullscreen);
+    assert_eq!(app.focus, Focus::List);
+    assert_eq!(app.diff_scroll, 3);
+    assert_eq!(app.selected_oid, selected);
+    assert!(app.view_stack.is_empty());
+}
+
+#[test]
+fn fullscreen_status_search_and_cancel_operate_on_patch_not_status_rows() {
+    let mut app = app();
+    app.view = View::Status;
+    app.inspect.working_diff = Some(Diff {
+        lines: ["+one", "+needle", "+other", "+needle again"]
+            .into_iter()
+            .map(|text| DiffLine {
+                kind: DiffLineKind::Added,
+                text: text.into(),
+            })
+            .collect(),
+        files: Vec::new(),
+        truncated: false,
+    });
+    app.update(Action::ToggleDiffFullscreen, 10);
+    app.update(Action::StartSearch, 10);
+    for c in "needle".chars() {
+        assert!(app.update(Action::SearchInput(c), 10).is_empty());
+    }
+    assert_eq!(
+        app.diff_scroll, 1,
+        "incremental search stays on the current matching line"
+    );
+    app.update(Action::AcceptSearch, 10);
+    app.update(Action::NextMatch, 10);
+    assert_eq!(app.diff_scroll, 3);
+    app.update(Action::PreviousMatch, 10);
+    assert_eq!(app.diff_scroll, 1);
+    app.update(Action::StartSearch, 10);
+    app.update(Action::SearchInput('x'), 10);
+    assert!(
+        app.update(Action::CancelOverlay, 10).is_empty(),
+        "cancel must not reload the patch"
+    );
+    assert_eq!(app.diff_scroll, 1);
+    app.update(Action::Back, 10);
+    assert!(!app.diff_fullscreen);
+    assert_eq!(app.view, View::Status);
+    assert!(app.inspect.working_diff.is_some());
+    assert!(!app.should_quit);
+}
+
+#[test]
+fn cancelling_search_without_a_selection_change_keeps_the_loaded_patch() {
+    let mut app = app();
+    app.apply_preview(CommitDetail {
+        commit: commit('a', "first"),
+        selected_parent: None,
+        diff: working_diff("+patch"),
+    });
+    app.update(Action::StartSearch, 10);
+    app.update(Action::SearchInput('x'), 10);
+    assert!(app.update(Action::CancelOverlay, 10).is_empty());
+    assert!(!app.preview_loading);
+    assert_eq!(app.preview.as_ref().unwrap().diff.lines[0].text, "+patch");
+}
+
+#[test]
+fn changing_views_leaves_fullscreen_and_unavailable_views_explain_it() {
+    let mut app = app();
+    app.update(Action::ToggleDiffFullscreen, 10); // A pending history preview can expand immediately.
+    assert!(app.diff_fullscreen);
+    app.update(Action::ViewTree, 10);
+    assert!(!app.diff_fullscreen);
+    app.update(Action::ToggleDiffFullscreen, 10);
+    assert!(!app.diff_fullscreen);
+    assert!(app.notice.as_ref().unwrap().contains("patch"));
+}
+
+#[test]
+fn file_picker_cache_reuses_matches_and_refreshes_when_patch_changes() {
+    let mut app = app();
+    let files = |name: &[u8], header_line| {
+        vec![DiffFile {
+            header_line,
+            new_path: Some(GitPath::new(name.to_vec())),
+            old_path: None,
+            hunks: Vec::new(),
+        }]
+    };
+    let mut diff = working_diff("+patch");
+    diff.files = files(b"src/main.rs", 4);
+    app.apply_preview(CommitDetail {
+        commit: commit('a', "first"),
+        selected_parent: None,
+        diff,
+    });
+    app.update(Action::StartFilePicker, 10);
+    for c in "srcrs".chars() {
+        app.update(Action::SearchInput(c), 10);
+    }
+    let pointer = app.cached_file_picker_entries("srcrs").as_ptr();
+    assert!(matches!(
+        app.cached_file_picker_entries("srcrs"),
+        std::borrow::Cow::Borrowed(_)
+    ));
+    app.update(Action::FilePickerMove(1), 10);
+    assert_eq!(app.cached_file_picker_entries("srcrs").as_ptr(), pointer);
+
+    let mut diff = working_diff("+replacement");
+    diff.files = files(b"src/replaced.rs", 9);
+    app.apply_preview(CommitDetail {
+        commit: commit('a', "first"),
+        selected_parent: None,
+        diff,
+    });
+    assert_eq!(
+        app.cached_file_picker_entries("srcrs")[0],
+        ("src/replaced.rs".into(), 9)
+    );
+    app.update(Action::AcceptFilePicker, 10);
+    assert_eq!(app.diff_scroll, 9);
+    assert!(
+        app.file_picker_cache.is_none(),
+        "closing the overlay releases its snapshot"
+    );
+}
+
+#[test]
+fn file_picker_observes_same_sized_public_metadata_mutations() {
+    let mut app = app();
+    let mut diff = working_diff("+patch");
+    diff.files.push(DiffFile {
+        header_line: 4,
+        old_path: None,
+        new_path: Some(GitPath::new(b"old.rs".to_vec())),
+        hunks: Vec::new(),
+    });
+    app.apply_preview(CommitDetail {
+        commit: commit('a', "first"),
+        selected_parent: None,
+        diff,
+    });
+    app.update(Action::StartFilePicker, 10);
+    let file = &mut app.preview.as_mut().unwrap().diff.files[0];
+    file.new_path = Some(GitPath::new(b"new.rs".to_vec()));
+    file.header_line = 9;
+    assert_eq!(app.cached_file_picker_entries("")[0], ("new.rs".into(), 9));
+    app.update(Action::SearchInput('n'), 10);
+    assert_eq!(app.cached_file_picker_entries("n")[0], ("new.rs".into(), 9));
+    app.preview.as_mut().unwrap().diff.files[0].header_line = 11;
+    app.update(Action::AcceptFilePicker, 10);
+    assert_eq!(app.diff_scroll, 11);
+}
+
+#[test]
+fn fullscreen_comparison_picker_restores_list_navigation() {
+    let mut app = app();
+    app.update(Action::ToggleDiffFullscreen, 10);
+    assert!(app.diff_fullscreen);
+    app.update(Action::StartCompare, 10);
+    assert_eq!(app.view, View::Refs);
+    assert!(!app.diff_fullscreen);
+    app.apply_refs(
+        ['a', 'b']
+            .map(|id| RefInfo {
+                full_name: RefName::new(format!("refs/heads/{id}").into_bytes()),
+                short_name: RefName::new(vec![id as u8]),
+                kind: RefKind::LocalBranch,
+                target: oid(id),
+                peeled: None,
+                upstream: None,
+                subject: String::new(),
+                timestamp: None,
+                is_head: false,
+            })
+            .to_vec(),
+    );
+    app.update(Action::Move(1), 10);
+    assert_eq!(app.focus, Focus::List);
+    assert_eq!(app.inspect.selected, 1);
+}
+
+#[test]
+fn overlapping_history_pages_keep_order_and_selection_without_duplicates() {
+    let mut app = app();
+    app.selected = 1;
+    app.selected_oid = Some(oid('b'));
+    app.apply_history(HistoryPage {
+        commits: vec![
+            commit('b', "duplicate"),
+            commit('c', "new"),
+            commit('c', "duplicate new"),
+        ],
+        offset: 2,
+        limit: 3,
+        has_more: false,
+    });
+    assert_eq!(
+        app.commits
+            .iter()
+            .map(|commit| &commit.id)
+            .collect::<Vec<_>>(),
+        [&oid('a'), &oid('b'), &oid('c')]
+    );
+    assert_eq!(app.selected, 1);
+}
+
+#[test]
 fn selection_is_stable_by_oid_across_refresh() {
     let mut app = app();
     let _ = app.update(Action::Move(1), 10);

@@ -39,6 +39,11 @@ pub const COMMANDS: &[CommandDescriptor] = &[
     command!("back", "Back", Action::Back),
     command!("quit", "Quit", Action::Quit),
     command!("toggle-preview", "Toggle preview", Action::TogglePreview),
+    command!(
+        "toggle-diff-fullscreen",
+        "Toggle full-screen diff",
+        Action::ToggleDiffFullscreen
+    ),
     command!("toggle-focus", "Toggle focus", Action::ToggleFocus),
     command!("search", "Search", Action::StartSearch),
     command!("palette", "Open command palette", Action::StartPalette),

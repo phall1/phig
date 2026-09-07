@@ -37,6 +37,7 @@ frame with a short title and a persistent action footer.
 | `}`, `{` | next/previous changed file |
 | `P` | cycle merge parent in commit detail |
 | `f` | filter changed files and jump to one |
+| `F` | expand/restore the active diff |
 | `r` | refs view |
 | `s` | status view |
 | `t` | tree view |
@@ -76,7 +77,11 @@ absorbs it, a run crossing a live lane draws a crossing, and a commit with no
 parents ends its lane with a root glyph. Lane colors cycle the configured theme
 so adjacent branches stay separable, and the whole repertoire has an ASCII
 fallback. Lane count is budgeted from terminal width; beyond that budget lanes
-fold into the last column rather than pushing the commit text off screen.
+fold into a `~`-marked final column rather than pushing the commit text off
+screen. The bundle is explicitly approximate on screen; all underlying parent
+identities remain intact. Branch colors follow their ancestry through joins
+and reused columns, and the selected branch is bold across the visible graph.
+Previously computed graph rows are reused during navigation.
 
 A ref scope (`--all`, `--branches`, `--remotes`, `--tags`) widens the walk from
 one revision to whole ref families, which is what makes remote branches visible
@@ -89,6 +94,14 @@ Metadata precedes file summary and patch. `f` opens a fuzzy-searchable changed-f
 index; `Enter` jumps directly to the selected file header. Hunk headers are
 anchors. Merge commits expose explicit parent cycling with `P`; version 1 does
 not claim a combined-diff display.
+
+`F` expands the active patch from log, refs, status, blame, or stash to the full
+body, including on narrow terminals. Its sticky header identifies the commit
+or staged/unstaged patch and current file/hunk. `F`, `Enter`, or `Esc` restores
+the prior layout without reloading Git or changing the selected item or patch
+position. Search, file/hunk jumps, and paging operate on the expanded patch;
+resizing keeps it expanded. From commit detail, `F` hides the metadata for more
+patch space. Comparison retains its endpoint and merge-base header.
 
 ### Compare
 

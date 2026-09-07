@@ -88,15 +88,20 @@ fn golden_ref_scope_graph_100x14() {
         glyph_mode: GlyphMode::Ascii,
         ..deterministic_config()
     });
+    let snapshot = format!(
+        "unicode 100x14\n{}\nnarrow 58x14\n{}\nfolded 44x14\n{}\nascii 100x14\n{}",
+        screen(100, 14, &branchy_app()),
+        screen(58, 14, &branchy_app()),
+        screen(44, 14, &branchy_app()),
+        screen_with_context(100, 14, &branchy_app(), &ascii),
+    );
     insta::assert_snapshot!(
         "ref-scope-graph-100x14",
-        format!(
-            "unicode 100x14\n{}\nnarrow 58x14\n{}\nfolded 44x14\n{}\nascii 100x14\n{}",
-            screen(100, 14, &branchy_app()),
-            screen(58, 14, &branchy_app()),
-            screen(44, 14, &branchy_app()),
-            screen_with_context(100, 14, &branchy_app(), &ascii),
-        )
+        snapshot
+            .lines()
+            .map(str::trim_end)
+            .collect::<Vec<_>>()
+            .join("\n")
     );
 }
 
@@ -264,6 +269,91 @@ fn screen_with_context(width: u16, height: u16, app: &App, context: &RenderConte
 
 static GOLDEN_RENDER_LOCK: Mutex<()> = Mutex::new(());
 
+#[test]
+#[ignore = "manual release-mode interaction benchmark"]
+fn interaction_benchmark() {
+    use crate::app::Action;
+    use std::{hint::black_box, time::Instant};
+
+    fn measure(label: &str, mut operation: impl FnMut()) {
+        operation();
+        let mut samples: Vec<_> = (0..40)
+            .map(|_| {
+                let start = Instant::now();
+                operation();
+                start.elapsed().as_secs_f64() * 1000.0
+            })
+            .collect();
+        samples.sort_by(f64::total_cmp);
+        eprintln!(
+            "{label}: p50={:.3}ms p95={:.3}ms (40 samples)",
+            samples[20], samples[37]
+        );
+    }
+
+    let mut app = sample_app();
+    let template = app.commits[0].clone();
+    app.commits = (0..50_000)
+        .map(|index| {
+            let mut commit = template.clone();
+            commit.id = format!("{index:040x}").parse().unwrap();
+            // 25k independent tips followed by their roots: crowded --all topology.
+            commit.parents = if index < 25_000 {
+                vec![format!("{:040x}", index + 25_000).parse().unwrap()]
+            } else {
+                Vec::new()
+            };
+            commit
+        })
+        .collect();
+    app.show_preview = false;
+    app.selected = 49_970;
+    let context = RenderContext::new(deterministic_config());
+    let mut terminal = Terminal::new(TestBackend::new(120, 28)).unwrap();
+    measure("50k graph + frame / fresh rebuild", || {
+        terminal
+            .draw(|frame| render_with_context(frame, &app, &context))
+            .unwrap();
+    });
+    let mut state = RenderState::default();
+    terminal
+        .draw(|frame| render_with_state(frame, &app, &context, &mut state))
+        .unwrap();
+    measure("50k graph + frame / cached navigation", || {
+        app.selected = if app.selected == 49_970 {
+            49_969
+        } else {
+            49_970
+        };
+        terminal
+            .draw(|frame| render_with_state(frame, &app, &context, &mut state))
+            .unwrap();
+    });
+    app.preview.as_mut().unwrap().diff.files = (0..50_000)
+        .map(|index| DiffFile {
+            header_line: index,
+            old_path: None,
+            new_path: Some(GitPath::new(
+                format!("src/module_{index:05}/implementation.rs").into_bytes(),
+            )),
+            hunks: Vec::new(),
+        })
+        .collect();
+    measure("50k files / uncached ranking", || {
+        black_box(app.file_picker_entries("srcrs"));
+    });
+    app.update(Action::StartFilePicker, 10);
+    for c in "srcrs".chars() {
+        app.update(Action::SearchInput(c), 10);
+    }
+    measure("50k files / cached move + frame", || {
+        app.update(Action::FilePickerMove(1), 10);
+        terminal
+            .draw(|frame| render_with_state(frame, &app, &context, &mut state))
+            .unwrap();
+    });
+}
+
 fn styled_screen(width: u16, height: u16, app: &App) -> String {
     let _guard = GOLDEN_RENDER_LOCK.lock().unwrap();
     let backend = TestBackend::new(width, height);
@@ -319,6 +409,138 @@ fn styled_screen(width: u16, height: u16, app: &App) -> String {
 #[test]
 fn golden_log_narrow_60x16() {
     insta::assert_snapshot!("log-narrow-60x16", styled_screen(60, 16, &sample_app()));
+}
+
+#[test]
+fn fullscreen_key_path_preserves_patch_across_sizes_and_restores_layout() {
+    use crate::{
+        app::{Action, Focus},
+        config::KeyBindings,
+        tui::input::resolve_action,
+    };
+    use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+
+    let mut app = sample_app();
+    app.preview.as_mut().unwrap().diff.files[0]
+        .hunks
+        .push(crate::domain::Hunk {
+            header_line: 1,
+            old_start: 1,
+            old_lines: 1,
+            new_start: 1,
+            new_lines: 1,
+        });
+    app.diff_scroll = 1;
+    let bindings = KeyBindings::default();
+    let original = screen(120, 28, &app);
+    let action = resolve_action(
+        &app,
+        &bindings,
+        KeyEvent::new(KeyCode::Char('F'), KeyModifiers::SHIFT),
+    )
+    .unwrap();
+    assert_eq!(action, Action::ToggleDiffFullscreen);
+    assert!(app.update(action, 10).is_empty());
+    let mut expanded = String::new();
+    for (width, height) in [(120, 28), (60, 16)] {
+        app.set_preview_focus_available(preview_focus_available(&app, width, height));
+        let text = screen(width, height, &app);
+        assert!(text.contains("DIFF aaaaaaaaaa"));
+        assert!(text.contains("+new"));
+        assert!(text.contains("F restore"));
+        assert!(!text.contains("make history pleasant"));
+        assert_eq!(page_rows(&app, width, height), usize::from(height - 3));
+        let text = text
+            .lines()
+            .map(str::trim_end)
+            .collect::<Vec<_>>()
+            .join("\n");
+        expanded.push_str(&format!("{width}x{height}\n{text}\n\n"));
+    }
+    insta::assert_snapshot!("fullscreen-diff", expanded);
+    assert_eq!(app.focus, Focus::Preview);
+    app.set_preview_focus_available(true);
+    let action = resolve_action(
+        &app,
+        &bindings,
+        KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE),
+    )
+    .unwrap();
+    app.update(action, 10);
+    assert_eq!(screen(120, 28, &app), original);
+    assert!(!app.should_quit);
+}
+
+#[test]
+fn cached_render_matches_fresh_after_navigation_resize_append_and_reset() {
+    let mut app = branchy_app();
+    let mut state = RenderState::default();
+    let context = RenderContext::new(deterministic_config());
+    for (width, selected) in [(100, 0), (100, 6), (100, 2), (44, 9), (100, 8)] {
+        app.selected = selected;
+        let mut terminal = Terminal::new(TestBackend::new(width, 8)).unwrap();
+        terminal
+            .draw(|frame| render_with_state(frame, &app, &context, &mut state))
+            .unwrap();
+        let cached = terminal.backend().buffer().clone();
+        terminal
+            .draw(|frame| render_with_context(frame, &app, &context))
+            .unwrap();
+        assert_eq!(&cached, terminal.backend().buffer());
+    }
+    let mut extra = app.commits.last().unwrap().clone();
+    extra.id = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb".parse().unwrap();
+    app.commits.push(extra);
+    app.selected = 10;
+    let mut terminal = Terminal::new(TestBackend::new(100, 8)).unwrap();
+    terminal
+        .draw(|frame| render_with_state(frame, &app, &context, &mut state))
+        .unwrap();
+    let cached = terminal.backend().buffer().clone();
+    terminal
+        .draw(|frame| render_with_context(frame, &app, &context))
+        .unwrap();
+    assert_eq!(&cached, terminal.backend().buffer());
+    state.clear_history();
+    app = sample_app();
+    terminal
+        .draw(|frame| render_with_state(frame, &app, &context, &mut state))
+        .unwrap();
+    let cached = terminal.backend().buffer().clone();
+    terminal
+        .draw(|frame| render_with_context(frame, &app, &context))
+        .unwrap();
+    assert_eq!(&cached, terminal.backend().buffer());
+}
+
+#[test]
+fn fullscreen_status_keeps_side_and_file_position_visible_for_long_paths() {
+    let mut app = sample_app();
+    app.view = View::Status;
+    app.inspect.status_diff_staged = true;
+    let mut diff = app.preview.as_ref().unwrap().diff.clone();
+    diff.files[0].new_path = Some(GitPath::new("long/界/".repeat(20).into_bytes()));
+    app.inspect.working_diff = Some(diff);
+    app.update(crate::app::Action::ToggleDiffFullscreen, 10);
+    let text = screen(60, 16, &app);
+    let header = text.lines().nth(1).unwrap();
+    assert!(header.contains("DIFF staged"));
+    assert!(header.contains("file 1/1"));
+    assert!(header.contains('…'));
+    assert!(!header.contains("aaaaaaaa"));
+    assert!(!header.contains("hunk 0/0"));
+}
+
+#[test]
+fn file_picker_render_tracks_public_patch_metadata_changes() {
+    let mut app = sample_app();
+    app.update(crate::app::Action::StartFilePicker, 10);
+    let file = &mut app.preview.as_mut().unwrap().diff.files[0];
+    file.new_path = Some(GitPath::new(b"src/live.rs".to_vec()));
+    file.header_line = 2;
+    assert!(screen(60, 16, &app).contains("src/live.rs"));
+    app.update(crate::app::Action::AcceptFilePicker, 10);
+    assert_eq!(app.diff_scroll, 2);
 }
 
 #[test]
@@ -963,6 +1185,7 @@ fn history_preserves_subjects_and_cell_width_across_date_modes() {
                 &rows[0],
                 rows[0].width(),
                 false,
+                None,
                 &context,
             );
             let text = line

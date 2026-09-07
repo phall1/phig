@@ -1,12 +1,12 @@
 //! Search, command palette, and changed-file overlay behavior.
 
-use super::{Action, App, Effect, Focus, Overlay, View, commands::palette_commands};
+use super::{Action, App, Effect, Overlay, View, commands::palette_commands};
 
 impl App {
     pub(super) fn update_overlay(&mut self, action: Action, page_rows: usize) -> Vec<Effect> {
         let file_picker_count = match (&self.overlay, &action) {
             (Overlay::FilePicker { draft, .. }, Action::FilePickerMove(_)) => {
-                self.file_picker_entries(draft).len()
+                self.cached_file_picker_entries(draft).len()
             }
             _ => 0,
         };
@@ -44,6 +44,8 @@ impl App {
                 },
                 Action::CancelOverlay | Action::Back | Action::Quit,
             ) => {
+                restore_preview = self.selected != *original_selected
+                    || self.inspect.selected != *original_inspect_selected;
                 self.search_query = previous_query.clone();
                 self.selected = (*original_selected).min(self.commits.len().saturating_sub(1));
                 self.inspect.selected = *original_inspect_selected;
@@ -54,7 +56,6 @@ impl App {
                 self.diff_scroll = *original_scroll;
                 self.search_pending = None;
                 self.overlay = Overlay::None;
-                restore_preview = true;
             }
             (Overlay::Search { draft, .. }, Action::AcceptSearch) => {
                 self.search_query = draft.clone();
@@ -132,13 +133,15 @@ impl App {
             (_, Action::CancelOverlay) => self.overlay = Overlay::None,
             _ => {}
         }
-        self.overlay_effects(
+        let effects = self.overlay_effects(
             palette_action,
             file_selection,
             seek,
             restore_preview,
             page_rows,
-        )
+        );
+        self.prepare_file_picker();
+        effects
     }
 
     fn overlay_effects(
@@ -152,13 +155,17 @@ impl App {
         if let Some(action) = palette_action {
             self.update(action, page_rows)
         } else if let Some((query, selected)) = file_selection {
-            if let Some((_, header_line)) = self.file_picker_entries(&query).get(selected) {
-                self.diff_scroll = *header_line;
+            let header_line = self
+                .cached_file_picker_entries(&query)
+                .get(selected)
+                .map(|(_, line)| *line);
+            if let Some(header_line) = header_line {
+                self.diff_scroll = header_line;
             }
             Vec::new()
         } else if seek {
             self.seek_match(true, true)
-        } else if restore_preview {
+        } else if restore_preview && !self.diff_fullscreen {
             if matches!(
                 self.view,
                 View::Refs | View::Status | View::Blame | View::Stash
@@ -173,135 +180,9 @@ impl App {
     }
 
     pub fn file_picker_entries(&self, query: &str) -> Vec<(String, usize)> {
-        let files = self
-            .active_diff()
-            .into_iter()
-            .flat_map(|diff| &diff.files)
-            .filter_map(|file| {
-                let path = file.new_path.as_ref().or(file.old_path.as_ref())?;
-                Some((path.display.as_str(), file.header_line))
-            });
-        crate::fuzzy::ranked(files, query, |(path, _)| path)
+        crate::fuzzy::ranked(self.file_picker_source(), query, |(path, _)| path)
             .into_iter()
             .map(|(path, header_line)| (path.to_owned(), header_line))
             .collect()
-    }
-
-    pub(super) fn seek_match(&mut self, forward: bool, include_current: bool) -> Vec<Effect> {
-        if self.search_query.is_empty() {
-            return Vec::new();
-        }
-        let needle = self.search_query.to_lowercase();
-        if matches!(
-            self.view,
-            View::Refs | View::Status | View::Tree | View::Blame | View::Stash
-        ) {
-            let len = self.active_len();
-            if len == 0 {
-                return Vec::new();
-            }
-            for step in usize::from(!include_current)..=len {
-                let index = if forward {
-                    (self.inspect.selected + step) % len
-                } else {
-                    (self.inspect.selected + len - (step % len)) % len
-                };
-                let haystack =
-                    match self.view {
-                        View::Refs => self.inspect.refs.get(index).map(|item| {
-                            format!(
-                                "{} {} {}",
-                                item.short_name.display(),
-                                item.full_name.display(),
-                                item.subject
-                            )
-                        }),
-                        View::Status => self
-                            .inspect
-                            .status_entries()
-                            .get(index)
-                            .map(|item| item.path.display.clone()),
-                        View::Tree => self
-                            .inspect
-                            .tree
-                            .get(index)
-                            .map(|item| item.path.display.clone()),
-                        View::Blame => self.inspect.blame.get(index).map(|item| {
-                            format!("{} {} {}", item.author, item.summary, item.content)
-                        }),
-                        View::Stash => self
-                            .inspect
-                            .stashes
-                            .get(index)
-                            .map(|item| format!("{} {}", item.selector, item.subject)),
-                        _ => None,
-                    }
-                    .unwrap_or_default()
-                    .to_lowercase();
-                if haystack.contains(&needle) {
-                    self.inspect.selected = index;
-                    return self.inspect_selection_effects();
-                }
-            }
-            return Vec::new();
-        }
-        if self.view == View::Log && self.focus == Focus::List {
-            if self.commits.is_empty() {
-                return Vec::new();
-            }
-            let len = self.commits.len();
-            let first_step = usize::from(!include_current);
-            for step in first_step..=len {
-                let index = if forward {
-                    (self.selected + step) % len
-                } else {
-                    (self.selected + len - (step % len)) % len
-                };
-                let commit = &self.commits[index];
-                let haystack = format!(
-                    "{} {} {} {}",
-                    commit.id.hex, commit.subject, commit.author.name, commit.author.email
-                )
-                .to_lowercase();
-                if haystack.contains(&needle) {
-                    return self.select_index(index);
-                }
-            }
-            if self.has_more {
-                self.search_pending = Some(forward);
-                if !self.history_loading {
-                    self.history_loading = true;
-                    self.history_error = None;
-                    return vec![Effect::LoadHistory {
-                        offset: self.commits.len(),
-                        limit: self.history_page_size,
-                    }];
-                }
-            }
-        } else {
-            let diff = match self.view {
-                View::Compare => self.inspect.comparison.as_ref().map(|value| &value.diff),
-                View::Status | View::StatusDiff => self.inspect.working_diff.as_ref(),
-                _ => self.preview.as_ref().map(|value| &value.diff),
-            };
-            if let Some(diff) = diff {
-                let len = diff.lines.len();
-                if len == 0 {
-                    return Vec::new();
-                }
-                for step in 1..=len {
-                    let index = if forward {
-                        (self.diff_scroll + step) % len
-                    } else {
-                        (self.diff_scroll + len - (step % len)) % len
-                    };
-                    if diff.lines[index].text.to_lowercase().contains(&needle) {
-                        self.diff_scroll = index;
-                        break;
-                    }
-                }
-            }
-        }
-        Vec::new()
     }
 }

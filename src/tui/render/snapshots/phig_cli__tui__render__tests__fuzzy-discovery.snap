@@ -6,13 +6,13 @@ palette 60x16
 TEXT
  phig LOG phig-demo / main  HEAD
  ╭ Commands ──────────────────────────────────────────────╮
- │: tgl                                          5 results│
+ │: tgl                                          6 results│
  │› Toggle focus                                       Tab│
  │  Toggle preview                                       p│
+ │  Toggle full-screen diff                              F│
  │  Toggle staged/unstaged diff                          d│
  │  Toggle merge-base comparison                         M│
  │  Next changed file                                    }│
- │                                                        │
  │                                                        │
  │                                                        │
  │                                                        │
@@ -28,7 +28,7 @@ STYLES
 1:12-58 fg=DarkGray bg=Reset mod=NONE text="──────────────────────────────────────────────╮"
 2:1-1 fg=DarkGray bg=Reset mod=NONE text="│"
 2:2-3 fg=Cyan bg=Reset mod=BOLD text=": "
-2:49-58 fg=DarkGray bg=Reset mod=NONE text="5 results│"
+2:49-58 fg=DarkGray bg=Reset mod=NONE text="6 results│"
 3:1-1 fg=DarkGray bg=Reset mod=NONE text="│"
 3:2-3 fg=Cyan bg=Reset mod=BOLD text="› "
 3:4-4 fg=Cyan bg=Reset mod=BOLD | UNDERLINED text="T"
@@ -47,19 +47,22 @@ STYLES
 5:4-4 fg=Cyan bg=Reset mod=BOLD | UNDERLINED text="T"
 5:6-6 fg=Cyan bg=Reset mod=BOLD | UNDERLINED text="g"
 5:8-8 fg=Cyan bg=Reset mod=BOLD | UNDERLINED text="l"
-5:57-58 fg=DarkGray bg=Reset mod=NONE text="d│"
+5:57-58 fg=DarkGray bg=Reset mod=NONE text="F│"
 6:1-1 fg=DarkGray bg=Reset mod=NONE text="│"
 6:4-4 fg=Cyan bg=Reset mod=BOLD | UNDERLINED text="T"
 6:6-6 fg=Cyan bg=Reset mod=BOLD | UNDERLINED text="g"
 6:8-8 fg=Cyan bg=Reset mod=BOLD | UNDERLINED text="l"
-6:57-58 fg=DarkGray bg=Reset mod=NONE text="M│"
+6:57-58 fg=DarkGray bg=Reset mod=NONE text="d│"
 7:1-1 fg=DarkGray bg=Reset mod=NONE text="│"
-7:7-7 fg=Cyan bg=Reset mod=BOLD | UNDERLINED text="t"
-7:13-13 fg=Cyan bg=Reset mod=BOLD | UNDERLINED text="g"
-7:19-19 fg=Cyan bg=Reset mod=BOLD | UNDERLINED text="l"
-7:57-58 fg=DarkGray bg=Reset mod=NONE text="}│"
+7:4-4 fg=Cyan bg=Reset mod=BOLD | UNDERLINED text="T"
+7:6-6 fg=Cyan bg=Reset mod=BOLD | UNDERLINED text="g"
+7:8-8 fg=Cyan bg=Reset mod=BOLD | UNDERLINED text="l"
+7:57-58 fg=DarkGray bg=Reset mod=NONE text="M│"
 8:1-1 fg=DarkGray bg=Reset mod=NONE text="│"
-8:58-58 fg=DarkGray bg=Reset mod=NONE text="│"
+8:7-7 fg=Cyan bg=Reset mod=BOLD | UNDERLINED text="t"
+8:13-13 fg=Cyan bg=Reset mod=BOLD | UNDERLINED text="g"
+8:19-19 fg=Cyan bg=Reset mod=BOLD | UNDERLINED text="l"
+8:57-58 fg=DarkGray bg=Reset mod=NONE text="}│"
 9:1-1 fg=DarkGray bg=Reset mod=NONE text="│"
 9:58-58 fg=DarkGray bg=Reset mod=NONE text="│"
 10:1-1 fg=DarkGray bg=Reset mod=NONE text="│"

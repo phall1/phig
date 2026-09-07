@@ -6,7 +6,9 @@
 //! each other. Lanes are pure presentation: nothing here escapes into domain or
 //! protocol types.
 
-use ratatui::text::Span;
+use std::collections::{BTreeSet, HashMap};
+
+use ratatui::{style::Modifier, text::Span};
 
 use crate::domain::{Commit, Oid};
 
@@ -22,16 +24,18 @@ const LANE_WIDTH: usize = 2;
 
 /// One rendered graph row: the node's lane plus a cell per column.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub(super) struct GraphRow {
+pub(in crate::tui) struct GraphRow {
     cells: Vec<Cell>,
+    color: usize,
+    folded_lanes: usize,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 struct Cell {
     mask: u8,
-    /// Set when a commit node occupies this cell, overriding the mask glyph.
+    /// A commit node or explicit fold marker, overriding the mask glyph.
     node: Option<char>,
-    /// Lane whose color this cell adopts.
+    /// Stable branch color, independent of this cell's projected lane.
     lane: usize,
 }
 
@@ -40,31 +44,39 @@ impl GraphRow {
         self.cells.len()
     }
 
+    /// Stable branch identity, independent of a reused or folded column.
+    pub(super) fn color(&self) -> usize {
+        self.color
+    }
+
+    /// Peak number of logical lanes sharing the marked final column this row.
+    /// Zero means every lane has its own column.
+    pub(super) fn folded_lanes(&self) -> usize {
+        self.folded_lanes
+    }
+
     /// Render the row as colored spans, one span per contiguous run of cells
     /// that share a color.
     pub(super) fn spans(&self, context: &RenderContext) -> Vec<Span<'static>> {
+        self.spans_with_highlight(context, None)
+    }
+
+    pub(super) fn spans_with_highlight(
+        &self,
+        context: &RenderContext,
+        highlight: Option<usize>,
+    ) -> Vec<Span<'static>> {
         let glyphs = context.glyphs().graph;
-        let mut spans: Vec<Span<'static>> = Vec::new();
-        let mut text = String::new();
-        let mut current: Option<usize> = None;
-        for cell in &self.cells {
-            if current != Some(cell.lane) && !text.is_empty() {
-                let lane = current.unwrap_or(0);
-                spans.push(Span::styled(
-                    std::mem::take(&mut text),
-                    context.style(context.lane_color(lane)),
-                ));
-            }
-            current = Some(cell.lane);
-            text.push(cell.node.unwrap_or_else(|| glyph(cell.mask, glyphs)));
-        }
-        if !text.is_empty() {
-            spans.push(Span::styled(
-                text,
-                context.style(context.lane_color(current.unwrap_or(0))),
-            ));
-        }
-        spans
+        self.cells
+            .chunk_by(|left, right| left.lane == right.lane)
+            .map(|cells| {
+                let text = cells
+                    .iter()
+                    .map(|cell| cell.node.unwrap_or_else(|| glyph(cell.mask, glyphs)))
+                    .collect();
+                branch_span(text, cells[0].lane, context, highlight)
+            })
+            .collect()
     }
 
     #[cfg(test)]
@@ -74,6 +86,19 @@ impl GraphRow {
             .map(|cell| cell.node.unwrap_or_else(|| glyph(cell.mask, glyphs)))
             .collect()
     }
+}
+
+fn branch_span(
+    text: String,
+    color: usize,
+    context: &RenderContext,
+    highlight: Option<usize>,
+) -> Span<'static> {
+    let mut style = context.style(context.lane_color(color));
+    if highlight == Some(color) {
+        style = style.add_modifier(Modifier::BOLD);
+    }
+    Span::styled(text, style)
 }
 
 fn glyph(mask: u8, glyphs: GraphGlyphs) -> char {
@@ -106,118 +131,248 @@ pub(super) fn lane_limit(width: u16) -> usize {
 ///
 /// Rows must be derived from the start of the loaded history, not from the
 /// visible window: a lane only exists because some earlier commit opened it.
+#[cfg(test)]
 pub(super) fn graph_rows(
     commits: &[Commit],
     end: usize,
     lane_limit: usize,
     glyphs: GraphGlyphs,
 ) -> Vec<GraphRow> {
-    let lane_limit = lane_limit.max(1);
-    let mut lanes: Vec<Option<Oid>> = Vec::new();
-    let mut rows = Vec::with_capacity(end.min(commits.len()));
-    for commit in commits.iter().take(end) {
-        rows.push(step(&mut lanes, commit, lane_limit, glyphs));
-    }
-    rows
+    let mut cache = GraphCache::default();
+    cache.rows(commits, end, lane_limit, glyphs);
+    cache.rows
 }
 
-fn step(
-    lanes: &mut Vec<Option<Oid>>,
-    commit: &Commit,
-    lane_limit: usize,
-    glyphs: GraphGlyphs,
-) -> GraphRow {
-    let incoming: Vec<usize> = lanes
-        .iter()
-        .enumerate()
-        .filter(|(_, held)| held.as_ref() == Some(&commit.id))
-        .map(|(index, _)| index)
-        .collect();
-    let node_lane = match incoming.first() {
-        Some(lane) => *lane,
-        // A commit nothing is waiting for starts its own lane: a branch tip, or
-        // a root of a disjoint history brought in by a wider ref scope.
-        None => reserve(lanes, 0, lane_limit),
-    };
-    let occupied_before: Vec<bool> = lanes.iter().map(Option::is_some).collect();
+/// Append-only topology cache. The owner must clear it when replacing history
+/// or changing repository/ref scope; navigating backward retains the prefix.
+#[derive(Debug, Default)]
+pub(in crate::tui) struct GraphCache {
+    rows: Vec<GraphRow>,
+    state: Lanes,
+    projection: Option<(usize, [char; 3])>,
+    #[cfg(test)]
+    steps: usize,
+}
 
-    // Lanes merging into this commit close here; the first parent inherits the
-    // node's own lane and every extra parent needs a lane of its own.
-    for lane in incoming.iter().skip(1) {
-        lanes[*lane] = None;
+impl GraphCache {
+    pub(in crate::tui) fn clear(&mut self) {
+        *self = Self::default();
     }
-    lanes[node_lane] = commit.parents.first().cloned();
-    let mut branches = Vec::new();
-    for parent in commit.parents.iter().skip(1) {
-        let lane = match lanes.iter().position(|held| held.as_ref() == Some(parent)) {
-            Some(existing) => existing,
-            None => {
-                let lane = reserve(lanes, node_lane + 1, lane_limit);
-                lanes[lane] = Some(parent.clone());
+
+    pub(in crate::tui) fn rows(
+        &mut self,
+        commits: &[Commit],
+        end: usize,
+        lane_limit: usize,
+        glyphs: GraphGlyphs,
+    ) -> &[GraphRow] {
+        let lane_limit = lane_limit.max(1);
+        let projection = (lane_limit, [glyphs.commit, glyphs.merge, glyphs.root]);
+        if self.projection != Some(projection) || commits.len() < self.rows.len() {
+            self.clear();
+            self.projection = Some(projection);
+        }
+        let end = end.min(commits.len());
+        for commit in commits.iter().take(end).skip(self.rows.len()) {
+            self.rows.push(self.state.step(commit, lane_limit, glyphs));
+            #[cfg(test)]
+            {
+                self.steps += 1;
+            }
+        }
+        &self.rows[..end]
+    }
+}
+
+#[derive(Debug, Default)]
+struct Lanes {
+    /// Slots retain branch colors, including lanes beyond the render width.
+    slots: Vec<Option<usize>>,
+    /// One parent may have several incoming branches, ordered by logical lane.
+    pending: HashMap<Oid, BTreeSet<usize>>,
+    /// Ordered indexes avoid scanning an unbounded slot vector each row.
+    free: BTreeSet<usize>,
+    active: BTreeSet<usize>,
+    next_color: usize,
+}
+
+/// Only the bounded visible prefix is copied, never all logical lanes.
+struct LaneView {
+    colors: Vec<Option<usize>>,
+    extent: usize,
+    occupied: usize,
+    node_pending: bool,
+}
+
+impl LaneView {
+    fn folded_count(&self, column: usize, node: usize) -> usize {
+        let lanes = self.occupied - self.colors.iter().take(column).flatten().count();
+        if node >= column && !self.node_pending {
+            return lanes + 1;
+        }
+        lanes
+    }
+}
+
+impl Lanes {
+    fn reserve(&mut self, preferred: usize) -> (usize, usize) {
+        let free = self
+            .free
+            .range(preferred..)
+            .next()
+            .copied()
+            .or_else(|| self.free.first().copied());
+        let lane = match free {
+            Some(lane) => {
+                self.free.remove(&lane);
                 lane
             }
+            None => {
+                self.slots.push(None);
+                self.slots.len() - 1
+            }
         };
-        branches.push(lane);
-    }
-    while lanes.last().is_some_and(Option::is_none) {
-        lanes.pop();
+        let color = self.next_color;
+        self.next_color += 1;
+        (lane, color)
     }
 
-    let visible = occupied_before
-        .len()
-        .max(lanes.len())
-        .max(node_lane + 1)
-        .min(lane_limit);
+    fn hold(&mut self, lane: usize, color: usize, parent: &Oid) {
+        self.slots[lane] = Some(color);
+        self.active.insert(lane);
+        self.free.remove(&lane);
+        self.pending.entry(parent.clone()).or_default().insert(lane);
+    }
+
+    fn release(&mut self, lane: usize) {
+        self.slots[lane] = None;
+        self.active.remove(&lane);
+        self.free.insert(lane);
+    }
+
+    fn view(&self, limit: usize, node: usize) -> LaneView {
+        LaneView {
+            colors: self.slots.iter().take(limit).copied().collect(),
+            extent: self.active.last().map_or(0, |lane| lane + 1),
+            occupied: self.active.len(),
+            node_pending: self.slots[node].is_some(),
+        }
+    }
+
+    fn parent_branch(&mut self, parent: &Oid, preferred: usize) -> (usize, usize) {
+        if let Some(lane) = self.pending.get(parent).and_then(BTreeSet::first).copied() {
+            return (lane, self.slots[lane].expect("pending lane has a color"));
+        }
+        let (lane, color) = self.reserve(preferred);
+        self.hold(lane, color, parent);
+        (lane, color)
+    }
+
+    fn step(&mut self, commit: &Commit, limit: usize, glyphs: GraphGlyphs) -> GraphRow {
+        let incoming: Vec<_> = self
+            .pending
+            .remove(&commit.id)
+            .unwrap_or_default()
+            .into_iter()
+            .map(|lane| (lane, self.slots[lane].expect("pending lane has a color")))
+            .collect();
+        let (node, color) = incoming.first().copied().unwrap_or_else(|| self.reserve(0));
+        let before = self.view(limit, node);
+        for &(lane, _) in &incoming {
+            self.release(lane);
+        }
+        // A first parent inherits the branch identity even when another lane
+        // also waits for it; those lanes join only at the actual parent row.
+        if let Some(parent) = commit.parents.first() {
+            self.hold(node, color, parent);
+        } else {
+            self.release(node);
+        }
+        let branches: Vec<_> = commit
+            .parents
+            .iter()
+            .skip(1)
+            .map(|parent| self.parent_branch(parent, node + 1))
+            .collect();
+        let after = self.view(limit, node);
+        let mut row = project(&before, &after, node, color, limit);
+        for &(lane, color) in incoming.iter().skip(1) {
+            run(&mut row.cells, node, lane, UP, color);
+        }
+        for (lane, color) in branches {
+            run(&mut row.cells, node, lane, DOWN, color);
+        }
+        row.place_node(node, node_glyph(commit, glyphs));
+        row
+    }
+}
+
+fn node_glyph(commit: &Commit, glyphs: GraphGlyphs) -> char {
+    match commit.parents.len() {
+        0 => glyphs.root,
+        1 => glyphs.commit,
+        _ => glyphs.merge,
+    }
+}
+
+fn project(
+    before: &LaneView,
+    after: &LaneView,
+    node: usize,
+    color: usize,
+    limit: usize,
+) -> GraphRow {
+    let extent = before.extent.max(after.extent).max(node + 1);
+    let visible = extent.min(limit);
     let mut cells = vec![Cell::default(); visible * LANE_WIDTH];
-    for (lane, cell) in cells.iter_mut().enumerate() {
-        cell.lane = lane / LANE_WIDTH;
-    }
-
-    // Vertical continuity: a lane connects upward when it was occupied before
-    // this row and downward when it is still occupied after it.
     for lane in 0..visible {
-        let column = lane * LANE_WIDTH;
-        if occupied_before.get(lane).copied().unwrap_or(false) {
-            cells[column].mask |= UP;
+        let cell = &mut cells[lane * LANE_WIDTH];
+        if let Some(color) = before.colors.get(lane).copied().flatten() {
+            cell.mask |= UP;
+            cell.lane = color;
         }
-        if lanes.get(lane).is_some_and(Option::is_some) {
-            cells[column].mask |= DOWN;
+        if let Some(color) = after.colors.get(lane).copied().flatten() {
+            cell.mask |= DOWN;
+            cell.lane = color;
         }
     }
-
-    let node_column = node_lane.min(visible.saturating_sub(1)) * LANE_WIDTH;
-    for lane in incoming.iter().skip(1) {
-        run(&mut cells, node_lane, *lane, visible, UP, node_lane);
-    }
-    for lane in &branches {
-        run(&mut cells, node_lane, *lane, visible, DOWN, node_lane);
-    }
-    cells[node_column].node = Some(if commit.parents.len() > 1 {
-        glyphs.merge
-    } else if commit.parents.is_empty() {
-        glyphs.root
+    let folded_lanes = if extent > limit {
+        before
+            .folded_count(limit - 1, node)
+            .max(after.folded_count(limit - 1, node))
     } else {
-        glyphs.commit
-    });
-    cells[node_column].lane = node_lane;
-    GraphRow { cells }
+        0
+    };
+    GraphRow {
+        cells,
+        color,
+        folded_lanes,
+    }
+}
+
+impl GraphRow {
+    fn place_node(&mut self, node: usize, glyph: char) {
+        let last = self.cells.len() / LANE_WIDTH - 1;
+        let column = node.min(last) * LANE_WIDTH;
+        self.cells[column].node = Some(glyph);
+        self.cells[column].lane = self.color;
+        if self.folded_lanes > 0 {
+            // A folded column is an explicit bundle, never an apparent exact
+            // edge. Keep a hidden commit's node, marking its adjacent gap too.
+            let folded = &mut self.cells[last * LANE_WIDTH];
+            if node < last {
+                folded.node = Some('~');
+            }
+            self.cells[last * LANE_WIDTH + 1].node = Some('~');
+        }
+    }
 }
 
 /// Draw the horizontal run that ties `target` back to the node's lane, adding
 /// `terminal` (up for a lane closing into the node, down for a new parent lane)
 /// at the far end.
-fn run(
-    cells: &mut [Cell],
-    node_lane: usize,
-    target: usize,
-    visible: usize,
-    terminal: u8,
-    color_lane: usize,
-) {
-    if target == node_lane {
-        cells[node_lane.min(visible.saturating_sub(1)) * LANE_WIDTH].mask |= terminal;
-        return;
-    }
+fn run(cells: &mut [Cell], node_lane: usize, target: usize, terminal: u8, color_lane: usize) {
+    let visible = cells.len() / LANE_WIDTH;
     let node = node_lane.min(visible.saturating_sub(1));
     let target = target.min(visible.saturating_sub(1));
     if node == target {
@@ -242,29 +397,6 @@ fn run(
             cell.lane = color_lane;
         }
     }
-}
-
-/// Take the first free lane at or after `preferred`, appending when the row is
-/// full but still under the limit.
-fn reserve(lanes: &mut Vec<Option<Oid>>, preferred: usize, lane_limit: usize) -> usize {
-    if let Some(lane) = lanes
-        .iter()
-        .skip(preferred)
-        .position(Option::is_none)
-        .map(|offset| offset + preferred)
-    {
-        return lane;
-    }
-    if let Some(lane) = lanes.iter().position(Option::is_none) {
-        return lane;
-    }
-    if lanes.len() < lane_limit {
-        lanes.push(None);
-        return lanes.len() - 1;
-    }
-    // Beyond the limit the graph folds into its last lane rather than pushing
-    // the commit text off screen.
-    lane_limit - 1
 }
 
 #[cfg(test)]
@@ -366,6 +498,211 @@ mod tests {
         for row in render(&commits, 2) {
             assert!(row.chars().count() <= 2 * LANE_WIDTH, "row too wide: {row}");
         }
+    }
+
+    fn graph_glyphs() -> GraphGlyphs {
+        RenderContext::new(Default::default()).glyphs().graph
+    }
+
+    #[test]
+    fn overflow_preserves_every_pending_parent_and_branch_identity() {
+        let mut commits: Vec<_> = (1..=5).map(|id| commit(id, &[id + 10])).collect();
+        let mut cache = GraphCache::default();
+        cache.rows(&commits, commits.len(), 2, graph_glyphs());
+        assert_eq!(cache.state.pending.len(), 5);
+        assert_eq!(cache.state.active.len(), 5);
+        assert_eq!(cache.rows[4].folded_lanes(), 4);
+        assert_eq!(cache.rows[4].to_text(graph_glyphs()), "│ ●~");
+        for id in 1..=5 {
+            assert_eq!(
+                cache.state.pending[&oid(id + 10)],
+                BTreeSet::from([usize::from(id - 1)])
+            );
+        }
+        commits.extend((11..=15).map(|id| commit(id, &[])));
+        let rows = cache.rows(&commits, commits.len(), 2, graph_glyphs());
+        for tip in 0..5 {
+            assert_eq!(rows[tip].color(), rows[tip + 5].color());
+        }
+        assert_eq!(rows[5].to_text(graph_glyphs()), "◌ ~~");
+        assert!(cache.state.pending.is_empty());
+        assert!(cache.state.active.is_empty());
+    }
+
+    #[test]
+    fn octopus_shared_parents_and_unrelated_tips_survive_folding() {
+        let commits = [
+            commit(1, &[4, 5, 6, 6]),
+            commit(2, &[5, 7]),
+            commit(3, &[8]),
+            commit(4, &[]),
+            commit(5, &[]),
+            commit(6, &[]),
+            commit(7, &[]),
+            commit(8, &[]),
+        ];
+        let mut cache = GraphCache::default();
+        cache.rows(&commits, 3, 2, graph_glyphs());
+        assert_eq!(cache.state.active.len(), 6);
+        assert_eq!(cache.state.pending[&oid(5)].len(), 2);
+        assert_eq!(cache.state.pending[&oid(6)].len(), 1);
+        assert_eq!(cache.rows[2].folded_lanes(), 5);
+        cache.rows(&commits, commits.len(), 2, graph_glyphs());
+        assert!(cache.state.pending.is_empty());
+        assert!(cache.state.active.is_empty());
+        assert!(cache.rows.iter().all(|row| row.width() <= 4));
+    }
+
+    #[test]
+    fn connectors_follow_their_branch_color_and_preserve_crossings() {
+        let closing = [
+            commit(1, &[4]),
+            commit(2, &[5]),
+            commit(3, &[4]),
+            commit(4, &[]),
+        ];
+        let rows = graph_rows(&closing, closing.len(), 8, graph_glyphs());
+        assert_eq!(rows[3].cells[1].lane, rows[2].color());
+        assert_eq!(rows[3].cells[3].lane, rows[2].color());
+        assert_eq!(rows[3].cells[2].lane, rows[1].color());
+        assert_eq!(rows[3].cells[4].lane, rows[2].color());
+
+        let opening = [commit(1, &[6]), commit(2, &[7]), commit(3, &[8, 6])];
+        let rows = graph_rows(&opening, opening.len(), 8, graph_glyphs());
+        assert_eq!(rows[2].to_text(graph_glyphs()), "├─┼─◆ ");
+        assert_eq!(rows[2].cells[1].lane, rows[0].color());
+        assert_eq!(rows[2].cells[3].lane, rows[0].color());
+        assert_eq!(rows[2].cells[2].lane, rows[1].color());
+    }
+
+    #[test]
+    fn new_branch_in_a_reused_slot_gets_its_own_color() {
+        let commits = [commit(1, &[]), commit(2, &[3]), commit(3, &[])];
+        let rows = graph_rows(&commits, commits.len(), 8, graph_glyphs());
+        assert_ne!(rows[0].color(), rows[1].color());
+        assert_eq!(rows[1].color(), rows[2].color());
+    }
+
+    #[test]
+    fn unrelated_root_counts_as_a_folded_lane_only_on_its_own_row() {
+        let commits = [
+            commit(1, &[4]),
+            commit(2, &[5]),
+            commit(3, &[]),
+            commit(4, &[]),
+            commit(5, &[]),
+        ];
+        let rows = graph_rows(&commits, commits.len(), 2, graph_glyphs());
+        assert_eq!(rows[2].folded_lanes(), 2);
+        assert_eq!(rows[2].to_text(graph_glyphs()), "│ ◌~");
+        assert_eq!(rows[3].folded_lanes(), 0);
+        assert_eq!(rows[3].to_text(graph_glyphs()), "◌ │ ");
+    }
+
+    #[test]
+    fn incremental_cache_matches_fresh_rows_without_repeating_steps() {
+        let commits = [
+            commit(1, &[4, 5, 6]),
+            commit(2, &[5, 7]),
+            commit(3, &[8]),
+            commit(4, &[9]),
+            commit(5, &[9]),
+            commit(6, &[9]),
+            commit(7, &[]),
+            commit(8, &[]),
+            commit(9, &[]),
+        ];
+        for limit in [0, 1, 2, 8] {
+            let mut cache = GraphCache::default();
+            for end in 0..=commits.len() {
+                let expected = graph_rows(&commits, end, limit, graph_glyphs());
+                assert_eq!(
+                    cache.rows(&commits[..end], end, limit, graph_glyphs()),
+                    expected
+                );
+                assert_eq!(cache.steps, end);
+            }
+            for end in [3, 0, 7, 1, commits.len()] {
+                assert_eq!(
+                    cache.rows(&commits, end, limit, graph_glyphs()),
+                    graph_rows(&commits, end, limit, graph_glyphs())
+                );
+                assert_eq!(cache.steps, commits.len());
+            }
+        }
+    }
+
+    #[test]
+    fn cache_reprojects_width_and_glyph_changes_and_clears_replaced_history() {
+        use super::super::theme::{GlyphMode, RenderConfig};
+
+        let commits = [commit(1, &[4, 5, 6]), commit(2, &[7]), commit(3, &[8])];
+        let ascii = RenderContext::new(RenderConfig {
+            glyph_mode: GlyphMode::Ascii,
+            ..Default::default()
+        })
+        .glyphs()
+        .graph;
+        let mut cache = GraphCache::default();
+        cache.rows(&commits, commits.len(), 8, graph_glyphs());
+        for limit in [2, 1, 0, 8] {
+            let rows = cache.rows(&commits, usize::MAX, limit, ascii);
+            assert_eq!(rows, graph_rows(&commits, commits.len(), limit, ascii));
+            assert!(rows.iter().all(|row| row.to_text(ascii).is_ascii()));
+            assert!(
+                rows.iter()
+                    .all(|row| row.width() <= limit.max(1) * LANE_WIDTH)
+            );
+        }
+        cache.clear();
+        let replacement = [commit(30, &[31]), commit(31, &[]), commit(32, &[])];
+        assert_eq!(
+            cache.rows(&replacement, 3, 8, ascii),
+            graph_rows(&replacement, 3, 8, ascii)
+        );
+        assert_eq!(cache.steps, 3);
+    }
+
+    #[test]
+    fn many_independent_tips_keep_indexed_pending_lanes() {
+        let commits: Vec<_> = (1..=10_000)
+            .map(|id| {
+                let mut tip = commit(1, &[]);
+                tip.id = Oid::parse_with_format(&format!("{id:040x}"), ObjectFormat::Sha1).unwrap();
+                tip.parents = vec![
+                    Oid::parse_with_format(&format!("{:040x}", id + 10_000), ObjectFormat::Sha1)
+                        .unwrap(),
+                ];
+                tip
+            })
+            .collect();
+        let mut cache = GraphCache::default();
+        cache.rows(&commits, commits.len(), 3, graph_glyphs());
+        assert_eq!(cache.state.pending.len(), 10_000);
+        assert_eq!(cache.state.active.len(), 10_000);
+        assert_eq!(cache.rows.last().unwrap().folded_lanes(), 9_998);
+        cache.rows(&commits, 10, 3, graph_glyphs());
+        assert_eq!(cache.steps, 10_000);
+    }
+
+    #[test]
+    fn selected_branch_spans_are_bold_without_recoloring_other_lanes() {
+        let context = RenderContext::new(Default::default());
+        let commits = [commit(1, &[3]), commit(2, &[4])];
+        let rows = graph_rows(&commits, 2, 8, graph_glyphs());
+        let plain = rows[1].spans(&context);
+        let highlighted = rows[1].spans_with_highlight(&context, Some(rows[1].color()));
+        assert_eq!(plain.len(), highlighted.len());
+        for (plain, highlighted) in plain.iter().zip(&highlighted) {
+            assert_eq!(plain.content, highlighted.content);
+            assert_eq!(plain.style.fg, highlighted.style.fg);
+        }
+        assert!(
+            highlighted
+                .iter()
+                .any(|span| span.style.add_modifier.contains(Modifier::BOLD))
+        );
+        assert!(!highlighted[0].style.add_modifier.contains(Modifier::BOLD));
     }
 
     #[test]

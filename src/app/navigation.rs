@@ -125,12 +125,7 @@ impl App {
     }
 
     pub(super) fn move_active(&mut self, delta: i32) -> Vec<Effect> {
-        if self.view == View::Detail
-            || self.view == View::Compare
-            || self.view == View::StatusDiff
-            || self.view == View::Blob
-            || self.focus == Focus::Preview
-        {
+        if self.scrolls_document() {
             self.scroll_diff(delta);
             return Vec::new();
         }
@@ -148,11 +143,7 @@ impl App {
     }
 
     pub(super) fn first_active(&mut self) -> Vec<Effect> {
-        if matches!(
-            self.view,
-            View::Detail | View::Compare | View::StatusDiff | View::Blob
-        ) || self.focus == Focus::Preview
-        {
+        if self.scrolls_document() {
             self.diff_scroll = 0;
             Vec::new()
         } else if self.view == View::Log {
@@ -164,11 +155,7 @@ impl App {
     }
 
     pub(super) fn last_active(&mut self) -> Vec<Effect> {
-        if matches!(
-            self.view,
-            View::Detail | View::Compare | View::StatusDiff | View::Blob
-        ) || self.focus == Focus::Preview
-        {
+        if self.scrolls_document() {
             self.diff_scroll = self.diff_len().saturating_sub(1);
             Vec::new()
         } else if self.view == View::Log {

@@ -69,7 +69,8 @@ another action's built-in key, that displaced action is shown as unbound rather
 than advertising a key it no longer owns. Modal recovery remains invariant:
 `Esc` closes text/help overlays, and `r`/`Esc` retry or dismiss a visible request
 error even when those keys have normal-view remaps. The documented semantic
-navigation and view actions—including `file-picker` and `redraw`—are remappable;
+navigation and view actions—including `file-picker`, `toggle-diff-fullscreen`
+(default `F`), and `redraw`—are remappable;
 internal overlay editing operations are intentionally not configuration keys.
 
 Configuration never enables Git mutation, repository-controlled helpers,

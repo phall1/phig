@@ -3,6 +3,7 @@
 mod chrome;
 mod diff;
 mod format;
+mod fullscreen;
 mod graph;
 mod history;
 mod inspect;
@@ -18,6 +19,17 @@ use ratatui::{
 };
 
 use crate::app::{App, Overlay, View};
+
+#[derive(Default)]
+pub(crate) struct RenderState {
+    history: graph::GraphCache,
+}
+
+impl RenderState {
+    pub(crate) fn clear_history(&mut self) {
+        self.history.clear();
+    }
+}
 
 pub(crate) use layout::{page_rows, preview_focus_available};
 pub(crate) use theme::legacy_config;
@@ -54,6 +66,15 @@ fn render_divider(frame: &mut Frame<'_>, layout: layout::PaneLayout, context: &R
 }
 
 pub fn render_with_context(frame: &mut Frame<'_>, app: &App, context: &RenderContext) {
+    render_with_state(frame, app, context, &mut RenderState::default());
+}
+
+pub(crate) fn render_with_state(
+    frame: &mut Frame<'_>,
+    app: &App,
+    context: &RenderContext,
+    state: &mut RenderState,
+) {
     let area = frame.area();
     let rows = Layout::default()
         .direction(Direction::Vertical)
@@ -65,17 +86,21 @@ pub fn render_with_context(frame: &mut Frame<'_>, app: &App, context: &RenderCon
         .split(area);
 
     chrome::render_header(frame, app, rows[0], context);
-    match app.view {
-        View::Log => history::render_log(frame, app, rows[1], context),
-        View::Detail => diff::render_detail(frame, app, rows[1], context),
-        View::Compare => inspect::render_compare(frame, app, rows[1], context),
-        View::Refs => inspect::render_refs(frame, app, rows[1], context),
-        View::Status => inspect::render_status(frame, app, rows[1], context),
-        View::StatusDiff => inspect::render_status_diff(frame, app, rows[1], context),
-        View::Tree => inspect::render_tree(frame, app, rows[1], context),
-        View::Blob => inspect::render_blob(frame, app, rows[1], context),
-        View::Blame => inspect::render_blame(frame, app, rows[1], context),
-        View::Stash => inspect::render_stashes(frame, app, rows[1], context),
+    if app.diff_fullscreen {
+        fullscreen::render(frame, app, rows[1], context);
+    } else {
+        match app.view {
+            View::Log => history::render_log(frame, app, rows[1], context, &mut state.history),
+            View::Detail => diff::render_detail(frame, app, rows[1], context),
+            View::Compare => inspect::render_compare(frame, app, rows[1], context),
+            View::Refs => inspect::render_refs(frame, app, rows[1], context),
+            View::Status => inspect::render_status(frame, app, rows[1], context),
+            View::StatusDiff => inspect::render_status_diff(frame, app, rows[1], context),
+            View::Tree => inspect::render_tree(frame, app, rows[1], context),
+            View::Blob => inspect::render_blob(frame, app, rows[1], context),
+            View::Blame => inspect::render_blame(frame, app, rows[1], context),
+            View::Stash => inspect::render_stashes(frame, app, rows[1], context),
+        }
     }
     chrome::render_footer(frame, app, rows[2], context);
 

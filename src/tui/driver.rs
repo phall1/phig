@@ -10,7 +10,7 @@ use crate::{
     config::KeyBindings,
     git::GitClient,
     protocol::{SelectionPayload, selection_from_app},
-    runtime::Coordinator,
+    runtime::{Coordinator, GitQuery, GitResult, RequestKey},
 };
 
 #[cfg(unix)]
@@ -112,180 +112,275 @@ pub fn run_select_with_options(
 }
 
 fn run_loop(
-    mut app: App,
+    app: App,
     client: GitClient,
     selection_kind: Option<SelectionKind>,
     options: TuiOptions,
     mut session: TerminalSession,
 ) -> Result<Option<SelectionPayload>, TuiError> {
-    let coordinator = Coordinator::new(client, 2, 128);
     let render_context =
         RenderContext::with_bindings(options.render.clone(), options.bindings.clone());
-    let mut pending = HashMap::new();
+    let mut state = LoopState {
+        app,
+        coordinator: Coordinator::new(client, 2, 128),
+        options,
+        selection_kind,
+        pending: HashMap::new(),
+        selection: None,
+        terminating_signal: None,
+        render: render::RenderState::default(),
+    };
     #[cfg(unix)]
     let signals = SignalMonitor::new()?;
-    let mut terminating_signal = None;
-    let mut selection = None;
-    let size = session.terminal_mut().size()?;
-    app.set_preview_focus_available(render::preview_focus_available(
-        &app,
-        size.width,
-        size.height,
-    ));
-    dispatch_effects(&coordinator, &app, app.initial_effects(), &mut pending)?;
-    while !app.should_quit {
+    state.page_rows(&mut session)?;
+    state.dispatch(state.app.initial_effects())?;
+    while !state.app.should_quit {
         #[cfg(unix)]
-        while let Some(signal) = signals.try_recv() {
-            use signal_hook::consts::signal::{SIGHUP, SIGINT, SIGTERM, SIGTSTP};
-            match signal {
-                SIGINT | SIGTERM | SIGHUP => {
-                    terminating_signal = Some(signal);
-                    app.should_quit = true;
-                }
-                SIGTSTP => {
-                    session.restore()?;
-                    signal_hook::low_level::emulate_default_handler(SIGTSTP)?;
-                    session = if selection_kind.is_some() {
-                        TerminalSession::enter_controlling_tty(
-                            options.no_alt_screen,
-                            options.mouse,
-                        )?
-                    } else {
-                        TerminalSession::enter_configured(options.no_alt_screen, options.mouse)?
-                    };
-                    let size = session.terminal_mut().size()?;
-                    app.set_preview_focus_available(render::preview_focus_available(
-                        &app,
-                        size.width,
-                        size.height,
-                    ));
-                    app.dirty = true;
-                }
-                _ => {}
-            }
+        state.drain_signals(&signals, &mut session)?;
+        if state.app.should_quit {
+            break;
         }
-        retry_pending(&coordinator, &mut pending)?;
-        while let Some(response) = coordinator.try_recv() {
-            apply_response(&mut app, &coordinator, response, &mut pending)?;
-        }
-        if app.dirty {
-            session
-                .terminal_mut()
-                .draw(|frame| render::render_with_context(frame, &app, &render_context))?;
-            app.dirty = false;
-        }
-        if event::poll(Duration::from_millis(50))? {
-            match event::read()? {
-                Event::Key(key) if key.kind != KeyEventKind::Release => {
-                    if key.code == KeyCode::Char('c')
-                        && key.modifiers.contains(KeyModifiers::CONTROL)
-                    {
-                        #[cfg(unix)]
-                        {
-                            terminating_signal = Some(signal_hook::consts::signal::SIGINT);
-                        }
-                        app.should_quit = true;
-                        continue;
-                    }
-                    let size = session.terminal_mut().size()?;
-                    app.set_preview_focus_available(render::preview_focus_available(
-                        &app,
-                        size.width,
-                        size.height,
-                    ));
-                    let action = resolve_action(&app, &options.bindings, key);
-                    if let Some(kind) = selection_kind
-                        && matches!(app.overlay, Overlay::None)
-                    {
-                        if action == Some(Action::Open)
-                            && let Some(value) = selection_from_app(&app, kind)
-                        {
-                            selection = Some(value);
-                            app.should_quit = true;
-                            continue;
-                        }
-                        if matches!(action, Some(Action::Quit | Action::Back)) {
-                            app.should_quit = true;
-                            continue;
-                        }
-                    }
-                    if let Some(action) = action {
-                        let rows = render::page_rows(&app, size.width, size.height);
-                        let previous_view = app.view;
-                        let effects = app.update(action, rows);
-                        if app.view != previous_view {
-                            invalidate_for_transition(
-                                &coordinator,
-                                &mut pending,
-                                previous_view,
-                                app.view,
-                            );
-                        }
-                        if app.take_copy_request() {
-                            if options.clipboard_osc52 {
-                                if let Some(value) = app.copy_value() {
-                                    session.copy_osc52(&value)?;
-                                    app.set_notice("Copied selection with OSC 52");
-                                } else {
-                                    app.set_notice("Nothing stable to copy here");
-                                }
-                            } else {
-                                app.set_notice(
-                                    "Clipboard copy is disabled by ui.clipboard = \"off\"",
-                                );
-                            }
-                        }
-                        if app.take_redraw_request() {
-                            session.force_redraw()?;
-                            app.dirty = true;
-                        }
-                        dispatch_effects(&coordinator, &app, effects, &mut pending)?;
-                    }
-                }
-                Event::Paste(value) => {
-                    if matches!(
-                        app.overlay,
-                        Overlay::Search { .. }
-                            | Overlay::Palette { .. }
-                            | Overlay::FilePicker { .. }
-                    ) {
-                        let size = session.terminal_mut().size()?;
-                        let rows = render::page_rows(&app, size.width, size.height);
-                        let effects = apply_paste(&mut app, &value, rows);
-                        dispatch_effects(&coordinator, &app, effects, &mut pending)?;
-                    }
-                }
-                Event::Mouse(event) => {
-                    let action = match event.kind {
-                        MouseEventKind::ScrollDown => Some(Action::Move(3)),
-                        MouseEventKind::ScrollUp => Some(Action::Move(-3)),
-                        _ => None,
-                    };
-                    if let Some(action) = action {
-                        let size = session.terminal_mut().size()?;
-                        app.set_preview_focus_available(render::preview_focus_available(
-                            &app,
-                            size.width,
-                            size.height,
-                        ));
-                        let rows = render::page_rows(&app, size.width, size.height);
-                        let effects = app.update(action, rows);
-                        dispatch_effects(&coordinator, &app, effects, &mut pending)?;
-                    }
-                }
-                Event::Resize(width, height) => app.set_preview_focus_available(
-                    render::preview_focus_available(&app, width, height),
-                ),
-                Event::FocusGained | Event::FocusLost => {}
-                _ => {}
-            }
-        }
+        state.tick(&mut session, &render_context)?;
     }
     session.restore()?;
-    if let Some(signal) = terminating_signal {
+    if let Some(signal) = state.terminating_signal {
         Err(TuiError::Terminated(signal))
     } else {
-        Ok(selection)
+        Ok(state.selection)
+    }
+}
+
+struct LoopState {
+    app: App,
+    coordinator: Coordinator,
+    options: TuiOptions,
+    selection_kind: Option<SelectionKind>,
+    pending: HashMap<RequestKey, GitQuery>,
+    selection: Option<SelectionPayload>,
+    terminating_signal: Option<i32>,
+    render: render::RenderState,
+}
+
+impl LoopState {
+    #[cfg(unix)]
+    fn drain_signals(
+        &mut self,
+        signals: &SignalMonitor,
+        session: &mut TerminalSession,
+    ) -> Result<(), TuiError> {
+        while let Some(signal) = signals.try_recv() {
+            self.signal(signal, session)?;
+        }
+        Ok(())
+    }
+
+    fn tick(
+        &mut self,
+        session: &mut TerminalSession,
+        context: &RenderContext,
+    ) -> Result<(), TuiError> {
+        retry_pending(&self.coordinator, &mut self.pending)?;
+        self.receive()?;
+        if self.app.dirty {
+            session.terminal_mut().draw(|frame| {
+                render::render_with_state(frame, &self.app, context, &mut self.render)
+            })?;
+            self.app.dirty = false;
+        }
+        self.read_events(session)
+    }
+
+    fn dispatch(&mut self, effects: Vec<Effect>) -> Result<(), TuiError> {
+        dispatch_effects(&self.coordinator, &self.app, effects, &mut self.pending)
+    }
+
+    fn page_rows(&mut self, session: &mut TerminalSession) -> Result<usize, TuiError> {
+        let size = session.terminal_mut().size()?;
+        self.app
+            .set_preview_focus_available(render::preview_focus_available(
+                &self.app,
+                size.width,
+                size.height,
+            ));
+        Ok(render::page_rows(&self.app, size.width, size.height))
+    }
+
+    fn receive(&mut self) -> Result<(), TuiError> {
+        while let Some(response) = self.coordinator.try_recv() {
+            if matches!(&response.result, Ok(GitResult::History(page)) if page.offset == 0)
+                && self
+                    .coordinator
+                    .is_current(response.key, response.generation)
+            {
+                self.render.clear_history();
+            }
+            apply_response(
+                &mut self.app,
+                &self.coordinator,
+                response,
+                &mut self.pending,
+            )?;
+        }
+        Ok(())
+    }
+
+    fn read_events(&mut self, session: &mut TerminalSession) -> Result<(), TuiError> {
+        if !event::poll(Duration::from_millis(16))? {
+            return Ok(());
+        }
+        // Drain a bounded burst before painting; held keys and pasted input need
+        // one current frame, not a chain of expensive intermediate frames.
+        for _ in 0..32 {
+            self.event(event::read()?, session)?;
+            if self.app.should_quit || !event::poll(Duration::ZERO)? {
+                break;
+            }
+        }
+        Ok(())
+    }
+
+    fn event(&mut self, event: Event, session: &mut TerminalSession) -> Result<(), TuiError> {
+        match event {
+            Event::Key(key) if key.kind != KeyEventKind::Release => self.key(key, session)?,
+            Event::Paste(value) => self.paste(&value, session)?,
+            Event::Mouse(mouse) => match mouse.kind {
+                MouseEventKind::ScrollDown => self.action(Action::Move(3), session)?,
+                MouseEventKind::ScrollUp => self.action(Action::Move(-3), session)?,
+                _ => {}
+            },
+            Event::Resize(width, height) => {
+                self.app
+                    .set_preview_focus_available(render::preview_focus_available(
+                        &self.app, width, height,
+                    ));
+                self.app.dirty = true;
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+
+    fn key(
+        &mut self,
+        key: crossterm::event::KeyEvent,
+        session: &mut TerminalSession,
+    ) -> Result<(), TuiError> {
+        if key.code == KeyCode::Char('c') && key.modifiers.contains(KeyModifiers::CONTROL) {
+            #[cfg(unix)]
+            {
+                self.terminating_signal = Some(signal_hook::consts::signal::SIGINT);
+            }
+            self.app.should_quit = true;
+            return Ok(());
+        }
+        let Some(action) = resolve_action(&self.app, &self.options.bindings, key) else {
+            return Ok(());
+        };
+        if !self.select(&action) {
+            self.action(action, session)?;
+        }
+        Ok(())
+    }
+
+    fn select(&mut self, action: &Action) -> bool {
+        let Some(kind) = self.selection_kind else {
+            return false;
+        };
+        if !matches!(self.app.overlay, Overlay::None) {
+            return false;
+        }
+        if *action == Action::Open
+            && let Some(value) = selection_from_app(&self.app, kind)
+        {
+            self.selection = Some(value);
+            self.app.should_quit = true;
+            return true;
+        }
+        if matches!(action, Action::Quit | Action::Back) {
+            self.app.should_quit = true;
+            return true;
+        }
+        false
+    }
+
+    fn action(&mut self, action: Action, session: &mut TerminalSession) -> Result<(), TuiError> {
+        let rows = self.page_rows(session)?;
+        let previous = self.app.view;
+        let effects = self.app.update(action, rows);
+        if self.app.view != previous {
+            invalidate_for_transition(
+                &self.coordinator,
+                &mut self.pending,
+                previous,
+                self.app.view,
+            );
+        }
+        if self.app.commits.is_empty() {
+            self.render.clear_history();
+        }
+        if self.app.take_copy_request() {
+            self.copy(session)?;
+        }
+        if self.app.take_redraw_request() {
+            session.force_redraw()?;
+            self.app.dirty = true;
+        }
+        self.dispatch(effects)
+    }
+
+    fn copy(&mut self, session: &mut TerminalSession) -> Result<(), TuiError> {
+        if !self.options.clipboard_osc52 {
+            self.app
+                .set_notice("Clipboard copy is disabled by ui.clipboard = \"off\"");
+        } else if let Some(value) = self.app.copy_value() {
+            session.copy_osc52(&value)?;
+            self.app.set_notice("Copied selection with OSC 52");
+        } else {
+            self.app.set_notice("Nothing stable to copy here");
+        }
+        Ok(())
+    }
+
+    fn paste(&mut self, value: &str, session: &mut TerminalSession) -> Result<(), TuiError> {
+        if matches!(
+            self.app.overlay,
+            Overlay::Search { .. } | Overlay::Palette { .. } | Overlay::FilePicker { .. }
+        ) {
+            let rows = self.page_rows(session)?;
+            let effects = apply_paste(&mut self.app, value, rows);
+            self.dispatch(effects)?;
+        }
+        Ok(())
+    }
+
+    #[cfg(unix)]
+    fn signal(&mut self, signal: i32, session: &mut TerminalSession) -> Result<(), TuiError> {
+        use signal_hook::consts::signal::{SIGHUP, SIGINT, SIGTERM, SIGTSTP};
+        match signal {
+            SIGINT | SIGTERM | SIGHUP => {
+                self.terminating_signal = Some(signal);
+                self.app.should_quit = true;
+            }
+            SIGTSTP => {
+                session.restore()?;
+                signal_hook::low_level::emulate_default_handler(SIGTSTP)?;
+                *session = if self.selection_kind.is_some() {
+                    TerminalSession::enter_controlling_tty(
+                        self.options.no_alt_screen,
+                        self.options.mouse,
+                    )?
+                } else {
+                    TerminalSession::enter_configured(
+                        self.options.no_alt_screen,
+                        self.options.mouse,
+                    )?
+                };
+                self.page_rows(session)?;
+                self.app.dirty = true;
+            }
+            _ => {}
+        }
+        Ok(())
     }
 }
 

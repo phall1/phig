@@ -1,5 +1,8 @@
 #![cfg(unix)]
 
+mod support;
+use support::{PtyChild, readiness_timeout};
+
 use std::{
     fs,
     io::{Read, Write},
@@ -12,6 +15,51 @@ use std::{
 use portable_pty::{Child, CommandBuilder, ExitStatus, PtySize, native_pty_system};
 
 static PTY_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+#[test]
+fn pty_child_guard_closes_descendant_pipes_when_an_assertion_unwinds() {
+    let pair = native_pty_system().openpty(PtySize::default()).unwrap();
+    let mut command = CommandBuilder::new("sh");
+    command.args(["-c", "sleep 10 & printf guard-ready; wait"]);
+    let child = PtyChild::new(pair.slave.spawn_command(command).unwrap());
+    drop(pair.slave);
+    let (output, reader) = read_live(pair.master.try_clone_reader().unwrap());
+    wait_for_marker(&output, "guard-ready", Duration::from_secs(3));
+    let unwound = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let _child = child;
+        panic!("deliberate assertion failure exercises the cleanup path");
+    }));
+    assert!(unwound.is_err());
+    let (done, completion) = std::sync::mpsc::channel();
+    thread::spawn(move || {
+        reader.join().unwrap();
+        let _ = done.send(());
+    });
+    completion
+        .recv_timeout(Duration::from_secs(3))
+        .expect("test descendants retained the PTY after unwinding");
+}
+
+#[test]
+fn pty_child_guard_cleans_descendants_after_the_leader_exits() {
+    let pair = native_pty_system().openpty(PtySize::default()).unwrap();
+    let mut command = CommandBuilder::new("sh");
+    command.args(["-c", "trap '' HUP; sleep 10 & printf guard-ready"]);
+    let mut child = PtyChild::new(pair.slave.spawn_command(command).unwrap());
+    drop(pair.slave);
+    let (output, reader) = read_live(pair.master.try_clone_reader().unwrap());
+    wait_for_marker(&output, "guard-ready", Duration::from_secs(3));
+    assert!(child.wait().unwrap().success());
+    drop(child);
+    let (done, completion) = std::sync::mpsc::channel();
+    thread::spawn(move || {
+        reader.join().unwrap();
+        let _ = done.send(());
+    });
+    completion
+        .recv_timeout(Duration::from_secs(3))
+        .expect("exited leader left a descendant holding the PTY");
+}
 
 fn read_live(mut reader: Box<dyn Read + Send>) -> (Arc<Mutex<Vec<u8>>>, thread::JoinHandle<()>) {
     let output = Arc::new(Mutex::new(Vec::new()));
@@ -35,7 +83,7 @@ fn output_text(output: &Arc<Mutex<Vec<u8>>>) -> String {
 }
 
 fn wait_for_marker(output: &Arc<Mutex<Vec<u8>>>, marker: &str, timeout: Duration) {
-    let deadline = Instant::now() + timeout;
+    let deadline = Instant::now() + readiness_timeout(timeout);
     loop {
         if output_text(output).contains(marker) {
             return;
@@ -55,7 +103,7 @@ fn wait_for_marker_count(
     minimum: usize,
     timeout: Duration,
 ) {
-    let deadline = Instant::now() + timeout;
+    let deadline = Instant::now() + readiness_timeout(timeout);
     loop {
         if output_text(output).matches(marker).count() >= minimum {
             return;
@@ -148,7 +196,7 @@ fn run_view(repo: &std::path::Path, args: &[&str], ready: &str) -> String {
     command.cwd(repo);
     command.env("TERM", "xterm-256color");
     command.env("NO_COLOR", "1");
-    let mut child = pair.slave.spawn_command(command).unwrap();
+    let mut child = PtyChild::new(pair.slave.spawn_command(command).unwrap());
     drop(pair.slave);
     let reader = pair.master.try_clone_reader().unwrap();
     let (output, reader_thread) = read_live(reader);
@@ -274,7 +322,7 @@ fn narrow_status_enter_opens_full_working_diff_and_returns() {
     command.cwd(repo.path());
     command.env("TERM", "xterm-256color");
     command.env("NO_COLOR", "1");
-    let mut child = pair.slave.spawn_command(command).unwrap();
+    let mut child = PtyChild::new(pair.slave.spawn_command(command).unwrap());
     drop(pair.slave);
     let reader = pair.master.try_clone_reader().unwrap();
     let (output, reader_thread) = read_live(reader);
@@ -331,7 +379,7 @@ fn narrow_log_cannot_focus_an_invisible_preview() {
     command.cwd(repo.path());
     command.env("TERM", "xterm-256color");
     command.env("NO_COLOR", "1");
-    let mut child = pair.slave.spawn_command(command).unwrap();
+    let mut child = PtyChild::new(pair.slave.spawn_command(command).unwrap());
     drop(pair.slave);
     let reader = pair.master.try_clone_reader().unwrap();
     let (output, reader_thread) = read_live(reader);
@@ -392,7 +440,7 @@ fn real_pty_exercises_navigation_overlays_resize_and_cleanup() {
     command.cwd(repo.path());
     command.env("TERM", "xterm-256color");
     command.env("NO_COLOR", "1");
-    let mut child = pair.slave.spawn_command(command).unwrap();
+    let mut child = PtyChild::new(pair.slave.spawn_command(command).unwrap());
     drop(pair.slave);
 
     let reader = pair.master.try_clone_reader().unwrap();
@@ -415,6 +463,12 @@ fn real_pty_exercises_navigation_overlays_resize_and_cleanup() {
     writer.flush().unwrap();
     wait_for_marker(&output, "SHOW", Duration::from_secs(5));
     wait_for_marker(&output, "+side", Duration::from_secs(5));
+    writer.write_all(b"F").unwrap();
+    writer.flush().unwrap();
+    // The terminal sends only changed cells; footer text can be split around
+    // unchanged letters. The new DIFF header is an unambiguous transition.
+    wait_for_marker(&output, "DIFF", Duration::from_secs(3));
+    writer.write_all(b"F").unwrap(); // restore the detailed layout without a Git reload
     writer.write_all(b"f").unwrap();
     writer.flush().unwrap();
     wait_for_marker(&output, "Changed", Duration::from_secs(3));
@@ -500,7 +554,7 @@ fn remapped_printable_key_still_types_in_every_text_overlay() {
     command.cwd(repo.path());
     command.env("TERM", "xterm-256color");
     command.env("NO_COLOR", "1");
-    let mut child = pair.slave.spawn_command(command).unwrap();
+    let mut child = PtyChild::new(pair.slave.spawn_command(command).unwrap());
     drop(pair.slave);
     let reader = pair.master.try_clone_reader().unwrap();
     let (output, reader_thread) = read_live(reader);
@@ -622,7 +676,7 @@ fn no_alt_screen_mode_leaves_scrollback_and_restores_cursor() {
     command.args(["--no-alt-screen", "show", "HEAD", "--", "file.txt"]);
     command.cwd(repo.path());
     command.env("TERM", "xterm-256color");
-    let mut child = pair.slave.spawn_command(command).unwrap();
+    let mut child = PtyChild::new(pair.slave.spawn_command(command).unwrap());
     drop(pair.slave);
     let reader = pair.master.try_clone_reader().unwrap();
     let (output, reader_thread) = read_live(reader);
@@ -684,7 +738,7 @@ fn clipboard_defaults_to_osc52_and_explicit_off_reports_disabled() {
         command.arg("--no-alt-screen");
         command.cwd(repo.path());
         command.env("TERM", "xterm-256color");
-        let mut child = pair.slave.spawn_command(command).unwrap();
+        let mut child = PtyChild::new(pair.slave.spawn_command(command).unwrap());
         drop(pair.slave);
         let reader = pair.master.try_clone_reader().unwrap();
         let (output, reader_thread) = read_live(reader);
@@ -736,7 +790,7 @@ fn external_termination_signal_restores_the_terminal() {
         let mut command = CommandBuilder::new(assert_cmd::cargo::cargo_bin!("phig"));
         command.cwd(repo.path());
         command.env("TERM", "xterm-256color");
-        let mut child = pair.slave.spawn_command(command).unwrap();
+        let mut child = PtyChild::new(pair.slave.spawn_command(command).unwrap());
         drop(pair.slave);
         let process_id = child.process_id().expect("PTY child has a process id");
         let reader = pair.master.try_clone_reader().unwrap();

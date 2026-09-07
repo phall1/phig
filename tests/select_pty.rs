@@ -1,5 +1,8 @@
 #![cfg(unix)]
 
+mod support;
+use support::{PtyChild, readiness_timeout};
+
 use portable_pty::{CommandBuilder, PtySize, native_pty_system};
 use std::{
     fs,
@@ -57,7 +60,7 @@ fn validate_protocol(value: &serde_json::Value) {
 }
 
 fn wait_for_output(output: &Arc<Mutex<Vec<u8>>>, marker: &str, timeout: Duration) {
-    let deadline = Instant::now() + timeout;
+    let deadline = Instant::now() + readiness_timeout(timeout);
     loop {
         let snapshot = output
             .lock()
@@ -142,7 +145,7 @@ fn run_script(repo: &std::path::Path, script: &str, ready: &str, key: u8) -> Str
     cmd.cwd(repo);
     cmd.env("TERM", "xterm-256color");
     cmd.env("NO_COLOR", "1");
-    let mut child = pair.slave.spawn_command(cmd).unwrap();
+    let mut child = PtyChild::new(pair.slave.spawn_command(cmd).unwrap());
     drop(pair.slave);
     let reader = pair.master.try_clone_reader().unwrap();
     let (output, read) = read_live(reader);
@@ -278,7 +281,7 @@ fn configured_keys_are_remaps_not_additive_aliases() {
     command.arg(config);
     command.cwd(d.path());
     command.env("TERM", "xterm-256color");
-    let mut child = pair.slave.spawn_command(command).unwrap();
+    let mut child = PtyChild::new(pair.slave.spawn_command(command).unwrap());
     drop(pair.slave);
     let reader = pair.master.try_clone_reader().unwrap();
     let (output, read) = read_live(reader);
@@ -332,7 +335,7 @@ fn selection_cancellation_honors_semantic_quit_remap() {
     ]);
     command.cwd(d.path());
     command.env("TERM", "xterm-256color");
-    let mut child = pair.slave.spawn_command(command).unwrap();
+    let mut child = PtyChild::new(pair.slave.spawn_command(command).unwrap());
     drop(pair.slave);
     let reader = pair.master.try_clone_reader().unwrap();
     let (output, read) = read_live(reader);

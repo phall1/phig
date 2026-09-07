@@ -16,52 +16,27 @@ impl App {
         if self.overlay != Overlay::None {
             return self.update_overlay(action, page_rows);
         }
+        let previous = self.view;
+        let effects = self.reduce_action(action, page_rows);
+        if self.view != previous {
+            self.reset_view_presentation();
+        }
+        self.prepare_file_picker();
+        effects
+    }
 
+    fn reduce_action(&mut self, action: Action, page_rows: usize) -> Vec<Effect> {
         match action {
             Action::Move(delta) => self.move_active(delta),
             Action::Page(delta) => self.move_active(delta.saturating_mul(page_rows.max(1) as i32)),
             Action::First => self.first_active(),
             Action::Last => self.last_active(),
+            Action::Open if self.diff_fullscreen => self.toggle_diff_fullscreen(),
             Action::Open => self.open_active(),
-            Action::Back | Action::Quit => {
-                self.inspect.compare_picker = false;
-                if let Some(previous) = self.view_stack.pop() {
-                    self.view = previous;
-                    self.focus = Focus::List;
-                    self.dirty = true;
-                } else if self.view != View::Log {
-                    self.view = View::Log;
-                    self.focus = Focus::List;
-                } else {
-                    self.should_quit = true;
-                }
-                self.inspect.loading = false;
-                if self.view == View::Log && self.commits.is_empty() && !self.should_quit {
-                    self.history_loading = true;
-                    vec![Effect::LoadHistory {
-                        offset: 0,
-                        limit: self.history_page_size,
-                    }]
-                } else {
-                    Vec::new()
-                }
-            }
-            Action::TogglePreview => {
-                self.show_preview = !self.show_preview;
-                if !self.show_preview {
-                    self.focus = Focus::List;
-                }
-                Vec::new()
-            }
-            Action::ToggleFocus => {
-                if self.view == View::Log && self.show_preview && self.preview_focus_available {
-                    self.focus = match self.focus {
-                        Focus::List => Focus::Preview,
-                        Focus::Preview => Focus::List,
-                    };
-                }
-                Vec::new()
-            }
+            Action::Back | Action::Quit => self.back(),
+            Action::TogglePreview => self.toggle_preview(),
+            Action::ToggleDiffFullscreen => self.toggle_diff_fullscreen(),
+            Action::ToggleFocus => self.toggle_focus(),
             Action::StartSearch => {
                 self.overlay = Overlay::Search {
                     draft: self.search_query.clone(),
@@ -149,35 +124,7 @@ impl App {
                 self.inspect.loading = true;
                 vec![Effect::LoadCompare]
             }
-            Action::ToggleStatusDiff => {
-                if self.view != View::Status {
-                    return Vec::new();
-                }
-                let Some(entry) = self
-                    .inspect
-                    .status_entries()
-                    .get(self.inspect.selected)
-                    .cloned()
-                else {
-                    return Vec::new();
-                };
-                let staged_available =
-                    entry.index != StatusCode::Unmodified && entry.index != StatusCode::Untracked;
-                let unstaged_available = entry.worktree != StatusCode::Unmodified
-                    && entry.worktree != StatusCode::Untracked;
-                if !(staged_available && unstaged_available) {
-                    return Vec::new();
-                }
-                self.inspect.status_diff_staged = !self.inspect.status_diff_staged;
-                self.inspect.working_diff_pending = Some(self.inspect.status_diff_staged);
-                self.inspect.working_diff = None;
-                self.inspect.loading = true;
-                self.inspect_error = None;
-                vec![Effect::LoadWorkingDiff {
-                    path: entry.path.clone(),
-                    staged: self.inspect.status_diff_staged,
-                }]
-            }
+            Action::ToggleStatusDiff => self.toggle_status_diff(),
             Action::Ascend => self.ascend_tree(),
             Action::CopySelection => {
                 self.copy_requested = true;
@@ -198,6 +145,63 @@ impl App {
         }
     }
 
+    fn back(&mut self) -> Vec<Effect> {
+        if self.diff_fullscreen {
+            return self.toggle_diff_fullscreen();
+        }
+        self.inspect.compare_picker = false;
+        if let Some(previous) = self.view_stack.pop() {
+            self.view = previous;
+            self.focus = Focus::List;
+        } else if self.view != View::Log {
+            self.view = View::Log;
+            self.focus = Focus::List;
+        } else {
+            self.should_quit = true;
+        }
+        self.inspect.loading = false;
+        if self.view == View::Log && self.commits.is_empty() && !self.should_quit {
+            self.history_loading = true;
+            vec![Effect::LoadHistory {
+                offset: 0,
+                limit: self.history_page_size,
+            }]
+        } else {
+            Vec::new()
+        }
+    }
+
+    fn toggle_status_diff(&mut self) -> Vec<Effect> {
+        if self.view != View::Status {
+            return Vec::new();
+        }
+        let Some(entry) = self
+            .inspect
+            .status_entries()
+            .get(self.inspect.selected)
+            .cloned()
+        else {
+            return Vec::new();
+        };
+        let staged = !matches!(entry.index, StatusCode::Unmodified | StatusCode::Untracked);
+        let unstaged = !matches!(
+            entry.worktree,
+            StatusCode::Unmodified | StatusCode::Untracked
+        );
+        if !(staged && unstaged) {
+            return Vec::new();
+        }
+        self.inspect.status_diff_staged = !self.inspect.status_diff_staged;
+        self.inspect.working_diff_pending = Some(self.inspect.status_diff_staged);
+        self.inspect.working_diff = None;
+        self.inspect.loading = true;
+        self.inspect_error = None;
+        vec![Effect::LoadWorkingDiff {
+            path: entry.path.clone(),
+            staged: self.inspect.status_diff_staged,
+        }]
+    }
+
     pub fn show_help(&mut self) {
         self.overlay = if self.overlay == Overlay::Help {
             Overlay::None
@@ -212,8 +216,13 @@ impl App {
         if page.offset == 0 {
             self.commits.clear();
         }
+        let mut known: std::collections::HashSet<_> = self
+            .commits
+            .iter()
+            .map(|commit| commit.id.clone())
+            .collect();
         for commit in page.commits {
-            if !self.commits.iter().any(|existing| existing.id == commit.id) {
+            if known.insert(commit.id.clone()) {
                 self.commits.push(commit);
             }
         }
@@ -261,6 +270,7 @@ impl App {
                 .and_then(|parent| detail.commit.parents.iter().position(|item| item == parent))
                 .unwrap_or(0);
             self.preview = Some(detail);
+            self.invalidate_file_picker();
             self.preview_loading = false;
             self.preview_error = None;
             self.diff_scroll = self.diff_scroll.min(self.diff_len().saturating_sub(1));
@@ -364,6 +374,7 @@ impl App {
 
     pub fn apply_comparison(&mut self, comparison: Comparison) {
         self.inspect.comparison = Some(comparison);
+        self.invalidate_file_picker();
         self.inspect.loading = false;
         self.inspect_error = None;
         self.diff_scroll = 0;
@@ -373,6 +384,7 @@ impl App {
     pub fn apply_working_diff(&mut self, diff: Diff) {
         self.inspect.working_diff_pending = None;
         self.inspect.working_diff = Some(diff);
+        self.invalidate_file_picker();
         self.inspect.loading = false;
         self.inspect_error = None;
         self.diff_scroll = 0;
@@ -385,7 +397,11 @@ impl App {
             return;
         }
         self.preview_focus_available = available;
-        if self.view == View::Log && self.focus == Focus::Preview && !available {
+        if self.view == View::Log
+            && self.focus == Focus::Preview
+            && !available
+            && !self.diff_fullscreen
+        {
             self.focus = Focus::List;
         }
         self.dirty = true;

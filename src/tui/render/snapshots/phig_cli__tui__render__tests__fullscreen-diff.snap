@@ -1,0 +1,51 @@
+---
+source: src/tui/render/tests.rs
+expression: expanded
+---
+120x28
+ phig LOG phig-demo / main  HEAD
+DIFF aaaaaaaaaa  src/main.rs  ·  file 1/1  ·  hunk 1/1
+@@ -1 +1 @@
+-old
++new
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+ F restore · [/] hunk · f files                                                                                 line 2/4
+
+60x16
+ phig LOG phig-demo / main  HEAD
+DIFF aaaaaaaaaa  src/main.rs  ·  file 1/1  ·  hunk 1/1
+@@ -1 +1 @@
+-old
++new
+
+
+
+
+
+
+
+
+
+
+ F restore · [/] hunk · f files                     line 2/4

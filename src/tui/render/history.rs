@@ -16,22 +16,34 @@ use crate::{
 use super::{
     diff::render_diff,
     format::{display_date, display_width, format_commit_date, pad_right, truncate_with},
-    graph::{GraphRow, graph_rows, lane_limit},
+    graph::{GraphCache, GraphRow, lane_limit},
     layout::log_layout,
     render_divider,
     theme::RenderContext,
 };
 
-pub(super) fn render_log(frame: &mut Frame<'_>, app: &App, area: Rect, context: &RenderContext) {
+pub(super) fn render_log(
+    frame: &mut Frame<'_>,
+    app: &App,
+    area: Rect,
+    context: &RenderContext,
+    cache: &mut GraphCache,
+) {
     let layout = log_layout(app, area);
-    render_history(frame, app, layout.primary, context);
+    render_history(frame, app, layout.primary, context, cache);
     render_divider(frame, layout, context);
     if let Some(preview) = layout.secondary {
         render_preview(frame, app, preview, context);
     }
 }
 
-fn render_history(frame: &mut Frame<'_>, app: &App, area: Rect, context: &RenderContext) {
+fn render_history(
+    frame: &mut Frame<'_>,
+    app: &App,
+    area: Rect,
+    context: &RenderContext,
+    cache: &mut GraphCache,
+) {
     if app.commits.is_empty() {
         let message = if app.history_loading {
             return frame.render_widget(
@@ -66,7 +78,7 @@ fn render_history(frame: &mut Frame<'_>, app: &App, area: Rect, context: &Render
     let maximum_start = app.commits.len().saturating_sub(visible);
     let start = app.selected.saturating_sub(visible / 2).min(maximum_start);
     let end = (start + visible).min(app.commits.len());
-    let rows = graph_rows(
+    let rows = cache.rows(
         &app.commits,
         end,
         lane_limit(area.width),
@@ -76,7 +88,7 @@ fn render_history(frame: &mut Frame<'_>, app: &App, area: Rect, context: &Render
     // stays aligned while the graph breathes.
     let graph_width = rows[start..end]
         .iter()
-        .map(GraphRow::width)
+        .map(|row| row.width() + usize::from(row.folded_lanes() > 0))
         .max()
         .unwrap_or(0);
     let items: Vec<ListItem<'_>> = app.commits[start..end]
@@ -89,6 +101,7 @@ fn render_history(frame: &mut Frame<'_>, app: &App, area: Rect, context: &Render
                 &rows[start + offset],
                 graph_width,
                 app.marked_oid.as_ref() == Some(&commit.id),
+                rows.get(app.selected).map(GraphRow::color),
                 context,
             ))
         })
@@ -108,6 +121,7 @@ pub(super) fn history_line(
     graph: &GraphRow,
     graph_width: usize,
     marked: bool,
+    selected_branch: Option<usize>,
     context: &RenderContext,
 ) -> Line<'static> {
     // Ratatui reserves the highlight symbol outside the item. Budget every
@@ -119,8 +133,8 @@ pub(super) fn history_line(
     } else {
         "  "
     };
-    // A row always ends on a blank lane gap, so that column doubles as the
-    // separator before the object id.
+    // Normal rows end on a blank lane gap. Folded rows need one extra cell
+    // after the bundle marker to keep it distinct from the object id.
     let graph_width = graph_width.max(graph.width());
     let fixed_width = display_width(mark) + graph_width + 9;
     let mut remaining = item_width.saturating_sub(fixed_width);
@@ -137,22 +151,13 @@ pub(super) fn history_line(
         remaining = remaining.saturating_sub(display_width(&age_field));
     }
 
-    let author_width = if width >= 78 && remaining >= minimum_subject.saturating_add(19) {
-        18
-    } else if remaining >= minimum_subject.saturating_add(11) {
-        10
-    } else {
-        0
-    };
-    let author_field = (author_width > 0).then(|| {
-        format!(
-            "{} ",
-            pad_right(
-                &truncate_with(&commit.author.name, author_width, context.glyphs().ellipsis,),
-                author_width,
-            )
-        )
-    });
+    let author_field = author_field(
+        &commit.author.name,
+        width,
+        remaining,
+        minimum_subject,
+        context,
+    );
     if let Some(author) = &author_field {
         remaining = remaining.saturating_sub(display_width(author));
     }
@@ -175,7 +180,10 @@ pub(super) fn history_line(
     let subject = truncate_with(&commit.subject, remaining, context.glyphs().ellipsis);
 
     let mut spans = vec![Span::styled(mark, context.strong(context.accent()))];
-    spans.extend(graph.spans(context));
+    spans.extend(match selected_branch {
+        Some(color) => graph.spans_with_highlight(context, Some(color)),
+        None => graph.spans(context),
+    });
     spans.push(Span::raw(
         " ".repeat(graph_width.saturating_sub(graph.width())),
     ));
@@ -197,6 +205,29 @@ pub(super) fn history_line(
         spans.push(Span::styled(decoration, context.style(context.muted())));
     }
     Line::from(spans)
+}
+
+fn author_field(
+    name: &str,
+    width: u16,
+    remaining: usize,
+    minimum_subject: usize,
+    context: &RenderContext,
+) -> Option<String> {
+    let author_width = if width >= 78 && remaining >= minimum_subject.saturating_add(19) {
+        18
+    } else if remaining >= minimum_subject.saturating_add(11) {
+        10
+    } else {
+        return None;
+    };
+    Some(format!(
+        "{} ",
+        pad_right(
+            &truncate_with(name, author_width, context.glyphs().ellipsis),
+            author_width
+        )
+    ))
 }
 
 pub(super) fn render_preview(

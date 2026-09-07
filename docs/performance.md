@@ -6,6 +6,59 @@ fixture and standard-library harness rather than a developer's changing checkout
 
 ## Release benchmark
 
+### Cached interaction probe
+
+```sh
+MACOSX_DEPLOYMENT_TARGET=12.0 cargo test --release --lib interaction_benchmark -- --ignored --nocapture
+```
+
+This opt-in probe builds 50,000 commits (25,000 independent tips followed by
+their roots) and 50,000 changed paths. It reports 40-sample p50/p95 times for a
+fresh history graph plus frame, cached navigation plus frame, uncached fuzzy
+ranking, and cached file-picker movement plus frame. Frames use Ratatui's
+120×28 test backend. The first optimized test build can take several minutes;
+normal `just check` skips this probe.
+
+The fresh/cached comparison measures this implementation with and without cache
+reuse. It is a rendering/ranking CPU measurement, not end-to-end terminal input
+latency or a comparison against an older release. Graphs retain a computed
+prefix for the terminal session and clear on history replacement, scope changes,
+or lane-width changes. File matches are retained only while their overlay is
+open and refresh when the active patch or query changes. Borrowed file metadata
+is compared before reuse so direct mutations through the public `App` fields
+cannot leave stale paths or jump anchors; unchanged entries avoid allocation
+and fuzzy scoring.
+
+On 2026-09-07, the final Rust 1.88.0 optimized build on the Apple Silicon macOS
+development host, including public-mutation cache validation, produced:
+
+| Probe | p50 | p95 |
+| --- | ---: | ---: |
+| 50k commits, fresh graph + frame | 12.415 ms | 12.922 ms |
+| 50k commits, cached navigation + frame | 0.157 ms | 0.165 ms |
+| 50k files, uncached `srcrs` ranking | 18.460 ms | 25.134 ms |
+| 50k files, cached movement + frame | 0.641 ms | 0.671 ms |
+
+These are not portable timing gates or claimed speedups over the previous
+release. Both cached p95 values were below the 16 ms cached-interaction target.
+Typing a new query still pays the ranking cost; arrow movement and redraw reuse
+it. An earlier run under heavy host contention was much slower; these final
+numbers supersede that run.
+
+### Startup and machine snapshots
+
+Functional PTY readiness checks keep five-second defaults in CI. If the host is
+busy enough that the installed release also misses that deadline, an explicit
+local override avoids mistaking host contention for an application regression:
+
+```sh
+PHIG_TEST_READINESS_MULTIPLIER=3 NEXTEST_TEST_THREADS=2 MACOSX_DEPLOYMENT_TARGET=12.0 just check
+```
+
+Only readiness waits are extended; cancellation/cleanup assertions and the
+release performance gates below retain their normal bounds. On assertion
+failure, PTY guards kill the test process group and reap its direct child.
+
 ```sh
 scripts/benchmark.sh /tmp/phig-benchmark 1000 --json
 ```

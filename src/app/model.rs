@@ -58,6 +58,7 @@ pub enum Action {
     Back,
     Quit,
     TogglePreview,
+    ToggleDiffFullscreen,
     ToggleFocus,
     StartSearch,
     StartPalette,
@@ -217,6 +218,10 @@ pub struct App {
     /// The TUI adapter supplies this semantic fact; the app never owns geometry.
     pub preview_focus_available: bool,
     pub diff_scroll: usize,
+    /// Expand the active patch without changing its semantic view or selection.
+    pub diff_fullscreen: bool,
+    pub(super) fullscreen_previous_focus: Focus,
+    pub(super) file_picker_cache: Option<super::files::FilePickerCache>,
     pub parent_index: usize,
     pub search_query: String,
     /// Direction of a search waiting for another history page (`true` is forward).
@@ -268,6 +273,9 @@ impl App {
             show_preview: true,
             preview_focus_available: true,
             diff_scroll: 0,
+            diff_fullscreen: false,
+            fullscreen_previous_focus: Focus::List,
+            file_picker_cache: None,
             parent_index: 0,
             search_query: String::new(),
             search_pending: None,
