@@ -6,6 +6,8 @@ All notable changes to phig are documented here. The format follows
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-09-07
+
 ### Added
 
 - `F` expands/restores the active diff while retaining its selection and scroll,
