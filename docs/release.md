@@ -60,7 +60,7 @@ Two repository secrets are required by the automated path:
 1. Merge conventional-commit changes to `main`. Prefer the commit types
    `feat:`, `fix:`, `perf:`, and `chore:`; `docs:`/`test:`/`ci:`/`build:`
    commits are hidden from the generated changelog.
-2. When a release PR titled `chore(main): release phig-cli vX.Y.Z` is open,
+2. When a release PR titled `chore(main): release X.Y.Z` is open,
    merge it. Do not merge two release PRs back to back; each merge tags
    immediately.
 3. Wait for the tag-push workflows. Verify the GitHub Release and the crates.io
