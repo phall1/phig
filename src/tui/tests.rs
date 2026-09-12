@@ -30,6 +30,36 @@ fn app() -> App {
     )
 }
 
+#[test]
+fn diff_tree_escape_is_modal_even_with_errors_and_conflicting_remaps() {
+    let mut app = app();
+    app.view = View::StatusDiff;
+    app.apply_working_diff(crate::app::patch::fixture());
+    app.diff_scroll = 5;
+    app.update(Action::ToggleDiffTree, 10);
+    app.update(Action::Last, 10);
+    app.apply_error(
+        RequestKind::History,
+        &GitError::Unsupported("history failed".into()),
+    );
+    let bindings = config::KeyBindings::from_config(&std::collections::BTreeMap::from([(
+        "move-down".into(),
+        "Esc".into(),
+    )]))
+    .unwrap();
+    let action = resolve_action(
+        &app,
+        &bindings,
+        KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE),
+    )
+    .unwrap();
+    assert_eq!(action, Action::CancelOverlay);
+    app.update(action, 10);
+    assert_eq!(app.overlay, Overlay::None);
+    assert_eq!(app.diff_scroll, 5);
+    assert!(app.history_error.is_some());
+}
+
 #[cfg(unix)]
 #[test]
 fn a_full_worker_queue_coalesces_instead_of_failing_the_tui() {

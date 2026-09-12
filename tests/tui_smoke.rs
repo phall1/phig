@@ -468,6 +468,13 @@ fn real_pty_exercises_navigation_overlays_resize_and_cleanup() {
     // The terminal sends only changed cells; footer text can be split around
     // unchanged letters. The new DIFF header is an unambiguous transition.
     wait_for_marker(&output, "DIFF", Duration::from_secs(3));
+    writer.write_all(b"T").unwrap();
+    writer.flush().unwrap();
+    wait_for_marker(&output, "CHANGED FILES", Duration::from_secs(3));
+    writer.write_all(b"\rS").unwrap(); // open file, then use library-refined split view
+    writer.flush().unwrap();
+    wait_for_marker(&output, "split", Duration::from_secs(3));
+    writer.write_all(b"S\t").unwrap(); // restore unified, jump file in expanded detail
     writer.write_all(b"F").unwrap(); // restore the detailed layout without a Git reload
     writer.write_all(b"f").unwrap();
     writer.flush().unwrap();

@@ -17,7 +17,7 @@ pub(super) fn resolve_action(app: &App, bindings: &KeyBindings, key: KeyEvent) -
         // intercepted by a global semantic remap.
         return default;
     }
-    if (matches!(app.overlay, Overlay::Help) && key.code == KeyCode::Esc)
+    if (matches!(app.overlay, Overlay::Help | Overlay::DiffTree(_)) && key.code == KeyCode::Esc)
         || (app.has_errors() && matches!(key.code, KeyCode::Esc | KeyCode::Char('r')))
     {
         // Escape and request recovery are invariant modal controls. A global
@@ -88,6 +88,8 @@ pub(super) fn key_action(app: &App, key: KeyEvent) -> Option<Action> {
             };
         }
         Overlay::None => {}
+        Overlay::DiffTree(_) if key.code == KeyCode::Esc => return Some(Action::CancelOverlay),
+        Overlay::DiffTree(_) => {}
     }
 
     if app.has_errors() {
@@ -130,11 +132,15 @@ pub(super) fn key_action(app: &App, key: KeyEvent) -> Option<Action> {
         KeyCode::Char('/') => Some(Action::StartSearch),
         KeyCode::Char(':') => Some(Action::StartPalette),
         KeyCode::Char('f') => Some(Action::StartFilePicker),
+        KeyCode::Char('T') => Some(Action::ToggleDiffTree),
+        KeyCode::Char('S') => Some(Action::ToggleDiffStyle),
+        KeyCode::Left => Some(Action::TreeCollapse),
+        KeyCode::Right => Some(Action::TreeExpand),
         KeyCode::Char('F') => Some(Action::ToggleDiffFullscreen),
         KeyCode::Char('n') => Some(Action::NextMatch),
         KeyCode::Char('N') => Some(Action::PreviousMatch),
-        KeyCode::Tab if app.view == View::Detail => Some(Action::NextFile(1)),
-        KeyCode::BackTab if app.view == View::Detail => Some(Action::NextFile(-1)),
+        KeyCode::Tab if dominant_diff(app) => Some(Action::NextFile(1)),
+        KeyCode::BackTab if dominant_diff(app) => Some(Action::NextFile(-1)),
         KeyCode::Tab | KeyCode::BackTab => Some(Action::ToggleFocus),
         KeyCode::Char('p') => Some(Action::TogglePreview),
         KeyCode::Char('y') => Some(Action::CopySelection),
@@ -146,6 +152,10 @@ pub(super) fn key_action(app: &App, key: KeyEvent) -> Option<Action> {
         KeyCode::Char('?') => Some(Action::ToggleHelp),
         _ => None,
     }
+}
+
+fn dominant_diff(app: &App) -> bool {
+    app.diff_fullscreen || matches!(app.view, View::Detail | View::Compare | View::StatusDiff)
 }
 
 /// Handle keys that mutate state outside the regular action return path.

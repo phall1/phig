@@ -89,6 +89,118 @@ fn app() -> App {
 }
 
 #[test]
+fn diff_tree_browse_cancel_open_and_refresh_are_reversible_without_git() {
+    let mut app = app();
+    let detail = CommitDetail {
+        commit: commit('a', "first"),
+        diff: patch::fixture(),
+        selected_parent: None,
+    };
+    app.apply_preview(detail.clone());
+    app.diff_scroll = 5;
+    let selected = app.selected_oid.clone();
+    assert!(app.update(Action::ToggleDiffTree, 10).is_empty());
+    let Overlay::DiffTree(tree) = &app.overlay else {
+        panic!("tree missing")
+    };
+    assert_eq!(tree.current().unwrap().label, "main.rs");
+    assert!(app.update(Action::Last, 10).is_empty());
+    assert_eq!(app.diff_scroll, 8);
+    app.update(Action::Back, 10);
+    assert_eq!(app.diff_scroll, 5);
+    assert_eq!(app.selected_oid, selected);
+    assert!(!app.diff_fullscreen);
+    app.update(Action::ToggleDiffTree, 10);
+    app.update(Action::Last, 10);
+    assert!(app.update(Action::Open, 10).is_empty());
+    assert!(app.diff_fullscreen);
+    assert_eq!(app.diff_scroll, 8);
+    app.update(Action::ToggleDiffTree, 10);
+    app.apply_preview(detail);
+    assert_eq!(app.overlay, Overlay::None);
+}
+
+#[test]
+fn diff_tree_collapses_nested_directories_without_losing_file_identity() {
+    let mut app = app();
+    app.view = View::StatusDiff;
+    app.apply_working_diff(patch::fixture());
+    app.update(Action::ToggleDiffTree, 10);
+    app.update(Action::TreeCollapse, 10); // main.rs -> src/
+    app.update(Action::TreeCollapse, 10); // fold src/
+    let Overlay::DiffTree(tree) = &app.overlay else {
+        panic!("tree missing")
+    };
+    assert_eq!(tree.visible.len(), 2);
+    assert_eq!(tree.current().unwrap().label, "src");
+    assert_eq!(
+        (
+            tree.current().unwrap().added,
+            tree.current().unwrap().removed
+        ),
+        (3, 1)
+    );
+    app.update(Action::TreeExpand, 10);
+    app.update(Action::Last, 10);
+    let Overlay::DiffTree(tree) = &app.overlay else {
+        panic!("tree missing")
+    };
+    assert_eq!(tree.current().unwrap().label, "view.rs");
+    assert_eq!(tree.current().unwrap().header_line, 8);
+}
+
+#[test]
+fn split_navigation_and_public_patch_replacement_keep_correct_coordinates() {
+    let mut app = app();
+    app.view = View::StatusDiff;
+    app.apply_working_diff(patch::fixture());
+    app.diff_scroll = 5;
+    app.diff_split_available = true;
+    app.update(Action::ToggleDiffStyle, 4);
+    app.update(Action::Move(1), 4);
+    assert_eq!(app.diff_scroll, 7);
+    app.diff_split_available = false;
+    app.update(Action::Move(-1), 4);
+    assert_eq!(app.diff_scroll, 6);
+    let diff = app.inspect.working_diff.as_mut().unwrap();
+    diff.files[0].hunks[0].new_start = 100;
+    assert_eq!(app.patch_index().lines[6].new, Some(101));
+    app.inspect.working_diff.as_mut().unwrap().lines[6].kind = DiffLineKind::Metadata;
+    assert_eq!(app.patch_index().lines[5].pair, None);
+}
+
+#[test]
+fn split_pages_from_added_side_preserve_anchor_across_width_changes() {
+    use crate::git::parse::{DiffFileIdentity, parse_diff};
+    let diff = parse_diff(
+        b"diff --git a/a b/a\n@@ -1,4 +1,4 @@\n a\n-b\n-c\n+B\n+C\n d\n",
+        &[DiffFileIdentity {
+            old_path: Some(GitPath::new(b"a".to_vec())),
+            new_path: Some(GitPath::new(b"a".to_vec())),
+        }],
+        false,
+    )
+    .unwrap();
+    let mut app = app();
+    app.view = View::StatusDiff;
+    app.apply_working_diff(diff);
+    app.diff_split = true;
+    app.diff_split_available = true;
+    app.diff_scroll = 5; // added B, paired with removed b
+    app.update(Action::Move(1), 2);
+    assert_eq!(app.diff_scroll, 4); // next visual row is c/C
+    app.update(Action::Page(-1), 2);
+    assert_eq!(app.diff_scroll, 2); // context a, two visual rows above
+    app.diff_split_available = false;
+    app.diff_scroll = 5;
+    app.update(Action::Move(1), 2);
+    assert_eq!(app.diff_scroll, 6); // unified advances to +C
+    app.diff_split_available = true;
+    app.update(Action::Move(1), 2);
+    assert_eq!(app.diff_scroll, 7); // widening preserves +C's logical row
+}
+
+#[test]
 fn fullscreen_preserves_view_selection_scroll_and_focus_across_resize() {
     let mut app = app();
     app.apply_preview(CommitDetail {

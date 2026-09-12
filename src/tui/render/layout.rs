@@ -95,17 +95,11 @@ pub(super) fn list_preview_layout(app: &App, area: Rect) -> PaneLayout {
 
 pub(crate) fn page_rows(app: &App, width: u16, height: u16) -> usize {
     let body = Rect::new(0, 1, width, height.saturating_sub(2));
+    if matches!(app.overlay, crate::app::Overlay::DiffTree(_)) {
+        return usize::from(body.height.saturating_sub(1).max(1));
+    }
     if app.diff_fullscreen {
-        let header = if app.view == View::Compare {
-            COMPARE_HEADER_ROWS
-        } else {
-            1
-        };
-        let truncated = app.active_diff().is_some_and(|diff| diff.truncated);
-        return usize::from(diff_content_rows(
-            body.height.saturating_sub(header),
-            truncated,
-        ));
+        return fullscreen_page_rows(app, body.height);
     }
     if app.view == View::Log && app.focus == Focus::List {
         return usize::from(log_layout(app, body).primary.height.max(1));
@@ -135,6 +129,26 @@ pub(crate) fn page_rows(app: &App, width: u16, height: u16) -> usize {
     let content_height = preview.height.saturating_sub(persistent_header);
     let truncated = app.active_diff().is_some_and(|diff| diff.truncated);
     usize::from(diff_content_rows(content_height, truncated))
+}
+
+fn fullscreen_page_rows(app: &App, height: u16) -> usize {
+    let header = if app.view == View::Compare {
+        COMPARE_HEADER_ROWS
+    } else {
+        1
+    };
+    let truncated = app.active_diff().is_some_and(|diff| diff.truncated);
+    usize::from(diff_content_rows(height.saturating_sub(header), truncated))
+}
+
+pub(crate) fn diff_split_available(app: &App, width: u16, height: u16) -> bool {
+    if app.diff_fullscreen || matches!(app.view, View::Detail | View::Compare | View::StatusDiff) {
+        return width >= 100;
+    }
+    let body = Rect::new(0, 1, width, height.saturating_sub(2));
+    pane_layout(app, body, 45)
+        .secondary
+        .is_some_and(|pane| pane.width >= 100)
 }
 
 pub(super) fn centered_rect(width: u16, height: u16, area: Rect) -> Rect {

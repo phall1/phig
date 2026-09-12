@@ -9,7 +9,7 @@ use ratatui::{
 };
 
 use crate::{
-    app::{Action, App, View, palette_commands},
+    app::{Action, App, Overlay, View, palette_commands},
     sanitize::sanitize_str,
 };
 
@@ -150,6 +150,9 @@ fn index_position(selected: usize, count: usize) -> String {
 }
 
 fn position(app: &App) -> String {
+    if let Overlay::DiffTree(tree) = &app.overlay {
+        return index_position(tree.selected, tree.visible.len());
+    }
     if app.diff_fullscreen {
         return format!(
             "line {}/{}",
@@ -175,6 +178,16 @@ fn key_pair(context: &RenderContext, first: &Action, second: &Action) -> String 
 }
 
 fn hints(app: &App, context: &RenderContext) -> Vec<String> {
+    if matches!(app.overlay, Overlay::DiffTree(_)) {
+        return vec![
+            format!("{} open", context.key(&Action::Open)),
+            format!(
+                "{} fold",
+                key_pair(context, &Action::TreeCollapse, &Action::TreeExpand)
+            ),
+            format!("{} cancel", context.key(&Action::Back)),
+        ];
+    }
     if app.diff_fullscreen {
         return vec![
             format!("{} restore", context.key(&Action::ToggleDiffFullscreen)),
@@ -183,7 +196,7 @@ fn hints(app: &App, context: &RenderContext) -> Vec<String> {
                 context.key(&Action::NextHunk(-1)),
                 context.key(&Action::NextHunk(1))
             ),
-            format!("{} files", context.key(&Action::StartFilePicker)),
+            format!("{} tree", context.key(&Action::ToggleDiffTree)),
         ];
     }
     let move_keys = key_pair(context, &Action::Move(1), &Action::Move(-1));
@@ -341,8 +354,10 @@ pub(super) fn render_help(frame: &mut Frame<'_>, app: &App, area: Rect, context:
             s = context.glyphs().separator,
         )),
         Line::raw(format!(
-            "{} expand/restore diff",
-            pad_right(&context.key(&Action::ToggleDiffFullscreen), 14)
+            "{} expand/restore diff {s} {} file tree",
+            pad_right(&context.key(&Action::ToggleDiffFullscreen), 14),
+            context.key(&Action::ToggleDiffTree),
+            s = context.glyphs().separator,
         )),
         Line::raw(format!(
             "{}/{} hunks {s} {}/{} files",
@@ -351,6 +366,10 @@ pub(super) fn render_help(frame: &mut Frame<'_>, app: &App, area: Rect, context:
             context.key(&Action::NextFile(-1)),
             context.key(&Action::NextFile(1)),
             s = context.glyphs().separator,
+        )),
+        Line::raw(format!(
+            "{} split/unified diff",
+            pad_right(&context.key(&Action::ToggleDiffStyle), 14)
         )),
         Line::raw(format!(
             "{} refs {s} {} status {s} {} tree {s} {} blame {s} {} stash",

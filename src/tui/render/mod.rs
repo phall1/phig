@@ -2,6 +2,7 @@
 
 mod chrome;
 mod diff;
+mod diff_tree;
 mod format;
 mod fullscreen;
 mod graph;
@@ -31,7 +32,7 @@ impl RenderState {
     }
 }
 
-pub(crate) use layout::{page_rows, preview_focus_available};
+pub(crate) use layout::{diff_split_available, page_rows, preview_focus_available};
 pub(crate) use theme::legacy_config;
 pub use theme::{
     ColorMode, DateMode, GlyphMode, RenderConfig, RenderContext, RenderTheme, set_color_mode,
@@ -86,7 +87,9 @@ pub(crate) fn render_with_state(
         .split(area);
 
     chrome::render_header(frame, app, rows[0], context);
-    if app.diff_fullscreen {
+    if let Overlay::DiffTree(tree) = &app.overlay {
+        diff_tree::render(frame, app, tree, rows[1], context);
+    } else if app.diff_fullscreen {
         fullscreen::render(frame, app, rows[1], context);
     } else {
         match app.view {
@@ -116,7 +119,7 @@ pub(crate) fn render_with_state(
         Overlay::FilePicker {
             draft, selected, ..
         } => chrome::render_file_picker(frame, app, draft, *selected, area, context),
-        Overlay::None => {}
+        Overlay::None | Overlay::DiffTree(_) => {}
     }
 }
 

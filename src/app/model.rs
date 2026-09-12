@@ -29,6 +29,7 @@ pub enum Focus {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Overlay {
     None,
+    DiffTree(super::DiffTree),
     Help,
     Search {
         draft: String,
@@ -59,6 +60,10 @@ pub enum Action {
     Quit,
     TogglePreview,
     ToggleDiffFullscreen,
+    ToggleDiffTree,
+    ToggleDiffStyle,
+    TreeCollapse,
+    TreeExpand,
     ToggleFocus,
     StartSearch,
     StartPalette,
@@ -220,8 +225,13 @@ pub struct App {
     pub diff_scroll: usize,
     /// Expand the active patch without changing its semantic view or selection.
     pub diff_fullscreen: bool,
+    pub diff_split: bool,
+    pub diff_split_available: bool,
     pub(super) fullscreen_previous_focus: Focus,
     pub(super) file_picker_cache: Option<super::files::FilePickerCache>,
+    pub(super) preview_index: Option<super::patch::PatchIndex>,
+    pub(super) working_index: Option<super::patch::PatchIndex>,
+    pub(super) comparison_index: Option<super::patch::PatchIndex>,
     pub parent_index: usize,
     pub search_query: String,
     /// Direction of a search waiting for another history page (`true` is forward).
@@ -274,8 +284,13 @@ impl App {
             preview_focus_available: true,
             diff_scroll: 0,
             diff_fullscreen: false,
+            diff_split: false,
+            diff_split_available: false,
             fullscreen_previous_focus: Focus::List,
             file_picker_cache: None,
+            preview_index: None,
+            working_index: None,
+            comparison_index: None,
             parent_index: 0,
             search_query: String::new(),
             search_pending: None,

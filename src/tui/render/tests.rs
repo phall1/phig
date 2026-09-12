@@ -216,6 +216,131 @@ fn sample_app() -> App {
     app
 }
 
+fn review_app() -> App {
+    let mut app = sample_app();
+    let mut detail = app.preview.take().unwrap();
+    detail.diff = crate::app::patch::fixture();
+    app.apply_preview(detail);
+    app.update(crate::app::Action::ToggleDiffFullscreen, 10);
+    app
+}
+
+#[test]
+fn diff_review_keys_render_tree_gutters_split_and_narrow_fallback() {
+    use crate::app::Action;
+    use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+    let mut app = review_app();
+    let mut scenes = format!("UNIFIED 100x22\n{}", styled_screen(100, 22, &app));
+    let action =
+        crate::tui::input::key_action(&app, KeyEvent::new(KeyCode::Char('S'), KeyModifiers::NONE))
+            .unwrap();
+    assert_eq!(action, Action::ToggleDiffStyle);
+    app.update(action, 10);
+    scenes.push_str(&format!(
+        "\nSPLIT 140x22\n{}\nNARROW 60x16\n{}",
+        styled_screen(140, 22, &app),
+        screen(60, 16, &app)
+    ));
+    let action =
+        crate::tui::input::key_action(&app, KeyEvent::new(KeyCode::Char('T'), KeyModifiers::NONE))
+            .unwrap();
+    app.update(action, 10);
+    scenes.push_str(&format!(
+        "\nTREE 120x22\n{}\nTREE 60x16\n{}",
+        styled_screen(120, 22, &app),
+        screen(60, 16, &app)
+    ));
+    insta::assert_snapshot!("diff-review", scenes);
+    app.update(Action::Last, 10);
+    app.update(Action::Open, 10);
+    assert!(screen(60, 16, &app).contains("view.rs"));
+    assert_eq!(
+        crate::tui::input::key_action(&app, KeyEvent::new(KeyCode::Tab, KeyModifiers::NONE)),
+        Some(Action::NextFile(1))
+    );
+}
+
+#[test]
+fn diff_review_monochrome_retains_signs_and_word_emphasis() {
+    let mut app = review_app();
+    let context = RenderContext::new(RenderConfig {
+        color_mode: ColorMode::Never,
+        glyph_mode: GlyphMode::Ascii,
+        ..deterministic_config()
+    });
+    for split in [false, true] {
+        app.diff_split = split;
+        let mut terminal = Terminal::new(TestBackend::new(140, 24)).unwrap();
+        terminal
+            .draw(|frame| render_with_context(frame, &app, &context))
+            .unwrap();
+        let cells = &terminal.backend().buffer().content;
+        assert!(
+            cells
+                .iter()
+                .all(|cell| cell.fg == Color::Reset && cell.bg == Color::Reset)
+        );
+        assert!(
+            cells
+                .iter()
+                .any(|cell| cell.modifier.contains(ratatui::style::Modifier::UNDERLINED))
+        );
+        let text = screen_with_context(140, 24, &app, &context);
+        assert!(text.contains("-let timeout"));
+        assert!(text.contains("+let timeout"));
+    }
+}
+
+#[test]
+#[ignore = "manual release-mode diff navigation benchmark"]
+fn diff_review_benchmark() {
+    use crate::app::Action;
+    use std::time::Instant;
+    let mut app = review_app();
+    let mut detail = app.preview.take().unwrap();
+    let template = crate::app::patch::fixture();
+    detail.diff.lines.clear();
+    detail.diff.files.clear();
+    for _ in 0..6000 {
+        let offset = detail.diff.lines.len();
+        detail.diff.lines.extend(template.lines.iter().cloned());
+        detail
+            .diff
+            .files
+            .extend(template.files.iter().cloned().map(|mut file| {
+                file.header_line += offset;
+                for hunk in &mut file.hunks {
+                    hunk.header_line += offset;
+                }
+                file
+            }));
+    }
+    let start = Instant::now();
+    app.apply_preview(detail);
+    eprintln!("index 102,000 patch lines: {:?}", start.elapsed());
+    let mut terminal = Terminal::new(TestBackend::new(140, 40)).unwrap();
+    let context = RenderContext::new(deterministic_config());
+    for split in [false, true] {
+        app.diff_split = split;
+        app.diff_split_available = true;
+        app.diff_scroll = 50_000;
+        let mut samples = Vec::new();
+        for _ in 0..200 {
+            let start = Instant::now();
+            app.update(Action::Move(1), 37);
+            terminal
+                .draw(|frame| render_with_context(frame, &app, &context))
+                .unwrap();
+            samples.push(start.elapsed());
+        }
+        samples.sort();
+        eprintln!(
+            "split={split}: move+paint p50={:?} p95={:?}",
+            samples[100], samples[190]
+        );
+    }
+}
+
 fn status_entry(index: StatusCode, worktree: StatusCode, path: &[u8]) -> StatusEntry {
     StatusEntry {
         index,

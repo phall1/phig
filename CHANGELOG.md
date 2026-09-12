@@ -6,6 +6,22 @@ All notable changes to phig are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Old/new line-number gutters and bounded Unicode word-level change emphasis,
+  powered by `similar`, in unified and side-by-side patches.
+- `S` toggles split/unified diffs with source-anchor-preserving navigation and
+  automatic unified fallback below 100 patch-pane columns.
+- `T` opens a collapsible changed-file tree with directory change counts, live
+  wide-screen previews, file opening, and exact position restoration on cancel.
+
+### Changed
+
+- `Tab`/`Shift-Tab` navigate files in all dominant diff views, including expanded
+  previews and comparisons. File/hunk seeking avoids allocating an anchor list.
+- Cache source coordinates and split-row mappings while constructing styled
+  content only for visible rows; add large-patch navigation measurements.
+
 ## [1.2.0] - 2026-09-07
 
 ### Added

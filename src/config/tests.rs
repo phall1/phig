@@ -96,6 +96,26 @@ fn labels_drop_defaults_claimed_by_other_actions() {
 }
 
 #[test]
+fn diff_keys_report_displaced_uppercase_defaults() {
+    for (key, action) in [
+        ('T', Action::ToggleDiffTree),
+        ('S', Action::ToggleDiffStyle),
+    ] {
+        let bindings =
+            KeyBindings::from_config(&BTreeMap::from([("move-down".into(), key.to_string())]))
+                .unwrap();
+        assert_eq!(bindings.action_key_label(&action), "unbound");
+        assert_eq!(
+            bindings.resolve(
+                KeyEvent::new(KeyCode::Char(key), KeyModifiers::NONE),
+                Some(action)
+            ),
+            Some(Action::Move(1))
+        );
+    }
+}
+
+#[test]
 fn uppercase_bindings_normalize_and_ctrl_c_is_reserved() {
     let mut keys = BTreeMap::new();
     keys.insert("last".into(), "G".into());

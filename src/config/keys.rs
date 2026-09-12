@@ -154,6 +154,10 @@ impl KeyBindings {
 
 fn default_binding(action: &Action) -> Option<(KeySpec, &'static str)> {
     let (code, modifiers, label) = match action {
+        Action::ToggleDiffTree => (KeyCodeSpec::Char('t'), 4, "T"),
+        Action::ToggleDiffStyle => (KeyCodeSpec::Char('s'), 4, "S"),
+        Action::TreeCollapse => (KeyCodeSpec::Left, 0, "Left"),
+        Action::TreeExpand => (KeyCodeSpec::Right, 0, "Right"),
         Action::Move(1) => (KeyCodeSpec::Char('j'), 0, "j"),
         Action::Move(-1) => (KeyCodeSpec::Char('k'), 0, "k"),
         Action::Page(1) => (KeyCodeSpec::Char('d'), 1, "Ctrl+d"),

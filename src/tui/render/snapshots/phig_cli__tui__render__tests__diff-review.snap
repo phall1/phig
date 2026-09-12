@@ -1,0 +1,251 @@
+---
+source: src/tui/render/tests.rs
+expression: scenes
+---
+UNIFIED 100x22
+TEXT
+ phig LOG phig-demo / main  HEAD
+DIFF aaaaaaaaaa  unified  src/main.rs  ·  file 1/3  ·  hunk 0/1
+diff --git a/src/main.rs b/src/main.rs
+--- a/src/main.rs
++++ b/src/main.rs
+@@ -10,3 +10,3 @@ fn main()
+  10   10 │  let label = "café";
+  11      │ -let timeout = 100; // old value
+       11 │ +let timeout = 250; // new value
+  12   12 │  render(label);
+diff --git a/src/ui/view.rs b/src/ui/view.rs
+--- a/src/ui/view.rs
++++ b/src/ui/view.rs
+@@ -0,0 +1,2 @@
+        1 │ +fn draw() {}
+        2 │ +// 界 面
+diff --git a/README.md b/README.md
+old mode 100644
+new mode 100755
+
+
+ F restore · [/] hunk · T tree                                                             line 1/17
+STYLES
+0:0-9 fg=Cyan bg=Reset mod=BOLD text=" phig LOG "
+0:19-31 fg=DarkGray bg=Reset mod=NONE text=" / main  HEAD"
+1:0-25 fg=DarkGray bg=Reset mod=NONE text="DIFF aaaaaaaaaa  unified  "
+1:26-62 fg=Cyan bg=Reset mod=BOLD text="src/main.rs  ·  file 1/3  ·  hunk 0/1"
+2:0-37 fg=Yellow bg=Reset mod=BOLD text="diff --git a/src/main.rs b/src/main.rs"
+3:0-16 fg=Yellow bg=Reset mod=BOLD text="--- a/src/main.rs"
+4:0-16 fg=Yellow bg=Reset mod=BOLD text="+++ b/src/main.rs"
+5:0-26 fg=Cyan bg=Reset mod=BOLD text="@@ -10,3 +10,3 @@ fn main()"
+6:0-11 fg=DarkGray bg=Reset mod=NONE text="  10   10 │ "
+7:0-11 fg=DarkGray bg=Reset mod=NONE text="  11      │ "
+7:12-26 fg=Red bg=Reset mod=NONE text="-let timeout = "
+7:27-29 fg=Red bg=Reset mod=BOLD | UNDERLINED text="100"
+7:30-34 fg=Red bg=Reset mod=NONE text="; // "
+7:35-37 fg=Red bg=Reset mod=BOLD | UNDERLINED text="old"
+7:38-43 fg=Red bg=Reset mod=NONE text=" value"
+8:0-11 fg=DarkGray bg=Reset mod=NONE text="       11 │ "
+8:12-26 fg=Green bg=Reset mod=NONE text="+let timeout = "
+8:27-29 fg=Green bg=Reset mod=BOLD | UNDERLINED text="250"
+8:30-34 fg=Green bg=Reset mod=NONE text="; // "
+8:35-37 fg=Green bg=Reset mod=BOLD | UNDERLINED text="new"
+8:38-43 fg=Green bg=Reset mod=NONE text=" value"
+9:0-11 fg=DarkGray bg=Reset mod=NONE text="  12   12 │ "
+10:0-43 fg=Yellow bg=Reset mod=BOLD text="diff --git a/src/ui/view.rs b/src/ui/view.rs"
+11:0-19 fg=Yellow bg=Reset mod=BOLD text="--- a/src/ui/view.rs"
+12:0-19 fg=Yellow bg=Reset mod=BOLD text="+++ b/src/ui/view.rs"
+13:0-14 fg=Cyan bg=Reset mod=BOLD text="@@ -0,0 +1,2 @@"
+14:0-11 fg=DarkGray bg=Reset mod=NONE text="        1 │ "
+14:12-24 fg=Green bg=Reset mod=NONE text="+fn draw() {}"
+15:0-11 fg=DarkGray bg=Reset mod=NONE text="        2 │ "
+15:12-16 fg=Green bg=Reset mod=NONE text="+// 界"
+15:18-18 fg=Green bg=Reset mod=NONE text="面"
+16:0-33 fg=Yellow bg=Reset mod=BOLD text="diff --git a/README.md b/README.md"
+17:0-14 fg=DarkGray bg=Reset mod=NONE text="old mode 100644"
+18:0-14 fg=DarkGray bg=Reset mod=NONE text="new mode 100755"
+21:0-99 fg=DarkGray bg=Reset mod=NONE text=" F restore · [/] hunk · T tree                                                             line 1/17"
+
+SPLIT 140x22
+TEXT
+ phig LOG phig-demo / main  HEAD
+DIFF aaaaaaaaaa  split  src/main.rs  ·  file 1/3  ·  hunk 0/1
+diff --git a/src/main.rs b/src/main.rs
+--- a/src/main.rs
++++ b/src/main.rs
+@@ -10,3 +10,3 @@ fn main()
+  10 │  let label = "café";                                          │  10 │  let label = "café";
+  11 │ -let timeout = 100; // old value                              │  11 │ +let timeout = 250; // new value
+  12 │  render(label);                                               │  12 │  render(label);
+diff --git a/src/ui/view.rs b/src/ui/view.rs
+--- a/src/ui/view.rs
++++ b/src/ui/view.rs
+@@ -0,0 +1,2 @@
+                                                                     │   1 │ +fn draw() {}
+                                                                     │   2 │ +// 界 面
+diff --git a/README.md b/README.md
+old mode 100644
+new mode 100755
+
+
+
+ F restore · [/] hunk · T tree                                                                                                     line 1/17
+STYLES
+0:0-9 fg=Cyan bg=Reset mod=BOLD text=" phig LOG "
+0:19-31 fg=DarkGray bg=Reset mod=NONE text=" / main  HEAD"
+1:0-23 fg=DarkGray bg=Reset mod=NONE text="DIFF aaaaaaaaaa  split  "
+1:24-60 fg=Cyan bg=Reset mod=BOLD text="src/main.rs  ·  file 1/3  ·  hunk 0/1"
+2:0-37 fg=Yellow bg=Reset mod=BOLD text="diff --git a/src/main.rs b/src/main.rs"
+3:0-16 fg=Yellow bg=Reset mod=BOLD text="--- a/src/main.rs"
+4:0-16 fg=Yellow bg=Reset mod=BOLD text="+++ b/src/main.rs"
+5:0-26 fg=Cyan bg=Reset mod=BOLD text="@@ -10,3 +10,3 @@ fn main()"
+6:0-6 fg=DarkGray bg=Reset mod=NONE text="  10 │ "
+6:69-76 fg=DarkGray bg=Reset mod=NONE text="│  10 │ "
+7:0-6 fg=DarkGray bg=Reset mod=NONE text="  11 │ "
+7:7-21 fg=Red bg=Reset mod=NONE text="-let timeout = "
+7:22-24 fg=Red bg=Reset mod=BOLD | UNDERLINED text="100"
+7:25-29 fg=Red bg=Reset mod=NONE text="; // "
+7:30-32 fg=Red bg=Reset mod=BOLD | UNDERLINED text="old"
+7:33-38 fg=Red bg=Reset mod=NONE text=" value"
+7:69-76 fg=DarkGray bg=Reset mod=NONE text="│  11 │ "
+7:77-91 fg=Green bg=Reset mod=NONE text="+let timeout = "
+7:92-94 fg=Green bg=Reset mod=BOLD | UNDERLINED text="250"
+7:95-99 fg=Green bg=Reset mod=NONE text="; // "
+7:100-102 fg=Green bg=Reset mod=BOLD | UNDERLINED text="new"
+7:103-108 fg=Green bg=Reset mod=NONE text=" value"
+8:0-6 fg=DarkGray bg=Reset mod=NONE text="  12 │ "
+8:69-76 fg=DarkGray bg=Reset mod=NONE text="│  12 │ "
+9:0-43 fg=Yellow bg=Reset mod=BOLD text="diff --git a/src/ui/view.rs b/src/ui/view.rs"
+10:0-19 fg=Yellow bg=Reset mod=BOLD text="--- a/src/ui/view.rs"
+11:0-19 fg=Yellow bg=Reset mod=BOLD text="+++ b/src/ui/view.rs"
+12:0-14 fg=Cyan bg=Reset mod=BOLD text="@@ -0,0 +1,2 @@"
+13:69-76 fg=DarkGray bg=Reset mod=NONE text="│   1 │ "
+13:77-89 fg=Green bg=Reset mod=NONE text="+fn draw() {}"
+14:69-76 fg=DarkGray bg=Reset mod=NONE text="│   2 │ "
+14:77-81 fg=Green bg=Reset mod=NONE text="+// 界"
+14:83-83 fg=Green bg=Reset mod=NONE text="面"
+15:0-33 fg=Yellow bg=Reset mod=BOLD text="diff --git a/README.md b/README.md"
+16:0-14 fg=DarkGray bg=Reset mod=NONE text="old mode 100644"
+17:0-14 fg=DarkGray bg=Reset mod=NONE text="new mode 100755"
+21:0-139 fg=DarkGray bg=Reset mod=NONE text=" F restore · [/] hunk · T tree                                                                                                     line 1/17"
+
+NARROW 60x16
+ phig LOG phig-demo / main  HEAD                            
+DIFF aaaaaaaaaa  src/main.rs  ·  file 1/3  ·  hunk 0/1      
+diff --git a/src/main.rs b/src/main.rs                      
+--- a/src/main.rs                                           
++++ b/src/main.rs                                           
+@@ -10,3 +10,3 @@ fn main()                                 
+  10   10 │  let label = "café";                            
+  11      │ -let timeout = 100; // old value                
+       11 │ +let timeout = 250; // new value                
+  12   12 │  render(label);                                 
+diff --git a/src/ui/view.rs b/src/ui/view.rs                
+--- a/src/ui/view.rs                                        
++++ b/src/ui/view.rs                                        
+@@ -0,0 +1,2 @@                                             
+        1 │ +fn draw() {}                                   
+ F restore · [/] hunk · T tree                     line 1/17
+
+TREE 120x22
+TEXT
+ phig LOG phig-demo / main  HEAD
+CHANGED FILES                           │DIFF aaaaaaaaaa  src/main.rs  ·  file 1/3  ·  hunk 0/1
+    README.md +0 -0                     │diff --git a/src/main.rs b/src/main.rs
+  v src/ +3 -1                          │--- a/src/main.rs
+›     main.rs +1 -1                     │+++ b/src/main.rs
+    v ui/ +2 -0                         │@@ -10,3 +10,3 @@ fn main()
+        view.rs +2 -0                   │  10   10 │  let label = "café";
+                                        │  11      │ -let timeout = 100; // old value
+                                        │       11 │ +let timeout = 250; // new value
+                                        │  12   12 │  render(label);
+                                        │diff --git a/src/ui/view.rs b/src/ui/view.rs
+                                        │--- a/src/ui/view.rs
+                                        │+++ b/src/ui/view.rs
+                                        │@@ -0,0 +1,2 @@
+                                        │        1 │ +fn draw() {}
+                                        │        2 │ +// 界 面
+                                        │diff --git a/README.md b/README.md
+                                        │old mode 100644
+                                        │new mode 100755
+                                        │
+                                        │
+ Enter open · Left/Right fold · Esc cancel                                                                           3/5
+STYLES
+0:0-9 fg=Cyan bg=Reset mod=BOLD text=" phig LOG "
+0:19-31 fg=DarkGray bg=Reset mod=NONE text=" / main  HEAD"
+1:0-39 fg=Cyan bg=Reset mod=BOLD text="CHANGED FILES                           "
+1:40-57 fg=DarkGray bg=Reset mod=NONE text="│DIFF aaaaaaaaaa  "
+1:58-94 fg=Cyan bg=Reset mod=BOLD text="src/main.rs  ·  file 1/3  ·  hunk 0/1"
+2:0-12 fg=DarkGray bg=Reset mod=NONE text="    README.md"
+2:13-15 fg=Green bg=Reset mod=NONE text=" +0"
+2:16-18 fg=Red bg=Reset mod=NONE text=" -0"
+2:40-40 fg=DarkGray bg=Reset mod=NONE text="│"
+2:41-78 fg=Yellow bg=Reset mod=BOLD text="diff --git a/src/main.rs b/src/main.rs"
+3:0-7 fg=DarkGray bg=Reset mod=NONE text="  v src/"
+3:8-10 fg=Green bg=Reset mod=NONE text=" +3"
+3:11-13 fg=Red bg=Reset mod=NONE text=" -1"
+3:40-40 fg=DarkGray bg=Reset mod=NONE text="│"
+3:41-57 fg=Yellow bg=Reset mod=BOLD text="--- a/src/main.rs"
+4:0-12 fg=Cyan bg=Reset mod=BOLD text="›     main.rs"
+4:13-15 fg=Green bg=Reset mod=NONE text=" +1"
+4:16-18 fg=Red bg=Reset mod=NONE text=" -1"
+4:40-40 fg=DarkGray bg=Reset mod=NONE text="│"
+4:41-57 fg=Yellow bg=Reset mod=BOLD text="+++ b/src/main.rs"
+5:0-8 fg=DarkGray bg=Reset mod=NONE text="    v ui/"
+5:9-11 fg=Green bg=Reset mod=NONE text=" +2"
+5:12-14 fg=Red bg=Reset mod=NONE text=" -0"
+5:40-40 fg=DarkGray bg=Reset mod=NONE text="│"
+5:41-67 fg=Cyan bg=Reset mod=BOLD text="@@ -10,3 +10,3 @@ fn main()"
+6:0-14 fg=DarkGray bg=Reset mod=NONE text="        view.rs"
+6:15-17 fg=Green bg=Reset mod=NONE text=" +2"
+6:18-20 fg=Red bg=Reset mod=NONE text=" -0"
+6:40-52 fg=DarkGray bg=Reset mod=NONE text="│  10   10 │ "
+7:40-52 fg=DarkGray bg=Reset mod=NONE text="│  11      │ "
+7:53-67 fg=Red bg=Reset mod=NONE text="-let timeout = "
+7:68-70 fg=Red bg=Reset mod=BOLD | UNDERLINED text="100"
+7:71-75 fg=Red bg=Reset mod=NONE text="; // "
+7:76-78 fg=Red bg=Reset mod=BOLD | UNDERLINED text="old"
+7:79-84 fg=Red bg=Reset mod=NONE text=" value"
+8:40-52 fg=DarkGray bg=Reset mod=NONE text="│       11 │ "
+8:53-67 fg=Green bg=Reset mod=NONE text="+let timeout = "
+8:68-70 fg=Green bg=Reset mod=BOLD | UNDERLINED text="250"
+8:71-75 fg=Green bg=Reset mod=NONE text="; // "
+8:76-78 fg=Green bg=Reset mod=BOLD | UNDERLINED text="new"
+8:79-84 fg=Green bg=Reset mod=NONE text=" value"
+9:40-52 fg=DarkGray bg=Reset mod=NONE text="│  12   12 │ "
+10:40-40 fg=DarkGray bg=Reset mod=NONE text="│"
+10:41-84 fg=Yellow bg=Reset mod=BOLD text="diff --git a/src/ui/view.rs b/src/ui/view.rs"
+11:40-40 fg=DarkGray bg=Reset mod=NONE text="│"
+11:41-60 fg=Yellow bg=Reset mod=BOLD text="--- a/src/ui/view.rs"
+12:40-40 fg=DarkGray bg=Reset mod=NONE text="│"
+12:41-60 fg=Yellow bg=Reset mod=BOLD text="+++ b/src/ui/view.rs"
+13:40-40 fg=DarkGray bg=Reset mod=NONE text="│"
+13:41-55 fg=Cyan bg=Reset mod=BOLD text="@@ -0,0 +1,2 @@"
+14:40-52 fg=DarkGray bg=Reset mod=NONE text="│        1 │ "
+14:53-65 fg=Green bg=Reset mod=NONE text="+fn draw() {}"
+15:40-52 fg=DarkGray bg=Reset mod=NONE text="│        2 │ "
+15:53-57 fg=Green bg=Reset mod=NONE text="+// 界"
+15:59-59 fg=Green bg=Reset mod=NONE text="面"
+16:40-40 fg=DarkGray bg=Reset mod=NONE text="│"
+16:41-74 fg=Yellow bg=Reset mod=BOLD text="diff --git a/README.md b/README.md"
+17:40-55 fg=DarkGray bg=Reset mod=NONE text="│old mode 100644"
+18:40-55 fg=DarkGray bg=Reset mod=NONE text="│new mode 100755"
+19:40-40 fg=DarkGray bg=Reset mod=NONE text="│"
+20:40-40 fg=DarkGray bg=Reset mod=NONE text="│"
+21:0-119 fg=DarkGray bg=Reset mod=NONE text=" Enter open · Left/Right fold · Esc cancel                                                                           3/5"
+
+TREE 60x16
+ phig LOG phig-demo / main  HEAD                            
+CHANGED FILES                                               
+    README.md +0 -0                                         
+  v src/ +3 -1                                              
+›     main.rs +1 -1                                         
+    v ui/ +2 -0                                             
+        view.rs +2 -0                                       
+                                                            
+                                                            
+                                                            
+                                                            
+                                                            
+                                                            
+                                                            
+                                                            
+ Enter open · Left/Right fold · Esc cancel               3/5

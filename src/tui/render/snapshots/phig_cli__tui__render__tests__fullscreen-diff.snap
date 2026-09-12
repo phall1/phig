@@ -4,10 +4,10 @@ expression: expanded
 ---
 120x28
  phig LOG phig-demo / main  HEAD
-DIFF aaaaaaaaaa  src/main.rs  ·  file 1/1  ·  hunk 1/1
+DIFF aaaaaaaaaa  unified  src/main.rs  ·  file 1/1  ·  hunk 1/1
 @@ -1 +1 @@
--old
-+new
+   1      │ -old
+        1 │ +new
 
 
 
@@ -30,14 +30,14 @@ DIFF aaaaaaaaaa  src/main.rs  ·  file 1/1  ·  hunk 1/1
 
 
 
- F restore · [/] hunk · f files                                                                                 line 2/4
+ F restore · [/] hunk · T tree                                                                                  line 2/4
 
 60x16
  phig LOG phig-demo / main  HEAD
 DIFF aaaaaaaaaa  src/main.rs  ·  file 1/1  ·  hunk 1/1
 @@ -1 +1 @@
--old
-+new
+   1      │ -old
+        1 │ +new
 
 
 
@@ -48,4 +48,4 @@ DIFF aaaaaaaaaa  src/main.rs  ·  file 1/1  ·  hunk 1/1
 
 
 
- F restore · [/] hunk · f files                     line 2/4
+ F restore · [/] hunk · T tree                      line 2/4

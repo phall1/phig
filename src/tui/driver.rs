@@ -196,6 +196,8 @@ impl LoopState {
 
     fn page_rows(&mut self, session: &mut TerminalSession) -> Result<usize, TuiError> {
         let size = session.terminal_mut().size()?;
+        self.app.diff_split_available =
+            render::diff_split_available(&self.app, size.width, size.height);
         self.app
             .set_preview_focus_available(render::preview_focus_available(
                 &self.app,
@@ -249,6 +251,8 @@ impl LoopState {
                 _ => {}
             },
             Event::Resize(width, height) => {
+                self.app.diff_split_available =
+                    render::diff_split_available(&self.app, width, height);
                 self.app
                     .set_preview_focus_available(render::preview_focus_available(
                         &self.app, width, height,

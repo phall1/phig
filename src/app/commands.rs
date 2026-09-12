@@ -45,6 +45,26 @@ pub const COMMANDS: &[CommandDescriptor] = &[
         Action::ToggleDiffFullscreen
     ),
     command!("toggle-focus", "Toggle focus", Action::ToggleFocus),
+    command!(
+        "toggle-diff-tree",
+        "Browse changed-file tree",
+        Action::ToggleDiffTree
+    ),
+    command!(
+        "toggle-diff-style",
+        "Toggle split/unified diff",
+        Action::ToggleDiffStyle
+    ),
+    command!(
+        "diff-tree-collapse",
+        "Collapse changed directory",
+        Action::TreeCollapse
+    ),
+    command!(
+        "diff-tree-expand",
+        "Expand changed directory",
+        Action::TreeExpand
+    ),
     command!("search", "Search", Action::StartSearch),
     command!("palette", "Open command palette", Action::StartPalette),
     command!(

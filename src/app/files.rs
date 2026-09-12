@@ -82,6 +82,9 @@ impl App {
     }
 
     pub(super) fn invalidate_file_picker(&mut self) {
+        if matches!(self.overlay, Overlay::DiffTree(_)) {
+            self.overlay = Overlay::None;
+        }
         self.file_picker_cache = None;
         self.prepare_file_picker();
     }

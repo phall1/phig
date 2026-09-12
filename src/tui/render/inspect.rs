@@ -129,14 +129,7 @@ pub(super) fn render_compare(
         ]),
         parts[0],
     );
-    render_diff_value(
-        frame,
-        &comparison.diff,
-        app.diff_scroll,
-        parts[1],
-        true,
-        context,
-    );
+    render_diff_value(frame, app, parts[1], true, context);
 }
 
 pub(super) fn render_refs(frame: &mut Frame<'_>, app: &App, area: Rect, context: &RenderContext) {
@@ -234,7 +227,7 @@ pub(super) fn render_status(frame: &mut Frame<'_>, app: &App, area: Rect, contex
     render_string_list(frame, rows, app.inspect.selected, layout.primary, context);
     render_divider(frame, layout, context);
     if let Some(preview) = layout.secondary {
-        if let Some(diff) = &app.inspect.working_diff {
+        if app.inspect.working_diff.is_some() {
             let parts =
                 Layout::vertical([Constraint::Length(1), Constraint::Min(1)]).split(preview);
             frame.render_widget(
@@ -246,7 +239,7 @@ pub(super) fn render_status(frame: &mut Frame<'_>, app: &App, area: Rect, contex
                 .style(context.strong(context.accent())),
                 parts[0],
             );
-            render_diff_value(frame, diff, app.diff_scroll, parts[1], true, context);
+            render_diff_value(frame, app, parts[1], true, context);
         } else {
             let message = if app.inspect.loading {
                 format!(
@@ -280,7 +273,7 @@ pub(super) fn render_status_diff(
     area: Rect,
     context: &RenderContext,
 ) {
-    let Some(diff) = &app.inspect.working_diff else {
+    if app.inspect.working_diff.is_none() {
         frame.render_widget(
             Paragraph::new("Working diff unavailable")
                 .alignment(Alignment::Center)
@@ -288,7 +281,7 @@ pub(super) fn render_status_diff(
             area,
         );
         return;
-    };
+    }
     let parts = Layout::vertical([
         Constraint::Length(STATUS_DIFF_HEADER_ROWS),
         Constraint::Min(1),
@@ -303,7 +296,7 @@ pub(super) fn render_status_diff(
         .style(context.strong(context.accent())),
         parts[0],
     );
-    render_diff_value(frame, diff, app.diff_scroll, parts[1], true, context);
+    render_diff_value(frame, app, parts[1], true, context);
 }
 
 pub(super) fn render_tree(frame: &mut Frame<'_>, app: &App, area: Rect, context: &RenderContext) {

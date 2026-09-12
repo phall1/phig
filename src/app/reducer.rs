@@ -13,6 +13,10 @@ impl App {
     pub fn update(&mut self, action: Action, page_rows: usize) -> Vec<Effect> {
         self.notice = None;
         self.dirty = true;
+        if matches!(self.overlay, Overlay::DiffTree(_)) {
+            self.update_diff_tree(action, page_rows);
+            return Vec::new();
+        }
         if self.overlay != Overlay::None {
             return self.update_overlay(action, page_rows);
         }
@@ -36,6 +40,15 @@ impl App {
             Action::Back | Action::Quit => self.back(),
             Action::TogglePreview => self.toggle_preview(),
             Action::ToggleDiffFullscreen => self.toggle_diff_fullscreen(),
+            Action::ToggleDiffTree => {
+                self.start_diff_tree();
+                Vec::new()
+            }
+            Action::ToggleDiffStyle => {
+                self.diff_split = !self.diff_split;
+                Vec::new()
+            }
+            Action::TreeCollapse | Action::TreeExpand => Vec::new(),
             Action::ToggleFocus => self.toggle_focus(),
             Action::StartSearch => {
                 self.overlay = Overlay::Search {
@@ -269,6 +282,7 @@ impl App {
                 .as_ref()
                 .and_then(|parent| detail.commit.parents.iter().position(|item| item == parent))
                 .unwrap_or(0);
+            self.preview_index = Some(super::patch::PatchIndex::new(&detail.diff));
             self.preview = Some(detail);
             self.invalidate_file_picker();
             self.preview_loading = false;
@@ -373,6 +387,7 @@ impl App {
     }
 
     pub fn apply_comparison(&mut self, comparison: Comparison) {
+        self.comparison_index = Some(super::patch::PatchIndex::new(&comparison.diff));
         self.inspect.comparison = Some(comparison);
         self.invalidate_file_picker();
         self.inspect.loading = false;
@@ -382,6 +397,7 @@ impl App {
     }
 
     pub fn apply_working_diff(&mut self, diff: Diff) {
+        self.working_index = Some(super::patch::PatchIndex::new(&diff));
         self.inspect.working_diff_pending = None;
         self.inspect.working_diff = Some(diff);
         self.invalidate_file_picker();

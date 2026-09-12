@@ -498,6 +498,10 @@ impl App {
     }
 
     pub(super) fn scroll_diff(&mut self, delta: i32) {
+        if self.diff_split && self.diff_split_available && self.active_diff().is_some() {
+            self.diff_scroll = self.patch_index().move_split(self.diff_scroll, delta);
+            return;
+        }
         let maximum = self.diff_len().saturating_sub(1) as i64;
         self.diff_scroll = (self.diff_scroll as i64 + i64::from(delta)).clamp(0, maximum) as usize;
     }
@@ -527,43 +531,47 @@ impl App {
     }
 
     pub(super) fn seek_diff_anchor(&mut self, direction: i32, hunks: bool) {
-        let diff = match self.view {
-            View::Compare => self
-                .inspect
-                .comparison
-                .as_ref()
-                .map(|comparison| &comparison.diff),
-            View::Status | View::StatusDiff => self.inspect.working_diff.as_ref(),
-            _ => self.preview.as_ref().map(|detail| &detail.diff),
-        };
-        let Some(diff) = diff else {
+        let Some(diff) = self.active_diff() else {
             return;
         };
-        let anchors: Vec<usize> = if hunks {
-            diff.files
-                .iter()
-                .flat_map(|file| file.hunks.iter().map(|hunk| hunk.header_line))
-                .collect()
+        let target = if hunks {
+            seek_anchor(
+                diff.files
+                    .iter()
+                    .flat_map(|file| file.hunks.iter().map(|hunk| hunk.header_line)),
+                self.diff_scroll,
+                direction,
+            )
         } else {
-            diff.files.iter().map(|file| file.header_line).collect()
+            seek_anchor(
+                diff.files.iter().map(|file| file.header_line),
+                self.diff_scroll,
+                direction,
+            )
         };
-        if anchors.is_empty() {
-            return;
+        if let Some(target) = target {
+            self.diff_scroll = target;
         }
-        self.diff_scroll = if direction >= 0 {
-            anchors
-                .iter()
-                .copied()
-                .find(|anchor| *anchor > self.diff_scroll)
-                .unwrap_or(anchors[0])
-        } else {
-            anchors
-                .iter()
-                .copied()
-                .rev()
-                .find(|anchor| *anchor < self.diff_scroll)
-                .unwrap_or(*anchors.last().unwrap_or(&0))
-        };
+    }
+}
+
+fn seek_anchor(
+    mut anchors: impl DoubleEndedIterator<Item = usize>,
+    scroll: usize,
+    direction: i32,
+) -> Option<usize> {
+    if direction >= 0 {
+        let first = anchors.next()?;
+        if first > scroll {
+            return Some(first);
+        }
+        anchors.find(|anchor| *anchor > scroll).or(Some(first))
+    } else {
+        let last = anchors.next_back()?;
+        if last < scroll {
+            return Some(last);
+        }
+        anchors.rev().find(|anchor| *anchor < scroll).or(Some(last))
     }
 }
 

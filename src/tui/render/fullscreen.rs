@@ -47,7 +47,14 @@ pub(super) fn render(frame: &mut Frame<'_>, app: &App, area: Rect, context: &Ren
             format!("{}  ", detail.commit.id.short(10))
         }),
     };
-    let prefix = format!("DIFF {id}");
+    let style = if area.width < 100 {
+        ""
+    } else if app.diff_split {
+        "split  "
+    } else {
+        "unified  "
+    };
+    let prefix = format!("DIFF {id}{style}");
     let location_width = usize::from(area.width).saturating_sub(display_width(&prefix));
     frame.render_widget(
         Paragraph::new(Line::from(vec![
@@ -59,7 +66,7 @@ pub(super) fn render(frame: &mut Frame<'_>, app: &App, area: Rect, context: &Ren
         ])),
         parts[0],
     );
-    render_diff_value(frame, diff, app.diff_scroll, parts[1], true, context);
+    render_diff_value(frame, app, parts[1], true, context);
 }
 
 fn location(diff: &Diff, scroll: usize, width: usize, context: &RenderContext) -> String {
