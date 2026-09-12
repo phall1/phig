@@ -3,8 +3,9 @@
 GitHub Releases are the distribution authority. cargo-dist 0.32.0 builds four
 archives, per-archive and unified SHA-256 checksums, a shell installer, source
 tarball, and GitHub attestations. It does not build or push a Homebrew formula:
-`phall1/homebrew-tap` renders `Formula/phig.rb` itself from `tools/phig.json`,
-re-resolving this repository's latest release on a fifteen-minute schedule.
+`phall1/homebrew-tap` renders `Formula/phig.rb` itself from `tools/phig.json`.
+A `phig-release` dispatch updates it as soon as the GitHub Release lists its
+archives; a fifteen-minute poll is the backup if the dispatch is skipped.
 
 ## Releases default to "merge a PR"
 
@@ -21,8 +22,10 @@ release-please (`.github/workflows/release-please.yml`, configured in
 5. The tag push triggers cargo-dist's Release workflow (archives, checksums,
    shell installer, attestations, GitHub Release) and
    `.github/workflows/publish-crates.yml` (`cargo publish --locked`).
-6. The Homebrew tap re-resolves the new release within its fifteen-minute
-   schedule.
+6. `.github/workflows/notify-tap.yml` dispatches `phig-release` to
+   `phall1/homebrew-tap` once the Darwin ARM archive is listed, so
+   `Formula/phig.rb` updates immediately. The tap still re-resolves every
+   fifteen minutes if the dispatch is skipped or delayed.
 
 Do not push a manual version tag while the automation is healthy: a release
 touchpoint outside a release PR skips review, and the tag workflow may race the
@@ -41,12 +44,11 @@ There are two important constraints behind this design:
 ## One-time repository setup
 
 The `phall1/phig` repository must have Actions enabled. GitHub's generated
-`GITHUB_TOKEN` creates releases and attestations. No tap credential is required
-here: the tap reads this repository's public releases under its own token rather
-than being pushed to, so there is no `HOMEBREW_TAP_TOKEN` to hold or rotate.
-Private vulnerability reporting should be enabled.
+`GITHUB_TOKEN` creates releases and attestations. The tap still reads this
+repository's public releases under its own token and never trusts a checksum
+from the dispatch payload. Private vulnerability reporting should be enabled.
 
-Two repository secrets are required by the automated path:
+Three repository secrets are used by the automated path:
 
 - `RELEASE_PLEASE_TOKEN` — a personal access token (classic with `repo`, or
   fine-grained with `Contents: Read and write`) used by release-please to open
@@ -54,6 +56,9 @@ Two repository secrets are required by the automated path:
   because tags created with `GITHUB_TOKEN` do not trigger downstream workflows.
 - `CARGO_REGISTRY_TOKEN` — a crates.io API token for `publish-crates`. Prefer a
   granular token scoped to `phig-cli` with an expiry over a full-account token.
+- `HOMEBREW_TAP_TOKEN` — a token that can `repository_dispatch` on
+  `phall1/homebrew-tap`. If it is unset, Formula/phig.rb still updates on the
+  tap's fifteen-minute poll; the secret only buys immediacy.
 
 ## Automated release checklist
 
@@ -75,8 +80,9 @@ Two repository secrets are required by the automated path:
    cargo search phig-cli --limit 1
    ```
 
-4. Let the tap catch up (up to fifteen minutes), then `brew update && brew
-   install phall1/tap/phig` and `phig update --check` in a clean home.
+4. Confirm the Notify Homebrew tap workflow ran (or wait up to fifteen minutes
+   for the poll), then `brew update && brew install phall1/tap/phig` and
+   `phig update --check` in a clean home.
 5. If a workflow failed, see [Failure and recovery](#failure-and-recovery);
    never push a second tag for the same version.
 
@@ -197,10 +203,10 @@ phig version
 phig update --check
 ```
 
-The tap updates on its own schedule, so `brew install` serves the previous
-version for up to fifteen minutes after the release publishes. Once it has run,
-verify `Formula/phig.rb` in the tap points to the new release and that its CI is
-healthy. The crates.io route publishes through `publish-crates` on the same tag
+The tap updates from the `phig-release` dispatch as soon as the GitHub Release
+lists its archives, and the fifteen-minute poll is the backup. Once either has
+run, verify `Formula/phig.rb` in the tap points to the new release and that its
+CI is healthy. The crates.io route publishes through `publish-crates` on the same tag
 push; on a manual cut, confirm it in the run logs:
 
 ```sh
