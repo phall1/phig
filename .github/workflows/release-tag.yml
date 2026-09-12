@@ -16,7 +16,7 @@ permissions:
 jobs:
   tag:
     if: ${{ github.event.pull_request.merged && startsWith(github.event.pull_request.head.ref, 'release-please--branches--') }}
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:

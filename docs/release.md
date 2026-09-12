@@ -137,32 +137,31 @@ version in the commit you tag.
 3. Test `install.sh`, `phig update --check`, the PTY selector, and the primary
    views on macOS and Linux CI. Review `git diff` and ensure the tree is clean.
 4. Merge the release commit to `main` and wait for CI. cargo-dist PRs validate
-   the release plan (`pr-run-mode = "plan"`). Release-related CI changes rehearse
-   the native macOS archive and installer; tags build all four target archives.
-   Complete the local rehearsal above before tagging.
+   the release plan (`pr-run-mode = "plan"`). Tags build all four target
+   archives. Complete the local rehearsal above before tagging.
 
 The local benchmark script gates warm snapshot p95 at 500 ms by default, which
 a warm shared dev machine can exceed regardless of release content. When that
 happens, compare the same fixture against the previous release tag's binary
 (the current release should not be slower) and re-run with CI's gates,
-`--snapshot-p95-ms 1000 --first-frame-p95-ms 1500`; CI's platform gate is the
+`--snapshot-p95-ms 1000 --first-frame-p95-ms 1500`; CI's Linux gate is the
 release gate.
 
 ### CI coverage and cost
 
 Every PR and push to `main` runs format, strict Clippy, documentation tests,
-shell lint, dependency policy, all-feature tests on Linux and macOS, and the
-performance regression gate. Linux unit/integration tests run once, in the
-platform job. Local `just check` is useful fast feedback; Actions also validates
-the pinned toolchain and clean checkout on both operating systems.
+shell lint, dependency policy, crate packaging, and all-feature tests on
+`ubuntu-latest` and `macos-latest`. The performance regression gate and a
+release build run only on Linux. macOS checks the 12.0 deployment floor on the
+debug binary (`MACOSX_DEPLOYMENT_TARGET` applies to every profile). Local
+`just check` is useful fast feedback; Actions also validates the pinned
+toolchain on both operating systems.
 
-Package verification, the extra release-plan check on `main`, and the real
-macOS cargo-dist installer fixture run when manifests, lockfiles, toolchain,
-build/release configuration, installer/update/CLI code, scripts, workflows, or
-release documentation change. They also run weekly and with
-`gh workflow run ci.yml`. Missing comparison history falls back to full checks.
-The generated release workflow validates PR plans and builds all artifacts on
-version tags. Regenerate it with `dist generate` after changing dist settings.
+cargo-dist's generated Release workflow validates the plan on every PR and
+builds all four target archives on version tags. Apple artifact jobs use
+`macos-latest`; Linux artifact jobs stay on `ubuntu-22.04` so the glibc 2.31
+floor stays real. Regenerate the workflow with `dist generate` after changing
+dist settings.
 
 The local Beads pre-push hook performs issue bookkeeping; it does not run Rust
 tests. Its default timeout is 300 seconds. `BEADS_HOOK_TIMEOUT=15 git push`
