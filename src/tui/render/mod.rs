@@ -1,6 +1,7 @@
 //! Read-only Ratatui renderer composed from layout, chrome, and view modules.
 
 mod chrome;
+mod decorate;
 mod diff;
 mod diff_tree;
 mod format;

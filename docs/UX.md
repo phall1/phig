@@ -68,10 +68,17 @@ actions.
 
 ### Log
 
-Rows contain graph glyphs, short object ID, relative/absolute date according to
-available width, author, decorations, and subject. Graph and text degrade
-cleanly on narrow terminals. Preview shows selected commit metadata and patch.
-Additional history loads before the cursor reaches the end.
+Rows contain graph glyphs, short object ID, named refs, relative/absolute date
+according to available width, author, and subject. Named refs sit immediately
+after the object id so a lane's identity is visible before the commit text.
+HEAD, local branches, remotes, and tags stay distinct by prefix (`HEAD→`,
+`tag:`, remote `/`) as well as color; local branch names use the matching lane
+color. Width budget keeps those names in preference to the author column.
+When a branch tip has scrolled off screen, the first visible commit of that
+lane repeats its name more quietly, and the selected commit does the same when
+it has no decorations of its own. Graph and text degrade cleanly on narrow
+terminals. Preview shows selected commit metadata, including the same named
+refs, and the patch. Additional history loads before the cursor reaches the end.
 
 The graph draws one row per commit. Lanes carry real connecting edges: a merge
 opens a lane and marks its node distinctly, a lane closes into the commit that
@@ -83,6 +90,8 @@ fold into a `~`-marked final column rather than pushing the commit text off
 screen. The bundle is explicitly approximate on screen; all underlying parent
 identities remain intact. Branch colors follow their ancestry through joins
 and reused columns, and the selected branch is bold across the visible graph.
+Selection is marker-led: the selected log row keeps graph and decoration colors
+and adds emphasis, rather than repainting the row as a single accent.
 Previously computed graph rows are reused during navigation.
 
 A ref scope (`--all`, `--branches`, `--remotes`, `--tags`) widens the walk from

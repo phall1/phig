@@ -117,7 +117,9 @@ palette shows your effective shortcuts. Use arrows to choose and `Enter` to go.
 Press `F` to read the active patch full-screen, with a sticky file/hunk location.
 `F` or `Esc` restores the previous layout and position. Crowded `--all` graphs
 keep every parent connection internally, mark bundled lanes with `~`, and
-emphasize the selected branch across the visible rows.
+emphasize the selected branch across the visible rows. Named refs sit next to
+the object id (`HEAD→main`, remotes, `tag:v1`) in the matching lane color, so
+a branch stays identifiable after its tip has scrolled away.
 
 The footer is always the local source of truth. Documented semantic navigation
 and view actions are remappable; see [configuration](docs/configuration.md).

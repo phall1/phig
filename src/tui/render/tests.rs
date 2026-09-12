@@ -12,7 +12,7 @@ use crate::domain::{
 
 use super::{
     graph::{graph_rows, lane_limit},
-    history::history_line,
+    history::{HistoryLineOpts, history_line},
     layout::{diff_content_rows, list_preview_layout},
     *,
 };
@@ -142,6 +142,70 @@ fn ref_scope_graph_connects_merges_to_their_parents() {
     // The header names the scope instead of pinning it to one object.
     assert!(rendered.contains("all refs"), "scope missing from chrome");
     assert!(!rendered.contains("all refs@"), "scope pinned to an object");
+}
+
+#[test]
+fn log_names_refs_before_the_subject() {
+    let rendered = screen(100, 14, &branchy_app());
+    let head = rendered.lines().nth(1).expect("selected log row");
+    assert!(head.contains("HEAD→main"), "HEAD missing: {head}");
+    assert!(head.contains("origin/main"), "origin/main missing: {head}");
+    assert!(head.contains("merge other"), "subject missing: {head}");
+    let head_ref = head.find("HEAD→main").unwrap();
+    let origin = head.find("origin/main").unwrap();
+    let subject = head.find("merge other").unwrap();
+    assert!(
+        head_ref < origin && origin < subject,
+        "named refs should precede the subject: {head}"
+    );
+    assert!(rendered.contains("tag:v1"), "tag missing:\n{rendered}");
+    assert!(
+        rendered.contains("topic"),
+        "local branch missing:\n{rendered}"
+    );
+}
+
+#[test]
+fn selected_mid_branch_commit_inherits_its_lane_name() {
+    let mut app = branchy_app();
+    app.selected = 2; // main-b, no decorations of its own
+    let rendered = screen(100, 14, &app);
+    let row = rendered
+        .lines()
+        .find(|line| line.contains("main-b"))
+        .expect("main-b row");
+    assert!(
+        row.contains("main"),
+        "selected mid-branch row should repeat the lane name: {row}"
+    );
+}
+
+#[test]
+fn offscreen_tip_repeats_the_lane_name_on_the_first_visible_row() {
+    let mut app = branchy_app();
+    app.selected = 9; // base, so main-a is visible but not the cursor
+    let rendered = screen(100, 8, &app);
+    let row = rendered
+        .lines()
+        .find(|line| line.contains("main-a"))
+        .expect("main-a row");
+    assert!(
+        row.contains("main"),
+        "first visible row of a lane should keep the name after the tip scrolls away: {row}\n{rendered}"
+    );
+}
+
+#[test]
+fn selected_log_row_keeps_graph_and_decoration_colors() {
+    let output = styled_screen(100, 14, &branchy_app());
+    assert!(
+        output.contains("HEAD→main"),
+        "named refs missing from styled log:\n{output}"
+    );
+    let washed = output.lines().any(|line| {
+        line.contains("merge other") && line.contains("fg=Cyan") && line.contains("0-99")
+    });
+    assert!(!washed, "selection recolored the whole log row:\n{output}");
 }
 
 fn sample_app() -> App {
@@ -1358,11 +1422,15 @@ fn history_preserves_subjects_and_cell_width_across_date_modes() {
             let rows = graph_rows(&app.commits, 1, lane_limit(width), context.glyphs().graph);
             let line = history_line(
                 &app.commits[0],
-                width,
                 &rows[0],
-                rows[0].width(),
-                false,
-                None,
+                HistoryLineOpts {
+                    width,
+                    graph_width: rows[0].width(),
+                    marked: false,
+                    selected: false,
+                    selected_branch: None,
+                    inherited_label: None,
+                },
                 &context,
             );
             let text = line
@@ -1374,9 +1442,14 @@ fn history_preserves_subjects_and_cell_width_across_date_modes() {
                 text.contains("important"),
                 "subject vanished at {width} columns in {mode:?}: {text:?}"
             );
+            if width >= 60 {
+                assert!(
+                    text.contains("HEAD→main"),
+                    "branch name vanished at {width} columns in {mode:?}: {text:?}"
+                );
+            }
             assert!(
-                UnicodeWidthStr::width(text.as_str())
-                    <= usize::from(width) - UnicodeWidthStr::width(context.glyphs().selected),
+                UnicodeWidthStr::width(text.as_str()) <= usize::from(width),
                 "history row exceeded its cell budget at {width} columns: {text:?}"
             );
         }

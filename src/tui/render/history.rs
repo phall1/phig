@@ -1,8 +1,11 @@
 //! Commit history, graph lanes, metadata, and preview rendering.
 
+use std::collections::{HashMap, HashSet};
+
 use ratatui::{
     Frame,
     layout::{Alignment, Constraint, Direction, Layout, Rect},
+    style::{Modifier, Style},
     text::{Line, Span},
     widgets::{List, ListItem, ListState, Paragraph, Wrap},
 };
@@ -14,6 +17,7 @@ use crate::{
 };
 
 use super::{
+    decorate::{decoration_spans, lane_name, spans_width},
     diff::render_diff,
     format::{display_date, display_width, format_commit_date, pad_right, truncate_with},
     graph::{GraphCache, GraphRow, lane_limit},
@@ -91,17 +95,40 @@ fn render_history(
         .map(|row| row.width() + usize::from(row.folded_lanes() > 0))
         .max()
         .unwrap_or(0);
+    let lane_names = visible_lane_names(&app.commits[..end], &rows[..end]);
+    let named_in_view: HashSet<usize> = app.commits[start..end]
+        .iter()
+        .zip(&rows[start..end])
+        .filter(|(commit, _)| !commit.decorations.is_empty())
+        .map(|(_, row)| row.color())
+        .collect();
+    let mut seen_colors = HashSet::new();
+    let selected_branch = rows.get(app.selected).map(GraphRow::color);
     let items: Vec<ListItem<'_>> = app.commits[start..end]
         .iter()
         .enumerate()
         .map(|(offset, commit)| {
+            let index = start + offset;
+            let row = &rows[index];
+            let first_visible = seen_colors.insert(row.color());
             ListItem::new(history_line(
                 commit,
-                area.width,
-                &rows[start + offset],
-                graph_width,
-                app.marked_oid.as_ref() == Some(&commit.id),
-                rows.get(app.selected).map(GraphRow::color),
+                row,
+                HistoryLineOpts {
+                    width: area.width,
+                    graph_width,
+                    marked: app.marked_oid.as_ref() == Some(&commit.id),
+                    selected: index == app.selected,
+                    selected_branch,
+                    inherited_label: inherited_lane_label(
+                        commit,
+                        row.color(),
+                        index == app.selected,
+                        first_visible,
+                        &named_in_view,
+                        &lane_names,
+                    ),
+                },
                 context,
             ))
         })
@@ -109,36 +136,107 @@ fn render_history(
     let mut state = ListState::default().with_selected(Some(app.selected - start));
     let active = app.focus == Focus::List;
     let list = List::new(items)
-        .highlight_style(context.selection_style(active))
-        .highlight_symbol(context.glyphs().selected)
-        .repeat_highlight_symbol(true);
+        .highlight_style(log_highlight_style(context, active))
+        .highlight_symbol("");
     frame.render_stateful_widget(list, area, &mut state);
+}
+
+fn visible_lane_names(commits: &[Commit], rows: &[GraphRow]) -> HashMap<usize, String> {
+    let mut names = HashMap::new();
+    for (commit, row) in commits.iter().zip(rows) {
+        if names.contains_key(&row.color()) {
+            continue;
+        }
+        if let Some(name) = lane_name(&commit.decorations) {
+            names.insert(row.color(), name);
+        }
+    }
+    names
+}
+
+fn inherited_lane_label<'a>(
+    commit: &Commit,
+    color: usize,
+    selected: bool,
+    first_visible: bool,
+    named_in_view: &HashSet<usize>,
+    lane_names: &'a HashMap<usize, String>,
+) -> Option<&'a str> {
+    if !commit.decorations.is_empty() {
+        return None;
+    }
+    let name = lane_names.get(&color)?;
+    if selected || (first_visible && !named_in_view.contains(&color)) {
+        Some(name.as_str())
+    } else {
+        None
+    }
+}
+
+fn log_highlight_style(context: &RenderContext, active: bool) -> Style {
+    if context.is_monochrome() {
+        return Style::reset();
+    }
+    if context.config().theme.selection_bg != ratatui::style::Color::Reset {
+        return context.selection_style(active);
+    }
+    if !active {
+        return Style::default();
+    }
+    // Marker-led: keep graph and decoration colors, emphasize with bold.
+    Style::default().add_modifier(Modifier::BOLD)
+}
+
+pub(super) struct HistoryLineOpts<'a> {
+    pub width: u16,
+    pub graph_width: usize,
+    pub marked: bool,
+    pub selected: bool,
+    pub selected_branch: Option<usize>,
+    pub inherited_label: Option<&'a str>,
 }
 
 pub(super) fn history_line(
     commit: &Commit,
-    width: u16,
     graph: &GraphRow,
-    graph_width: usize,
-    marked: bool,
-    selected_branch: Option<usize>,
+    opts: HistoryLineOpts<'_>,
     context: &RenderContext,
 ) -> Line<'static> {
-    // Ratatui reserves the highlight symbol outside the item. Budget every
-    // remaining field by terminal cells so wide names cannot consume the
-    // subject or bleed into an adjacent preview.
-    let item_width = usize::from(width).saturating_sub(display_width(context.glyphs().selected));
-    let mark = if marked {
+    // The selection marker lives in the row so it can stay accent-colored
+    // without List highlight replacing graph and decoration colors.
+    let item_width = usize::from(opts.width);
+    let cursor_width = display_width(context.glyphs().selected);
+    let cursor = if opts.selected {
+        Span::styled(
+            context.glyphs().selected.to_owned(),
+            context.strong(context.accent()),
+        )
+    } else {
+        Span::raw(" ".repeat(cursor_width))
+    };
+    let mark = if opts.marked {
         context.glyphs().marked
     } else {
         "  "
     };
     // Normal rows end on a blank lane gap. Folded rows need one extra cell
     // after the bundle marker to keep it distinct from the object id.
-    let graph_width = graph_width.max(graph.width());
-    let fixed_width = display_width(mark) + graph_width + 9;
+    let graph_width = opts.graph_width.max(graph.width());
+    let fixed_width = cursor_width + display_width(mark) + graph_width + 9;
     let mut remaining = item_width.saturating_sub(fixed_width);
     let minimum_subject = display_width(&commit.subject).min(12);
+
+    let mut decoration_field = decoration_spans(
+        &commit.decorations,
+        opts.inherited_label,
+        remaining.saturating_sub(minimum_subject.saturating_add(1)),
+        Some(graph.color()),
+        context,
+    );
+    if !decoration_field.is_empty() {
+        decoration_field.push(Span::raw(" "));
+        remaining = remaining.saturating_sub(spans_width(&decoration_field));
+    }
 
     let age = display_date(
         commit.author.timestamp,
@@ -153,7 +251,7 @@ pub(super) fn history_line(
 
     let author_field = author_field(
         &commit.author.name,
-        width,
+        opts.width,
         remaining,
         minimum_subject,
         context,
@@ -161,26 +259,10 @@ pub(super) fn history_line(
     if let Some(author) = &author_field {
         remaining = remaining.saturating_sub(display_width(author));
     }
-
-    let decoration = (!commit.decorations.is_empty()).then(|| {
-        format!(
-            " ({})",
-            truncate_with(
-                &commit.decorations.join(", "),
-                22,
-                context.glyphs().ellipsis,
-            )
-        )
-    });
-    let decoration = decoration
-        .filter(|value| display_width(value).saturating_add(minimum_subject) <= remaining);
-    if let Some(value) = &decoration {
-        remaining = remaining.saturating_sub(display_width(value));
-    }
     let subject = truncate_with(&commit.subject, remaining, context.glyphs().ellipsis);
 
-    let mut spans = vec![Span::styled(mark, context.strong(context.accent()))];
-    spans.extend(match selected_branch {
+    let mut spans = vec![cursor, Span::styled(mark, context.strong(context.accent()))];
+    spans.extend(match opts.selected_branch {
         Some(color) => graph.spans_with_highlight(context, Some(color)),
         None => graph.spans(context),
     });
@@ -194,6 +276,7 @@ pub(super) fn history_line(
         ),
         Span::raw(" "),
     ]);
+    spans.extend(decoration_field);
     if show_age {
         spans.push(Span::styled(age_field, context.style(context.muted())));
     }
@@ -201,9 +284,6 @@ pub(super) fn history_line(
         spans.push(Span::styled(author, context.style(context.muted())));
     }
     spans.push(Span::raw(subject));
-    if let Some(decoration) = decoration {
-        spans.push(Span::styled(decoration, context.style(context.muted())));
-    }
     Line::from(spans)
 }
 
@@ -331,14 +411,18 @@ fn detail_metadata(app: &App, height: usize, context: &RenderContext) -> Vec<Lin
             .join(" ")
     };
     let muted = context.style(context.muted());
+    let mut oid = vec![Span::styled(
+        detail.commit.id.short(12).to_owned(),
+        context.style(context.warning()),
+    )];
+    let decorations = decoration_spans(&detail.commit.decorations, None, 48, None, context);
+    if !decorations.is_empty() {
+        oid.push(Span::raw("  "));
+        oid.extend(decorations);
+    }
+    oid.push(Span::styled(parent, muted));
     let mut lines = vec![
-        Line::from(vec![
-            Span::styled(
-                detail.commit.id.short(12).to_owned(),
-                context.style(context.warning()),
-            ),
-            Span::styled(parent, muted),
-        ]),
+        Line::from(oid),
         Line::from(Span::styled(
             sanitize_str(&detail.commit.subject),
             if context.is_monochrome() {
