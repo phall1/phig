@@ -20,5 +20,10 @@
       "path": "tests/fixtures/version.json",
       "jsonpath": "$.payload.version"
     }
-  ]
+  ],
+  "packages": {
+    ".": {
+      "release-type": "rust"
+    }
+  }
 }
