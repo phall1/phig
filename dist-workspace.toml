@@ -16,8 +16,10 @@ install-path = "CARGO_HOME"
 # Where to host releases
 hosting = "github"
 # Validate release planning on PRs; tags build and upload every artifact.
-# ci.yml rehearses the native installer for release-relevant changes and weekly.
 pr-run-mode = "plan"
+# Free public GitHub-hosted runners. Linux artifact builds stay on ubuntu-22.04
+# so the glibc 2.31 floor in min-glibc-version remains real.
+github-custom-runners = { global = "ubuntu-latest", aarch64-apple-darwin = "macos-latest", x86_64-apple-darwin = "macos-latest", aarch64-unknown-linux-gnu = "ubuntu-22.04", x86_64-unknown-linux-gnu = "ubuntu-22.04" }
 # Keep the existing release build cache when PR builds are disabled.
 cache-builds = true
 # Release integrity and publication.
