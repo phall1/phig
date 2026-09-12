@@ -79,7 +79,7 @@ STYLES
 files 120x28
 TEXT
  phig LOG phig-demo / main  HEAD
-›   ◌ aaaaaaaa 1700000000 Pat Examp… make histor…│aaaaaaaaaaaa
+›   ◌ aaaaaaaa HEAD→main 1700000000 make history…│aaaaaaaaaaaa  HEAD→main
                                                  │make history pleasant
                                                  │Author: Pat Example <pat@example.invalid>
                                                  │Date: 2023-11-14 18:13:20 -04:00
@@ -109,9 +109,20 @@ TEXT
 STYLES
 0:0-9 fg=Cyan bg=Reset mod=BOLD text=" phig LOG "
 0:19-31 fg=DarkGray bg=Reset mod=NONE text=" / main  HEAD"
-1:0-48 fg=Cyan bg=Reset mod=BOLD text="›   ◌ aaaaaaaa 1700000000 Pat Examp… make histor…"
+1:0-5 fg=Cyan bg=Reset mod=BOLD text="›   ◌ "
+1:6-13 fg=Yellow bg=Reset mod=BOLD text="aaaaaaaa"
+1:14-14 fg=Reset bg=Reset mod=BOLD text=" "
+1:15-18 fg=Cyan bg=Reset mod=BOLD text="HEAD"
+1:19-19 fg=DarkGray bg=Reset mod=BOLD text="→"
+1:20-23 fg=Cyan bg=Reset mod=BOLD text="main"
+1:24-24 fg=Reset bg=Reset mod=BOLD text=" "
+1:25-35 fg=DarkGray bg=Reset mod=BOLD text="1700000000 "
+1:36-48 fg=Reset bg=Reset mod=BOLD text="make history…"
 1:49-49 fg=DarkGray bg=Reset mod=NONE text="│"
 1:50-61 fg=Yellow bg=Reset mod=NONE text="aaaaaaaaaaaa"
+1:64-67 fg=Cyan bg=Reset mod=BOLD text="HEAD"
+1:68-68 fg=DarkGray bg=Reset mod=NONE text="→"
+1:69-72 fg=Green bg=Reset mod=BOLD text="main"
 2:49-49 fg=DarkGray bg=Reset mod=NONE text="│"
 2:50-70 fg=Reset bg=Reset mod=BOLD text="make history pleasant"
 3:49-90 fg=DarkGray bg=Reset mod=NONE text="│Author: Pat Example <pat@example.invalid>"

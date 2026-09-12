@@ -30,10 +30,11 @@ permanent grid.
 
 Bare `phig` opens `phig log HEAD`; use `phig log [REV] [-- PATH…]` for another
 revision, or a ref scope (`--all`, `--branches`, `--remotes`, `--tags`) to walk
-whole ref families and see remote branches as graph lanes. The initial
-selection is visible as soon as data arrives. Movement updates an optional diff
-preview without blocking input. Users can search commit metadata, constrain a
-path, copy an object ID, or open commit detail.
+whole ref families and see remote branches as graph lanes. Named refs sit next
+to the graph so a lane stays identifiable as HEAD, a local branch, a remote, or
+a tag. The initial selection is visible as soon as data arrives. Movement
+updates an optional diff preview without blocking input. Users can search
+commit metadata, constrain a path, copy an object ID, or open commit detail.
 
 ### Inspect a commit
 

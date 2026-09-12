@@ -384,7 +384,9 @@ fn narrow_log_cannot_focus_an_invisible_preview() {
     let reader = pair.master.try_clone_reader().unwrap();
     let (output, reader_thread) = read_live(reader);
     let mut writer = pair.master.take_writer().unwrap();
-    wait_for_marker(&output, "second commit", Duration::from_secs(5));
+    // Crossterm diffs skip default-style spaces, so a two-word subject is not
+    // a contiguous byte string. Wait on the unique first word instead.
+    wait_for_marker(&output, "second", Duration::from_secs(5));
     output.lock().unwrap().clear();
     writer.write_all(b"\tj\r").unwrap();
     writer.flush().unwrap();
@@ -688,7 +690,7 @@ fn no_alt_screen_mode_leaves_scrollback_and_restores_cursor() {
     let reader = pair.master.try_clone_reader().unwrap();
     let (output, reader_thread) = read_live(reader);
     let mut writer = pair.master.take_writer().unwrap();
-    wait_for_marker(&output, "exact show target", Duration::from_secs(5));
+    wait_for_marker(&output, "exact", Duration::from_secs(5));
     let status = retry_key_until_exit(&mut child, &mut writer, b"q", Duration::from_secs(8));
     drop(writer);
     drop(pair.master);
@@ -698,8 +700,8 @@ fn no_alt_screen_mode_leaves_scrollback_and_restores_cursor() {
     assert!(status.success());
     assert!(screen.contains("phig"));
     assert!(
-        screen.contains("exact show target"),
-        "show REV -- PATH selected an ancestor instead of REV"
+        screen.contains("exact") && screen.contains("target"),
+        "show REV -- PATH selected an ancestor instead of REV: {screen}"
     );
     assert!(screen.contains("\u{1b}[?25h"));
     assert!(!screen.contains("\u{1b}[?1049h"));
@@ -750,7 +752,7 @@ fn clipboard_defaults_to_osc52_and_explicit_off_reports_disabled() {
         let reader = pair.master.try_clone_reader().unwrap();
         let (output, reader_thread) = read_live(reader);
         let mut writer = pair.master.take_writer().unwrap();
-        wait_for_marker(&output, "copy commit", Duration::from_secs(5));
+        wait_for_marker(&output, "copy", Duration::from_secs(5));
         writer.write_all(b"y").unwrap();
         writer.flush().unwrap();
         wait_for_marker(&output, marker, Duration::from_secs(3));
@@ -810,7 +812,7 @@ fn external_termination_signal_restores_the_terminal() {
             assert!(signal.success(), "failed to send {name}");
         };
 
-        wait_for_marker(&output, "signal commit", Duration::from_secs(5));
+        wait_for_marker(&output, "signal", Duration::from_secs(5));
         if exercise_suspend {
             send_signal("-TSTP");
             wait_for_marker_count(&output, "\u{1b}[?1049l", 1, Duration::from_secs(3));

@@ -6,7 +6,7 @@ expression: output
 === Log ===
 TEXT
  phig LOG phig-demo / main  HEAD
-›   ◌ aaaaaaaa 1700000000 Pat Example        make history pleasant (HEAD -> main)
+›   ◌ aaaaaaaa HEAD→main 1700000000 Pat Example        make history pleasant
 
 
 
@@ -18,7 +18,7 @@ TEXT
 
 
 ────────────────────────────────────────────────────────────────────────────────────────────────────
-aaaaaaaaaaaa
+aaaaaaaaaaaa  HEAD→main
 make history pleasant
 Author: Pat Example <pat@example.invalid>
 Date: 2023-11-14 18:13:20 -04:00
@@ -36,9 +36,20 @@ diff --git a/src/main.rs b/src/main.rs
 STYLES
 0:0-9 fg=Cyan bg=Reset mod=BOLD text=" phig LOG "
 0:19-31 fg=DarkGray bg=Reset mod=NONE text=" / main  HEAD"
-1:0-99 fg=Cyan bg=Reset mod=BOLD text="›   ◌ aaaaaaaa 1700000000 Pat Example        make history pleasant (HEAD -> main)                   "
+1:0-5 fg=Cyan bg=Reset mod=BOLD text="›   ◌ "
+1:6-13 fg=Yellow bg=Reset mod=BOLD text="aaaaaaaa"
+1:14-14 fg=Reset bg=Reset mod=BOLD text=" "
+1:15-18 fg=Cyan bg=Reset mod=BOLD text="HEAD"
+1:19-19 fg=DarkGray bg=Reset mod=BOLD text="→"
+1:20-23 fg=Cyan bg=Reset mod=BOLD text="main"
+1:24-24 fg=Reset bg=Reset mod=BOLD text=" "
+1:25-54 fg=DarkGray bg=Reset mod=BOLD text="1700000000 Pat Example        "
+1:55-99 fg=Reset bg=Reset mod=BOLD text="make history pleasant                        "
 12:0-99 fg=DarkGray bg=Reset mod=NONE text="────────────────────────────────────────────────────────────────────────────────────────────────────"
 13:0-11 fg=Yellow bg=Reset mod=NONE text="aaaaaaaaaaaa"
+13:14-17 fg=Cyan bg=Reset mod=BOLD text="HEAD"
+13:18-18 fg=DarkGray bg=Reset mod=NONE text="→"
+13:19-22 fg=Green bg=Reset mod=BOLD text="main"
 14:0-20 fg=Reset bg=Reset mod=BOLD text="make history pleasant"
 15:0-40 fg=DarkGray bg=Reset mod=NONE text="Author: Pat Example <pat@example.invalid>"
 16:0-31 fg=DarkGray bg=Reset mod=NONE text="Date: 2023-11-14 18:13:20 -04:00"
@@ -59,7 +70,7 @@ STYLES
 === Detail ===
 TEXT
  phig SHOW phig-demo / main  HEAD
-aaaaaaaaaaaa
+aaaaaaaaaaaa  HEAD→main
 make history pleasant
 Author: Pat Example <pat@example.invalid>
 Date: 2023-11-14 18:13:20 -04:00
@@ -90,6 +101,9 @@ STYLES
 0:0-10 fg=Cyan bg=Reset mod=BOLD text=" phig SHOW "
 0:20-32 fg=DarkGray bg=Reset mod=NONE text=" / main  HEAD"
 1:0-11 fg=Yellow bg=Reset mod=NONE text="aaaaaaaaaaaa"
+1:14-17 fg=Cyan bg=Reset mod=BOLD text="HEAD"
+1:18-18 fg=DarkGray bg=Reset mod=NONE text="→"
+1:19-22 fg=Green bg=Reset mod=BOLD text="main"
 2:0-20 fg=Reset bg=Reset mod=BOLD text="make history pleasant"
 3:0-40 fg=DarkGray bg=Reset mod=NONE text="Author: Pat Example <pat@example.invalid>"
 4:0-31 fg=DarkGray bg=Reset mod=NONE text="Date: 2023-11-14 18:13:20 -04:00"

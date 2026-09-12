@@ -187,7 +187,7 @@ fn command_substitution_reserves_stdout_for_exact_selection() {
         "value=\"$('{}' --no-alt-screen select --kind commit --format oid)\"; rc=$?; printf '\\nRESULT:%s:%s\\n' \"$rc\" \"$value\"",
         bin.display()
     );
-    let output = run_script(d.path(), &script, "two (HEAD", b'\r');
+    let output = run_script(d.path(), &script, "HEAD→feature", b'\r');
     assert_selection_prompt(&output, "COMMIT", "Enter", "Esc/q");
     assert!(output.contains("\u{1b}[?2004h"));
     assert!(output.contains("\u{1b}[?2004l"));
@@ -340,7 +340,7 @@ fn selection_cancellation_honors_semantic_quit_remap() {
     let reader = pair.master.try_clone_reader().unwrap();
     let (output, read) = read_live(reader);
     let mut writer = pair.master.take_writer().unwrap();
-    wait_for_output(&output, "select commit", Duration::from_secs(5));
+    wait_for_output(&output, "select", Duration::from_secs(5));
     writer.write_all(b"q").unwrap();
     writer.flush().unwrap();
     assert_running_for(
@@ -365,7 +365,7 @@ fn selection_cancel_is_exit_one_with_empty_stdout() {
         "value=\"$('{}' --no-alt-screen select --kind commit --format json)\"; rc=$?; printf '\\nRESULT:%s:%s\\n' \"$rc\" \"${{#value}}\"",
         bin.display()
     );
-    let output = run_script(d.path(), &script, "two (HEAD", b'q');
+    let output = run_script(d.path(), &script, "HEAD→feature", b'q');
     assert_selection_prompt(&output, "COMMIT", "Enter", "Esc/q");
     assert!(output.contains("RESULT:1:0"), "{output:?}");
 }

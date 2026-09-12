@@ -43,8 +43,10 @@ phig --all log main         # main unioned with every ref
 Naming a revision unions it with the scope; omitting one lets the scope define
 the walk on its own, so `phig --remotes` does not fold local HEAD commits back
 in. A ref scope also selects topological ordering, because interleaving
-independent branches by date makes the graph unreadable. Opening a ref from the
-refs view narrows the log back to that one endpoint and drops the scope.
+independent branches by date makes the graph unreadable. Named refs sit next to
+the object id (`HEAD→main`, remotes, `tag:v1`) so a lane stays identifiable after
+its tip has scrolled away. Opening a ref from the refs view narrows the log back
+to that one endpoint and drops the scope.
 
 ## Machine commands
 
