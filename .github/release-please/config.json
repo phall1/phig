@@ -2,6 +2,7 @@
   "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
   "release-type": "rust",
   "include-v-in-tag": true,
+  "include-component-in-tag": false,
   "changelog-header": "# Changelog\n\nAll notable changes to phig are documented here. The format follows\n[Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and releases follow\n[Semantic Versioning](https://semver.org/).",
   "changelog-sections": [
     { "type": "feat", "section": "### Added" },
