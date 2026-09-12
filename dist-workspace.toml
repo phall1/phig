@@ -30,7 +30,8 @@ github-attestations = true
 # article in desc, a version stanza beside the urls, an unfrozen constant — and
 # because brew style runs over the whole tap, publishing it turned every package
 # in the tap red, not just phig's. Hand-fixing it there lasted exactly one
-# release. The tap re-resolves this repo's latest release every fifteen minutes,
-# so dropping the push costs only latency, not freshness.
+# release. The tap re-resolves this repo's latest release on `phig-release`
+# dispatch and every fifteen minutes, so dropping cargo-dist's formula push
+# costs only a token for immediacy, not freshness.
 # Whether to install an updater program (phig supplies its own explicit command).
 install-updater = false

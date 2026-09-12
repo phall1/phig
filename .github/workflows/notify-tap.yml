@@ -1,0 +1,59 @@
+# cargo-dist publishes the GitHub Release. This pokes phall1/homebrew-tap so
+# Formula/phig.rb updates immediately instead of waiting for the fifteen-minute
+# poll. The tap re-resolves the release and checksums itself; the payload is
+# only a hint of which tool moved. If HOMEBREW_TAP_TOKEN is unset, the poll
+# still catches the release — this job is latency, not authority.
+name: Notify Homebrew tap
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to notify about (defaults to the latest)
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  notify:
+    if: github.repository == 'phall1/phig'
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Wait until release assets are listed
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.release.tag_name || inputs.tag }}
+        run: |
+          set -euo pipefail
+          tag="${TAG:-}"
+          if [[ -z "$tag" ]]; then
+            tag="$(gh release view --repo phall1/phig --json tagName --jq .tagName)"
+          fi
+          echo "tag=$tag" >> "$GITHUB_ENV"
+          for _ in $(seq 1 30); do
+            if gh release view "$tag" --repo phall1/phig --json assets --jq '.assets[].name' \
+              | grep -qx 'phig-cli-aarch64-apple-darwin.tar.xz'; then
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "::error::Release $tag has no Darwin ARM archive after waiting"
+          exit 1
+
+      - name: Dispatch tap update
+        env:
+          GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${GH_TOKEN:-}" ]]; then
+            echo "HOMEBREW_TAP_TOKEN is unset; the tap's fifteen-minute poll will update Formula/phig.rb."
+            exit 0
+          fi
+          gh api --method POST repos/phall1/homebrew-tap/dispatches \
+            -f event_type=phig-release \
+            -F "client_payload[tool]=phig" \
+            -F "client_payload[tag]=${tag}"

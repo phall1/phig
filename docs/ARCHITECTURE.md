@@ -157,7 +157,8 @@ semantic actions rather than implementation callbacks.
 GitHub releases are the artifact authority. Release automation builds target
 archives, checksums, GitHub build-provenance attestations, and an installer.
 `phall1/homebrew-tap` renders the Homebrew formula from the published release
-rather than being pushed to from here. The curl installer downloads
+rather than accepting cargo-dist's formula. A `phig-release` dispatch updates
+it immediately; a fifteen-minute poll is the backup. The curl installer downloads
 a versioned archive over authenticated TLS, verifies its published checksum for
 transport integrity, installs atomically under a user-selected prefix, and is
 safe to rerun for updates. Release documentation explains independent
