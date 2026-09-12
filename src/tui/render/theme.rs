@@ -123,6 +123,22 @@ impl Default for RenderConfig {
     }
 }
 
+/// Connectors for the changed-file tree overlay.
+///
+/// Ancestor levels consume two columns each (`│ ` or two spaces); the final
+/// connector (`├─` / `└─`, or `|--` / `` `-- `` in ASCII) is followed by one
+/// shared space before the name, so every level stays column-clean across
+/// glyph modes.
+#[derive(Debug, Clone, Copy)]
+pub struct TreeGlyphs {
+    /// `│ ` — an ancestor level that continues on later rows.
+    pub vertical: &'static str,
+    /// `├─` — an entry that has later siblings at its level.
+    pub tee: &'static str,
+    /// `└─` — the last entry at its level.
+    pub corner: &'static str,
+}
+
 /// Box-drawing repertoire for the commit graph.
 ///
 /// Every edge the graph can draw resolves to exactly one of these, so the
@@ -157,6 +173,7 @@ pub struct GraphGlyphs {
 pub struct GlyphSet {
     pub selected: &'static str,
     pub marked: &'static str,
+    pub tree: TreeGlyphs,
     pub graph: GraphGlyphs,
     pub vertical: &'static str,
     pub horizontal: &'static str,
@@ -184,6 +201,11 @@ impl GlyphSet {
         Self {
             selected: "› ",
             marked: "◆ ",
+            tree: TreeGlyphs {
+                vertical: "│ ",
+                tee: "├─",
+                corner: "└─",
+            },
             graph: GraphGlyphs {
                 commit: '●',
                 merge: '◆',
@@ -215,6 +237,11 @@ impl GlyphSet {
         Self {
             selected: "> ",
             marked: "* ",
+            tree: TreeGlyphs {
+                vertical: "| ",
+                tee: "|--",
+                corner: "`--",
+            },
             graph: GraphGlyphs {
                 commit: 'o',
                 merge: '*',

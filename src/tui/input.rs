@@ -136,6 +136,11 @@ pub(super) fn key_action(app: &App, key: KeyEvent) -> Option<Action> {
         KeyCode::Char('S') => Some(Action::ToggleDiffStyle),
         KeyCode::Left => Some(Action::TreeCollapse),
         KeyCode::Right => Some(Action::TreeExpand),
+        KeyCode::Char('-') => Some(Action::TreeCollapseAll),
+        KeyCode::Char('=') if key.modifiers.contains(KeyModifiers::SHIFT) => {
+            Some(Action::TreeExpandAll)
+        }
+        KeyCode::Char('+') => Some(Action::TreeExpandAll),
         KeyCode::Char('F') => Some(Action::ToggleDiffFullscreen),
         KeyCode::Char('n') => Some(Action::NextMatch),
         KeyCode::Char('N') => Some(Action::PreviousMatch),

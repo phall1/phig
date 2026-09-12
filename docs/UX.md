@@ -37,7 +37,7 @@ frame with a short title and a persistent action footer.
 | `}`, `{` | next/previous changed file |
 | `P` | cycle merge parent in commit detail |
 | `f` | filter changed files and jump to one |
-| `T` | browse changed-file tree; arrows fold directories, `Enter` opens |
+| `T` | browse changed-file tree; arrows fold directories, `-`/`+` fold/unfold all, `Enter` opens |
 | `S` | toggle unified/side-by-side diff (unified below 100 patch columns) |
 | `F` | expand/restore the active diff |
 | `r` | refs view |
@@ -98,10 +98,13 @@ anchors. Merge commits expose explicit parent cycling with `P`; version 1 does
 not claim a combined-diff display.
 
 `T` opens a temporary changed-file tree with directory grouping and change counts.
-Movement previews the selected path at wide widths; `Enter` opens it as a dominant
-patch at every width. Left/Right collapse/expand directories. `Esc` cancels and
-restores the original patch position. Unified patches have old/new line gutters
-and stronger intra-line change emphasis. See [diff review](diff-review.md).
+It reads like a file browser: tree guides (`├`/`└`), directories first, a per-file
+change badge (`A`/`D`/`M`/`R`), a right-aligned `+N −M` column, and a footer with
+the selected full path. Movement previews the selected path at wide widths;
+`Enter` opens it as a dominant patch at every width. Left/Right collapse/expand
+directories; `-` folds and `+` unfolds the whole tree. `Esc` cancels and restores
+the original patch position. Unified patches have old/new line gutters and
+stronger intra-line change emphasis. See [diff review](diff-review.md).
 
 `F` expands the active patch from log, refs, status, blame, or stash to the full
 body, including on narrow terminals. Its sticky header identifies the commit

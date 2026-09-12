@@ -251,7 +251,30 @@ fn diff_review_keys_render_tree_gutters_split_and_narrow_fallback() {
         screen(60, 16, &app)
     ));
     insta::assert_snapshot!("diff-review", scenes);
-    app.update(Action::Last, 10);
+    let tree_wide = styled_screen(120, 22, &app);
+    assert!(tree_wide.contains('├'));
+    assert!(tree_wide.contains('└'));
+    let tree_narrow = screen(60, 16, &app);
+    assert!(tree_narrow.contains("├─ src/"));
+    assert!(tree_narrow.contains("│ ├─ ui/"));
+    assert!(tree_narrow.contains("└─ main.rs M"));
+    assert!(tree_narrow.contains("└─ README.md"));
+    assert!(tree_narrow.contains("src/main.rs M +1 -1"));
+    let collapse_all =
+        crate::tui::input::key_action(&app, KeyEvent::new(KeyCode::Char('-'), KeyModifiers::NONE))
+            .unwrap();
+    assert_eq!(collapse_all, Action::TreeCollapseAll);
+    let expand_all =
+        crate::tui::input::key_action(&app, KeyEvent::new(KeyCode::Char('='), KeyModifiers::SHIFT))
+            .unwrap();
+    assert_eq!(expand_all, Action::TreeExpandAll);
+    app.update(Action::TreeCollapseAll, 10);
+    assert!(screen(60, 16, &app).contains("├─ src/"));
+    assert!(!screen(60, 16, &app).contains("view.rs"));
+    app.update(Action::TreeExpandAll, 10);
+    app.update(Action::First, 10);
+    app.update(Action::Move(1), 10); // src -> ui
+    app.update(Action::Move(1), 10); // ui -> view.rs
     app.update(Action::Open, 10);
     assert!(screen(60, 16, &app).contains("view.rs"));
     assert_eq!(
@@ -289,6 +312,35 @@ fn diff_review_monochrome_retains_signs_and_word_emphasis() {
         assert!(text.contains("-let timeout"));
         assert!(text.contains("+let timeout"));
     }
+}
+
+#[test]
+fn diff_tree_ascii_guides_and_footer_survive_monochrome() {
+    use crate::app::Action;
+    let mut app = review_app();
+    app.update(Action::ToggleDiffTree, 10);
+    let context = RenderContext::new(RenderConfig {
+        color_mode: ColorMode::Never,
+        glyph_mode: GlyphMode::Ascii,
+        ..deterministic_config()
+    });
+    let text = screen_with_context(60, 16, &app, &context);
+    assert!(text.contains("|-- src/"));
+    assert!(text.contains("`-- README.md"));
+    assert!(text.contains("`-- main.rs M"));
+    assert!(text.contains("src/main.rs M +1 -1"));
+    let mut terminal = Terminal::new(TestBackend::new(60, 16)).unwrap();
+    terminal
+        .draw(|frame| render_with_context(frame, &app, &context))
+        .unwrap();
+    assert!(
+        terminal
+            .backend()
+            .buffer()
+            .content
+            .iter()
+            .all(|cell| cell.fg == Color::Reset && cell.bg == Color::Reset)
+    );
 }
 
 #[test]

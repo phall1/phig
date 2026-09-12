@@ -4,6 +4,17 @@ All notable changes to phig are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and releases follow
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Changed
+
+- The changed-file tree (`T`) now reads like a file browser: box-drawing
+  guides mark nesting, directories sort first with every subtree kept
+  contiguous for folding, file rows show a change badge (`A`/`D`/`M`/`R`),
+  addition/deletion counts sit in right-aligned columns, and a footer shows
+  the selected full path. `-` folds and `+` unfolds the whole tree; status
+  letters derive from diff header paths so renames and deletions keep their kind.
+
 ## [1.3.0] - 2026-09-12
 
 ### Added

@@ -16,7 +16,7 @@ mod reducer;
 mod search;
 
 pub use commands::palette_commands;
-pub use diff_tree::{DiffTree, DiffTreeEntry};
+pub use diff_tree::{DiffTree, DiffTreeEntry, TreeStatus};
 pub use inspect::InspectState;
 pub use model::*;
 

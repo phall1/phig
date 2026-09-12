@@ -148,11 +148,11 @@ TREE 120x22
 TEXT
  phig LOG phig-demo / main  HEAD
 CHANGED FILES                           │DIFF aaaaaaaaaa  src/main.rs  ·  file 1/3  ·  hunk 0/1
-    README.md +0 -0                     │diff --git a/src/main.rs b/src/main.rs
-  v src/ +3 -1                          │--- a/src/main.rs
-›     main.rs +1 -1                     │+++ b/src/main.rs
-    v ui/ +2 -0                         │@@ -10,3 +10,3 @@ fn main()
-        view.rs +2 -0                   │  10   10 │  let label = "café";
+  ├─ src/                          +3 -1│diff --git a/src/main.rs b/src/main.rs
+  │ ├─ ui/                         +2 -0│--- a/src/main.rs
+  │ │ └─ view.rs M                 +2 -0│+++ b/src/main.rs
+› │ └─ main.rs M                   +1 -1│@@ -10,3 +10,3 @@ fn main()
+  └─ README.md M                   +0 -0│  10   10 │  let label = "café";
                                         │  11      │ -let timeout = 100; // old value
                                         │       11 │ +let timeout = 250; // new value
                                         │  12   12 │  render(label);
@@ -166,37 +166,43 @@ CHANGED FILES                           │DIFF aaaaaaaaaa  src/main.rs  ·  fil
                                         │old mode 100644
                                         │new mode 100755
                                         │
-                                        │
- Enter open · Left/Right fold · Esc cancel                                                                           3/5
+src/main.rs M +1 -1                     │
+ Enter open · Left/Right fold · -/+ all · Esc cancel                                                                 4/5
 STYLES
 0:0-9 fg=Cyan bg=Reset mod=BOLD text=" phig LOG "
 0:19-31 fg=DarkGray bg=Reset mod=NONE text=" / main  HEAD"
 1:0-39 fg=Cyan bg=Reset mod=BOLD text="CHANGED FILES                           "
 1:40-57 fg=DarkGray bg=Reset mod=NONE text="│DIFF aaaaaaaaaa  "
 1:58-94 fg=Cyan bg=Reset mod=BOLD text="src/main.rs  ·  file 1/3  ·  hunk 0/1"
-2:0-12 fg=DarkGray bg=Reset mod=NONE text="    README.md"
-2:13-15 fg=Green bg=Reset mod=NONE text=" +0"
-2:16-18 fg=Red bg=Reset mod=NONE text=" -0"
+2:0-33 fg=DarkGray bg=Reset mod=NONE text="  ├─ src/                         "
+2:34-36 fg=Green bg=Reset mod=NONE text=" +3"
+2:37-39 fg=Red bg=Reset mod=NONE text=" -1"
 2:40-40 fg=DarkGray bg=Reset mod=NONE text="│"
 2:41-78 fg=Yellow bg=Reset mod=BOLD text="diff --git a/src/main.rs b/src/main.rs"
-3:0-7 fg=DarkGray bg=Reset mod=NONE text="  v src/"
-3:8-10 fg=Green bg=Reset mod=NONE text=" +3"
-3:11-13 fg=Red bg=Reset mod=NONE text=" -1"
+3:0-33 fg=DarkGray bg=Reset mod=NONE text="  │ ├─ ui/                        "
+3:34-36 fg=Green bg=Reset mod=NONE text=" +2"
+3:37-39 fg=Red bg=Reset mod=NONE text=" -0"
 3:40-40 fg=DarkGray bg=Reset mod=NONE text="│"
 3:41-57 fg=Yellow bg=Reset mod=BOLD text="--- a/src/main.rs"
-4:0-12 fg=Cyan bg=Reset mod=BOLD text="›     main.rs"
-4:13-15 fg=Green bg=Reset mod=NONE text=" +1"
-4:16-18 fg=Red bg=Reset mod=NONE text=" -1"
+4:0-15 fg=DarkGray bg=Reset mod=NONE text="  │ │ └─ view.rs"
+4:16-17 fg=Yellow bg=Reset mod=NONE text=" M"
+4:18-33 fg=DarkGray bg=Reset mod=NONE text="                "
+4:34-36 fg=Green bg=Reset mod=NONE text=" +2"
+4:37-39 fg=Red bg=Reset mod=NONE text=" -0"
 4:40-40 fg=DarkGray bg=Reset mod=NONE text="│"
 4:41-57 fg=Yellow bg=Reset mod=BOLD text="+++ b/src/main.rs"
-5:0-8 fg=DarkGray bg=Reset mod=NONE text="    v ui/"
-5:9-11 fg=Green bg=Reset mod=NONE text=" +2"
-5:12-14 fg=Red bg=Reset mod=NONE text=" -0"
+5:0-13 fg=Cyan bg=Reset mod=BOLD text="› │ └─ main.rs"
+5:14-15 fg=Yellow bg=Reset mod=NONE text=" M"
+5:16-33 fg=Cyan bg=Reset mod=BOLD text="                  "
+5:34-36 fg=Green bg=Reset mod=NONE text=" +1"
+5:37-39 fg=Red bg=Reset mod=NONE text=" -1"
 5:40-40 fg=DarkGray bg=Reset mod=NONE text="│"
 5:41-67 fg=Cyan bg=Reset mod=BOLD text="@@ -10,3 +10,3 @@ fn main()"
-6:0-14 fg=DarkGray bg=Reset mod=NONE text="        view.rs"
-6:15-17 fg=Green bg=Reset mod=NONE text=" +2"
-6:18-20 fg=Red bg=Reset mod=NONE text=" -0"
+6:0-13 fg=DarkGray bg=Reset mod=NONE text="  └─ README.md"
+6:14-15 fg=Yellow bg=Reset mod=NONE text=" M"
+6:16-33 fg=DarkGray bg=Reset mod=NONE text="                  "
+6:34-36 fg=Green bg=Reset mod=NONE text=" +0"
+6:37-39 fg=Red bg=Reset mod=NONE text=" -0"
 6:40-52 fg=DarkGray bg=Reset mod=NONE text="│  10   10 │ "
 7:40-52 fg=DarkGray bg=Reset mod=NONE text="│  11      │ "
 7:53-67 fg=Red bg=Reset mod=NONE text="-let timeout = "
@@ -229,17 +235,18 @@ STYLES
 17:40-55 fg=DarkGray bg=Reset mod=NONE text="│old mode 100644"
 18:40-55 fg=DarkGray bg=Reset mod=NONE text="│new mode 100755"
 19:40-40 fg=DarkGray bg=Reset mod=NONE text="│"
+20:0-18 fg=DarkGray bg=Reset mod=NONE text="src/main.rs M +1 -1"
 20:40-40 fg=DarkGray bg=Reset mod=NONE text="│"
-21:0-119 fg=DarkGray bg=Reset mod=NONE text=" Enter open · Left/Right fold · Esc cancel                                                                           3/5"
+21:0-119 fg=DarkGray bg=Reset mod=NONE text=" Enter open · Left/Right fold · -/+ all · Esc cancel                                                                 4/5"
 
 TREE 60x16
  phig LOG phig-demo / main  HEAD                            
 CHANGED FILES                                               
-    README.md +0 -0                                         
-  v src/ +3 -1                                              
-›     main.rs +1 -1                                         
-    v ui/ +2 -0                                             
-        view.rs +2 -0                                       
+  ├─ src/                                              +3 -1
+  │ ├─ ui/                                             +2 -0
+  │ │ └─ view.rs M                                     +2 -0
+› │ └─ main.rs M                                       +1 -1
+  └─ README.md M                                       +0 -0
                                                             
                                                             
                                                             
@@ -247,5 +254,5 @@ CHANGED FILES
                                                             
                                                             
                                                             
-                                                            
- Enter open · Left/Right fold · Esc cancel               3/5
+src/main.rs M +1 -1                                         
+ Enter open · Left/Right fold · -/+ all · Esc cancel     4/5

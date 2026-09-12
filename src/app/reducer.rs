@@ -48,7 +48,10 @@ impl App {
                 self.diff_split = !self.diff_split;
                 Vec::new()
             }
-            Action::TreeCollapse | Action::TreeExpand => Vec::new(),
+            Action::TreeCollapse
+            | Action::TreeExpand
+            | Action::TreeCollapseAll
+            | Action::TreeExpandAll => Vec::new(),
             Action::ToggleFocus => self.toggle_focus(),
             Action::StartSearch => {
                 self.overlay = Overlay::Search {

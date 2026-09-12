@@ -105,7 +105,7 @@ fn diff_tree_browse_cancel_open_and_refresh_are_reversible_without_git() {
     };
     assert_eq!(tree.current().unwrap().label, "main.rs");
     assert!(app.update(Action::Last, 10).is_empty());
-    assert_eq!(app.diff_scroll, 8);
+    assert_eq!(app.diff_scroll, 14);
     app.update(Action::Back, 10);
     assert_eq!(app.diff_scroll, 5);
     assert_eq!(app.selected_oid, selected);
@@ -114,7 +114,7 @@ fn diff_tree_browse_cancel_open_and_refresh_are_reversible_without_git() {
     app.update(Action::Last, 10);
     assert!(app.update(Action::Open, 10).is_empty());
     assert!(app.diff_fullscreen);
-    assert_eq!(app.diff_scroll, 8);
+    assert_eq!(app.diff_scroll, 14);
     app.update(Action::ToggleDiffTree, 10);
     app.apply_preview(detail);
     assert_eq!(app.overlay, Overlay::None);
@@ -141,12 +141,108 @@ fn diff_tree_collapses_nested_directories_without_losing_file_identity() {
         (3, 1)
     );
     app.update(Action::TreeExpand, 10);
-    app.update(Action::Last, 10);
+    app.update(Action::Move(1), 10); // src -> ui
+    app.update(Action::Move(1), 10); // ui -> view.rs
     let Overlay::DiffTree(tree) = &app.overlay else {
         panic!("tree missing")
     };
     assert_eq!(tree.current().unwrap().label, "view.rs");
     assert_eq!(tree.current().unwrap().header_line, 8);
+}
+
+#[test]
+fn diff_tree_flattens_directories_first_and_derives_change_kinds() {
+    use crate::domain::{Diff, DiffFile, DiffLine, DiffLineKind, Hunk};
+    let file = |header_line: usize,
+                old: Option<&[u8]>,
+                new: Option<&[u8]>,
+                added: usize,
+                removed: usize| {
+        let mut lines = vec![DiffLine {
+            kind: DiffLineKind::FileHeader,
+            text: "diff".into(),
+        }];
+        lines.extend((0..added).map(|_| DiffLine {
+            kind: DiffLineKind::Added,
+            text: "+".into(),
+        }));
+        lines.extend((0..removed).map(|_| DiffLine {
+            kind: DiffLineKind::Removed,
+            text: "-".into(),
+        }));
+        (
+            DiffFile {
+                header_line,
+                old_path: old.map(GitPath::new),
+                new_path: new.map(GitPath::new),
+                hunks: vec![Hunk {
+                    header_line,
+                    old_start: 1,
+                    old_lines: 0,
+                    new_start: 1,
+                    new_lines: 0,
+                }],
+            },
+            lines,
+        )
+    };
+    let (added_file, added_lines) = file(0, None, Some(b"new.txt"), 1, 0);
+    let (deleted_file, deleted_lines) = file(2, Some(b"old.txt"), None, 0, 1);
+    let (renamed_file, renamed_lines) = file(4, Some(b"before.rs"), Some(b"after.rs"), 1, 1);
+    let (modified_file, modified_lines) = file(6, Some(b"mod.rs"), Some(b"mod.rs"), 1, 0);
+    let mut lines = added_lines;
+    lines.extend(deleted_lines);
+    lines.extend(renamed_lines);
+    lines.extend(modified_lines);
+    let diff = Diff {
+        lines,
+        files: vec![added_file, deleted_file, renamed_file, modified_file],
+        truncated: false,
+    };
+    let tree = DiffTree::new(&diff, 0);
+    let names: Vec<_> = tree
+        .entries
+        .iter()
+        .map(|entry| entry.label.as_str())
+        .collect();
+    assert_eq!(names, ["after.rs", "mod.rs", "new.txt", "old.txt"]);
+    let statuses: Vec<_> = tree.entries.iter().map(|entry| entry.status).collect();
+    assert_eq!(
+        statuses,
+        [
+            Some(TreeStatus::Renamed),
+            Some(TreeStatus::Modified),
+            Some(TreeStatus::Added),
+            Some(TreeStatus::Deleted),
+        ]
+    );
+    assert_eq!(tree.entries[2].full, "new.txt");
+    assert_eq!(tree.entries[2].added, 1);
+    assert_eq!(tree.entries[2].removed, 0);
+}
+
+#[test]
+fn diff_tree_collapse_and_expand_all_toggle_the_whole_index() {
+    let mut app = app();
+    app.view = View::StatusDiff;
+    app.apply_working_diff(patch::fixture());
+    app.update(Action::ToggleDiffTree, 10);
+    app.update(Action::TreeCollapseAll, 10);
+    let Overlay::DiffTree(tree) = &app.overlay else {
+        panic!("tree missing")
+    };
+    assert_eq!(
+        tree.visible,
+        vec![0, 4],
+        "only the folded root directories remain visible"
+    );
+    assert_eq!(tree.current().unwrap().label, "README.md");
+    app.update(Action::TreeExpandAll, 10);
+    let Overlay::DiffTree(tree) = &app.overlay else {
+        panic!("tree missing")
+    };
+    assert_eq!(tree.visible.len(), 5);
+    assert_eq!(tree.entries[0].depth, 0);
 }
 
 #[test]

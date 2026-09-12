@@ -65,6 +65,16 @@ pub const COMMANDS: &[CommandDescriptor] = &[
         "Expand changed directory",
         Action::TreeExpand
     ),
+    command!(
+        "diff-tree-collapse-all",
+        "Collapse all changed directories",
+        Action::TreeCollapseAll
+    ),
+    command!(
+        "diff-tree-expand-all",
+        "Expand all changed directories",
+        Action::TreeExpandAll
+    ),
     command!("search", "Search", Action::StartSearch),
     command!("palette", "Open command palette", Action::StartPalette),
     command!(

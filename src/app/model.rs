@@ -64,6 +64,8 @@ pub enum Action {
     ToggleDiffStyle,
     TreeCollapse,
     TreeExpand,
+    TreeCollapseAll,
+    TreeExpandAll,
     ToggleFocus,
     StartSearch,
     StartPalette,

@@ -182,8 +182,12 @@ fn hints(app: &App, context: &RenderContext) -> Vec<String> {
         return vec![
             format!("{} open", context.key(&Action::Open)),
             format!(
-                "{} fold",
-                key_pair(context, &Action::TreeCollapse, &Action::TreeExpand)
+                "{}/{} fold {s} {}/{} all",
+                context.key(&Action::TreeCollapse),
+                context.key(&Action::TreeExpand),
+                context.key(&Action::TreeCollapseAll),
+                context.key(&Action::TreeExpandAll),
+                s = context.glyphs().separator,
             ),
             format!("{} cancel", context.key(&Action::Back)),
         ];
