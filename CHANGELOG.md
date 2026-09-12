@@ -8,6 +8,18 @@ All notable changes to phig are documented here. The format follows
 
 ### Changed
 
+- Log rows name their refs before the subject: `HEAD→` (or `HEAD->` in ASCII),
+  local branches in the matching lane color, remotes, and `tag:` labels. Those
+  names keep the width budget ahead of the author column, so they remain at
+  60 columns. When a tip scrolls off screen, the first visible commit of that
+  lane — and the selected mid-branch commit — repeat the name more quietly.
+  Marker-led selection keeps graph and decoration colors instead of washing
+  the selected row with accent. Commit preview metadata shows the same refs.
+
+## [1.4.0] - 2026-09-12
+
+### Changed
+
 - The changed-file tree (`T`) now reads like a file browser: box-drawing
   guides mark nesting, directories sort first with every subtree kept
   contiguous for folding, file rows show a change badge (`A`/`D`/`M`/`R`),
@@ -140,7 +152,10 @@ All notable changes to phig are documented here. The format follows
   pagers, lazy object fetching, replacements, and terminal control sequences
   are disabled or sanitized on inspection paths.
 
-[Unreleased]: https://github.com/phall1/phig/compare/v1.1.1...HEAD
+[Unreleased]: https://github.com/phall1/phig/compare/v1.4.0...HEAD
+[1.4.0]: https://github.com/phall1/phig/compare/v1.3.0...v1.4.0
+[1.3.0]: https://github.com/phall1/phig/compare/v1.2.0...v1.3.0
+[1.2.0]: https://github.com/phall1/phig/compare/v1.1.1...v1.2.0
 [1.1.1]: https://github.com/phall1/phig/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/phall1/phig/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/phall1/phig/releases/tag/v1.0.0
