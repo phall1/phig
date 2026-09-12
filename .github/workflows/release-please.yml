@@ -1,0 +1,33 @@
+# Opens and maintains the release PR. Merging that PR is the whole release
+# step: the version bump (Cargo.toml, Cargo.lock, tests/fixtures/version.json)
+# and the CHANGELOG land through the PR, then .github/workflows/release-tag.yml
+# pushes the vX.Y.Z tag on merge. cargo-dist owns the GitHub Release (it runs
+# on the tag push), and .github/workflows/publish-crates.yml publishes the
+# crate. `skip-github-release: true` keeps release-please from creating the
+# tag or the GitHub Release itself; a PAT is required because tags pushed with
+# the default GITHUB_TOKEN do not trigger downstream workflows.
+name: release-please
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: release-please
+  cancel-in-progress: false
+
+jobs:
+  release-please:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: googleapis/release-please-action@v4
+        id: release
+        with:
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN }}
+          config-file: .github/release-please/config.json
+          manifest-file: .github/release-please/manifest.json
+          skip-github-release: true

@@ -6,6 +6,38 @@ tarball, and GitHub attestations. It does not build or push a Homebrew formula:
 `phall1/homebrew-tap` renders `Formula/phig.rb` itself from `tools/phig.json`,
 re-resolving this repository's latest release on a fifteen-minute schedule.
 
+## Releases default to "merge a PR"
+
+release-please (`.github/workflows/release-please.yml`, configured in
+`.github/release-please/`) turns releases into a single PR merge:
+
+1. Conventional commits land on `main` (`feat:`, `fix:`, `perf:`, ...).
+2. release-please opens (and keeps up to date) a release PR that bumps
+   `Cargo.toml`, `Cargo.lock`, `tests/fixtures/version.json`, and
+   `CHANGELOG.md`. Features bump the minor version, fixes bump the patch.
+3. **Merge the release PR.** That is the whole release decision.
+4. `.github/workflows/release-tag.yml` pushes the `vX.Y.Z` tag on the merged
+   release PR using `RELEASE_PLEASE_TOKEN`.
+5. The tag push triggers cargo-dist's Release workflow (archives, checksums,
+   shell installer, attestations, GitHub Release) and
+   `.github/workflows/publish-crates.yml` (`cargo publish --locked`).
+6. The Homebrew tap re-resolves the new release within its fifteen-minute
+   schedule.
+
+Do not push a manual version tag while the automation is healthy: a release
+touchpoint outside a release PR skips review, and the tag workflow may race the
+crates.io publish. If a manual release is genuinely needed, follow the manual
+path below and expect the two tag-push workflows to publish automatically.
+
+There are two important constraints behind this design:
+
+- Tags pushed with the default `GITHUB_TOKEN` do **not** trigger further
+  workflow runs, so tag creation must use a real token (`RELEASE_PLEASE_TOKEN`)
+  for cargo-dist and the crates.io publish to fire at all.
+- `skip-github-release: true` keeps release-please from creating the tag or a
+  GitHub Release itself; cargo-dist stays the single creator of the GitHub
+  Release on the tag push.
+
 ## One-time repository setup
 
 The `phall1/phig` repository must have Actions enabled. GitHub's generated
@@ -14,10 +46,49 @@ here: the tap reads this repository's public releases under its own token rather
 than being pushed to, so there is no `HOMEBREW_TAP_TOKEN` to hold or rotate.
 Private vulnerability reporting should be enabled.
 
-The release workflow intentionally has no crates.io credential. Publishing and
-clean-installing `phig-cli` is a separate, explicit, required final release step.
+Two repository secrets are required by the automated path:
 
-## Prepare
+- `RELEASE_PLEASE_TOKEN` — a personal access token (classic with `repo`, or
+  fine-grained with `Contents: Read and write`) used by release-please to open
+  release PRs and by `release-tag` to push the version tag. A PAT is required
+  because tags created with `GITHUB_TOKEN` do not trigger downstream workflows.
+- `CARGO_REGISTRY_TOKEN` — a crates.io API token for `publish-crates`. Prefer a
+  granular token scoped to `phig-cli` with an expiry over a full-account token.
+
+## Automated release checklist
+
+1. Merge conventional-commit changes to `main`. Prefer the commit types
+   `feat:`, `fix:`, `perf:`, and `chore:`; `docs:`/`test:`/`ci:`/`build:`
+   commits are hidden from the generated changelog.
+2. When a release PR titled `chore(main): release phig-cli vX.Y.Z` is open,
+   merge it. Do not merge two release PRs back to back; each merge tags
+   immediately.
+3. Wait for the tag-push workflows. Verify the GitHub Release and the crates.io
+   publish:
+
+   ```sh
+   gh release view vX.Y.Z --repo phall1/phig
+   gh release download vX.Y.Z --repo phall1/phig --dir /tmp/phig-release
+   (cd /tmp/phig-release && shasum -a 256 -c phig-cli-aarch64-apple-darwin.tar.xz.sha256)
+   gh attestation verify /tmp/phig-release/phig-cli-aarch64-apple-darwin.tar.xz \
+     --repo phall1/phig
+   cargo search phig-cli --limit 1
+   ```
+
+4. Let the tap catch up (up to fifteen minutes), then `brew update && brew
+   install phall1/tap/phig` and `phig update --check` in a clean home.
+5. If a workflow failed, see [Failure and recovery](#failure-and-recovery);
+   never push a second tag for the same version.
+
+## Manual release (fallback)
+
+Use this path when the automated path cannot (workflow breakage, first-time
+runoff, a prerelease that must stay out of crates.io). A manual cut is a
+prepared commit on `main`, then a tag; the `release-tag` and `publish-crates`
+workflows still fire on the tag push, so keep `Cargo.toml` at the intended
+version in the commit you tag.
+
+### Prepare
 
 1. Update `CHANGELOG.md`, set `Cargo.toml` to the release version, and refresh
    `Cargo.lock`.
@@ -64,6 +135,13 @@ clean-installing `phig-cli` is a separate, explicit, required final release step
    the native macOS archive and installer; tags build all four target archives.
    Complete the local rehearsal above before tagging.
 
+The local benchmark script gates warm snapshot p95 at 500 ms by default, which
+a warm shared dev machine can exceed regardless of release content. When that
+happens, compare the same fixture against the previous release tag's binary
+(the current release should not be slower) and re-run with CI's gates,
+`--snapshot-p95-ms 1000 --first-frame-p95-ms 1500`; CI's platform gate is the
+release gate.
+
 ### CI coverage and cost
 
 Every PR and push to `main` runs format, strict Clippy, documentation tests,
@@ -84,7 +162,7 @@ The local Beads pre-push hook performs issue bookkeeping; it does not run Rust
 tests. Its default timeout is 300 seconds. `BEADS_HOOK_TIMEOUT=15 git push`
 limits that bookkeeping wait without suppressing Actions.
 
-## Publish
+### Publish
 
 The version tag must exactly match the Cargo package version:
 
@@ -122,10 +200,11 @@ phig update --check
 The tap updates on its own schedule, so `brew install` serves the previous
 version for up to fifteen minutes after the release publishes. Once it has run,
 verify `Formula/phig.rb` in the tap points to the new release and that its CI is
-healthy. Then publish and verify the required crates.io route:
+healthy. The crates.io route publishes through `publish-crates` on the same tag
+push; on a manual cut, confirm it in the run logs:
 
 ```sh
-cargo publish --locked
+gh run list --workflow publish-crates --limit 1
 cargo search phig-cli --limit 1
 CARGO_HOME="$(mktemp -d)" cargo install phig-cli --version 1.1.1 --locked
 ```
