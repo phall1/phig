@@ -4,6 +4,19 @@ All notable changes to phig are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and releases follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.5.0](https://github.com/phall1/phig/compare/v1.4.0...v1.5.0) (2026-09-12)
+
+
+### ### Added
+
+* **tui:** name graph lanes so branches stay identifiable ([53e7907](https://github.com/phall1/phig/commit/53e790753d120ea012d88e6144d362e45b7a26b5))
+* **tui:** name graph lanes so branches stay identifiable ([222f0e0](https://github.com/phall1/phig/commit/222f0e040a71624e4ab79d80b00d9c8c82436605))
+
+
+### ### Changed
+
+* **main:** release phig-cli vX.Y.Z. ([df624fc](https://github.com/phall1/phig/commit/df624fcf99cff2c5831b3fb2cb1c2d0fd4138854))
+
 ## [Unreleased]
 
 ### Changed
