@@ -159,7 +159,11 @@ fn file_banner(
     context: &RenderContext,
 ) -> Line<'static> {
     let line = &diff.lines[raw];
-    let Some(ordinal) = diff.files.iter().position(|file| file.header_line == raw) else {
+    // Files are in patch order, so their header lines are sorted.
+    let Ok(ordinal) = diff
+        .files
+        .binary_search_by_key(&raw, |file| file.header_line)
+    else {
         return Line::styled(line.text.clone(), context.style(context.muted()));
     };
     let file = &diff.files[ordinal];

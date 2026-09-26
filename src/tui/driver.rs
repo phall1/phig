@@ -311,13 +311,15 @@ impl LoopState {
         let rows = self.page_rows(session)?;
         let previous = self.app.view;
         let effects = self.app.update(action, rows);
-        if self.app.view != previous {
-            invalidate_for_transition(
+        if self.app.view != previous
+            && invalidate_for_transition(
                 &self.coordinator,
                 &mut self.pending,
                 previous,
                 self.app.view,
-            );
+            )
+        {
+            self.app.abandon_requests(&effects);
         }
         if self.app.commits.is_empty() {
             self.render.clear_history();

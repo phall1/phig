@@ -21,8 +21,10 @@ impl App {
             ) => {
                 self.overlay = Overlay::None;
             }
-            (Overlay::Help, Action::StartSearch | Action::StartPalette) => {
+            (Overlay::Help, action) => {
+                // Any other key closes the sheet and does what it says.
                 self.overlay = Overlay::None;
+                palette_action = Some(action);
             }
             (Overlay::Search { draft, .. }, Action::SearchInput(character)) => {
                 draft.push(character);
@@ -32,6 +34,11 @@ impl App {
             (Overlay::Search { draft, .. }, Action::SearchBackspace) => {
                 draft.pop();
                 self.search_query = draft.clone();
+                seek = true;
+            }
+            (Overlay::Search { draft, .. }, Action::SearchClear) => {
+                draft.clear();
+                self.search_query.clear();
                 seek = true;
             }
             (
@@ -71,6 +78,10 @@ impl App {
                 draft.pop();
                 *selected = 0;
             }
+            (Overlay::Palette { draft, selected }, Action::SearchClear) => {
+                draft.clear();
+                *selected = 0;
+            }
             (Overlay::Palette { draft, selected }, Action::PaletteMove(delta)) => {
                 let count = palette_commands(draft).len();
                 if count > 0 {
@@ -103,6 +114,15 @@ impl App {
                 Action::SearchBackspace,
             ) => {
                 draft.pop();
+                *selected = 0;
+            }
+            (
+                Overlay::FilePicker {
+                    draft, selected, ..
+                },
+                Action::SearchClear,
+            ) => {
+                draft.clear();
                 *selected = 0;
             }
             (Overlay::FilePicker { selected, .. }, Action::FilePickerMove(delta)) => {
