@@ -31,7 +31,7 @@ pub(super) fn render(frame: &mut Frame<'_>, app: &App, area: Rect, context: &Ren
         } else {
             "No diff available".into()
         };
-        frame.render_widget(Paragraph::new(message), area);
+        super::render_notice(frame, area, &message, context);
         return;
     };
     let parts = Layout::vertical([Constraint::Length(1), Constraint::Min(0)]).split(area);
@@ -87,7 +87,8 @@ fn location(diff: &Diff, scroll: usize, width: usize, context: &RenderContext) -
         .partition_point(|hunk| hunk.header_line <= scroll);
     let separator = context.glyphs().separator;
     let mut ordinal = format!("  {separator}  file {}/{}", index + 1, diff.files.len());
-    if !file.hunks.is_empty() {
+    // Above the first hunk there is no current hunk to count.
+    if hunk > 0 {
         ordinal.push_str(&format!("  {separator}  hunk {hunk}/{}", file.hunks.len()));
     }
     let path_width = width.saturating_sub(display_width(&ordinal));

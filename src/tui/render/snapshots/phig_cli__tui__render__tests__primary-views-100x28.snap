@@ -1,12 +1,13 @@
 ---
 source: src/tui/render/tests.rs
+assertion_line: 844
 expression: output
 ---
 
 === Log ===
 TEXT
- phig LOG phig-demo / main  HEAD
-›   ◌ aaaaaaaa HEAD→main 1700000000 Pat Example        make history pleasant
+ LOG  phig-demo · main · HEAD
+› ◌ aaaaaaaa 1700000000 Pat Example HEAD→main make history pleasant
 
 
 
@@ -20,67 +21,89 @@ TEXT
 ────────────────────────────────────────────────────────────────────────────────────────────────────
 aaaaaaaaaaaa  HEAD→main
 make history pleasant
-Author: Pat Example <pat@example.invalid>
-Date: 2023-11-14 18:13:20 -04:00
-Parents: root · Files: 1 (+1 -1)
+Pat Example · 2y ago · 2023-11-14 18:13 -04:00 · pat@example.invalid
+root commit · 1 file · +1 -1
+
 Explain the change safely.
+
 Second body paragraph.
-diff --git a/src/main.rs b/src/main.rs
-@@ -1 +1 @@
--old
-+new
 
+M src/main.rs ─────────────────────────────────────────────────────────────────────────────── +1 -1
+        │ @@ -1 +1 @@
+        │ -old
+        │ +new
 
-
- j/k move · Enter open · / search                                                                1/1
+ j/k move · Enter open · / search · v mark · ? help                                             1/1
 STYLES
-0:0-9 fg=Cyan bg=Reset mod=BOLD text=" phig LOG "
-0:19-31 fg=DarkGray bg=Reset mod=NONE text=" / main  HEAD"
-1:0-5 fg=Cyan bg=Reset mod=BOLD text="›   ◌ "
-1:6-13 fg=Yellow bg=Reset mod=BOLD text="aaaaaaaa"
-1:14-14 fg=Reset bg=Reset mod=BOLD text=" "
-1:15-18 fg=Cyan bg=Reset mod=BOLD text="HEAD"
-1:19-19 fg=DarkGray bg=Reset mod=BOLD text="→"
-1:20-23 fg=Cyan bg=Reset mod=BOLD text="main"
-1:24-24 fg=Reset bg=Reset mod=BOLD text=" "
-1:25-54 fg=DarkGray bg=Reset mod=BOLD text="1700000000 Pat Example        "
-1:55-99 fg=Reset bg=Reset mod=BOLD text="make history pleasant                        "
+0:0-4 fg=Cyan bg=Reset mod=BOLD | REVERSED text=" LOG "
+0:6-14 fg=Reset bg=Reset mod=BOLD text="phig-demo"
+0:15-17 fg=DarkGray bg=Reset mod=NONE text=" · "
+0:18-21 fg=Green bg=Reset mod=NONE text="main"
+0:22-28 fg=DarkGray bg=Reset mod=NONE text=" · HEAD"
+1:0-3 fg=Cyan bg=Reset mod=BOLD text="› ◌ "
+1:4-11 fg=Yellow bg=Reset mod=BOLD text="aaaaaaaa"
+1:12-12 fg=Reset bg=Reset mod=BOLD text=" "
+1:13-35 fg=DarkGray bg=Reset mod=BOLD text="1700000000 Pat Example "
+1:36-39 fg=Cyan bg=Reset mod=BOLD text="HEAD"
+1:40-40 fg=DarkGray bg=Reset mod=BOLD text="→"
+1:41-44 fg=Cyan bg=Reset mod=BOLD text="main"
+1:45-99 fg=Reset bg=Reset mod=BOLD text=" make history pleasant                                 "
 12:0-99 fg=DarkGray bg=Reset mod=NONE text="────────────────────────────────────────────────────────────────────────────────────────────────────"
-13:0-11 fg=Yellow bg=Reset mod=NONE text="aaaaaaaaaaaa"
+13:0-11 fg=Yellow bg=Reset mod=BOLD text="aaaaaaaaaaaa"
 13:14-17 fg=Cyan bg=Reset mod=BOLD text="HEAD"
 13:18-18 fg=DarkGray bg=Reset mod=NONE text="→"
 13:19-22 fg=Green bg=Reset mod=BOLD text="main"
 14:0-20 fg=Reset bg=Reset mod=BOLD text="make history pleasant"
-15:0-40 fg=DarkGray bg=Reset mod=NONE text="Author: Pat Example <pat@example.invalid>"
-16:0-31 fg=DarkGray bg=Reset mod=NONE text="Date: 2023-11-14 18:13:20 -04:00"
-17:0-31 fg=DarkGray bg=Reset mod=NONE text="Parents: root · Files: 1 (+1 -1)"
-20:0-37 fg=Yellow bg=Reset mod=BOLD text="diff --git a/src/main.rs b/src/main.rs"
-20:38-99 fg=DarkGray bg=Reset mod=NONE text="                                                              "
-21:0-10 fg=Cyan bg=Reset mod=BOLD text="@@ -1 +1 @@"
-21:11-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                         "
-22:0-3 fg=Red bg=Reset mod=NONE text="-old"
-22:4-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                "
-23:0-3 fg=Green bg=Reset mod=NONE text="+new"
-23:4-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                "
-24:0-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                    "
-25:0-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                    "
+15:0-67 fg=DarkGray bg=Reset mod=NONE text="Pat Example · 2y ago · 2023-11-14 18:13 -04:00 · pat@example.invalid"
+16:0-22 fg=DarkGray bg=Reset mod=NONE text="root commit · 1 file · "
+16:23-24 fg=Green bg=Reset mod=NONE text="+1"
+16:26-27 fg=Red bg=Reset mod=NONE text="-1"
+22:0-1 fg=Yellow bg=Reset mod=BOLD text="M "
+22:2-12 fg=Reset bg=Reset mod=BOLD text="src/main.rs"
+22:13-92 fg=DarkGray bg=Reset mod=NONE text=" ───────────────────────────────────────────────────────────────────────────────"
+22:93-95 fg=Green bg=Reset mod=NONE text=" +1"
+22:96-98 fg=Red bg=Reset mod=NONE text=" -1"
+22:99-99 fg=DarkGray bg=Reset mod=NONE text=" "
+23:0-9 fg=DarkGray bg=Reset mod=NONE text="        │ "
+23:10-20 fg=Cyan bg=Reset mod=NONE text="@@ -1 +1 @@"
+23:21-99 fg=DarkGray bg=Reset mod=NONE text="                                                                               "
+24:0-9 fg=Red bg=Reset mod=DIM text="        │ "
+24:10-10 fg=Red bg=Reset mod=NONE text="-"
+24:11-13 fg=Red bg=Reset mod=BOLD | UNDERLINED text="old"
+24:14-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                      "
+25:0-9 fg=Green bg=Reset mod=DIM text="        │ "
+25:10-10 fg=Green bg=Reset mod=NONE text="+"
+25:11-13 fg=Green bg=Reset mod=BOLD | UNDERLINED text="new"
+25:14-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                      "
 26:0-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                    "
-27:0-99 fg=DarkGray bg=Reset mod=NONE text=" j/k move · Enter open · / search                                                                1/1"
+27:1-4 fg=Reset bg=Reset mod=BOLD text="j/k "
+27:5-11 fg=DarkGray bg=Reset mod=NONE text="move · "
+27:12-17 fg=Reset bg=Reset mod=BOLD text="Enter "
+27:18-24 fg=DarkGray bg=Reset mod=NONE text="open · "
+27:25-26 fg=Reset bg=Reset mod=BOLD text="/ "
+27:27-35 fg=DarkGray bg=Reset mod=NONE text="search · "
+27:36-37 fg=Reset bg=Reset mod=BOLD text="v "
+27:38-44 fg=DarkGray bg=Reset mod=NONE text="mark · "
+27:45-46 fg=Reset bg=Reset mod=BOLD text="? "
+27:47-50 fg=DarkGray bg=Reset mod=NONE text="help"
+27:96-99 fg=DarkGray bg=Reset mod=NONE text="1/1 "
 
 === Detail ===
 TEXT
- phig SHOW phig-demo / main  HEAD
+ SHOW  phig-demo · main · HEAD
 aaaaaaaaaaaa  HEAD→main
 make history pleasant
-Author: Pat Example <pat@example.invalid>
-Date: 2023-11-14 18:13:20 -04:00
-Parents: root · Files: 1 (+1 -1)
+Pat Example · 2y ago · 2023-11-14 18:13 -04:00 · pat@example.invalid
+root commit · 1 file · +1 -1
+
 Explain the change safely.
+
 Second body paragraph.
-diff --git a/src/main.rs b/src/main.rs
-@@ -1 +1 @@
--old
-+new
+
+M src/main.rs ─────────────────────────────────────────────────────────────────────────────── +1 -1
+        │ @@ -1 +1 @@
+        │ -old
+        │ +new
 
 
 
@@ -94,29 +117,60 @@ diff --git a/src/main.rs b/src/main.rs
 
 
 
-
-
- j/k scroll · f files · [/] hunk                                                              line 1
+ j/k scroll · [/] hunk · f files · ? help                                                    line 1
 STYLES
-0:0-10 fg=Cyan bg=Reset mod=BOLD text=" phig SHOW "
-0:20-32 fg=DarkGray bg=Reset mod=NONE text=" / main  HEAD"
-1:0-11 fg=Yellow bg=Reset mod=NONE text="aaaaaaaaaaaa"
+0:0-5 fg=Cyan bg=Reset mod=BOLD | REVERSED text=" SHOW "
+0:7-15 fg=Reset bg=Reset mod=BOLD text="phig-demo"
+0:16-18 fg=DarkGray bg=Reset mod=NONE text=" · "
+0:19-22 fg=Green bg=Reset mod=NONE text="main"
+0:23-29 fg=DarkGray bg=Reset mod=NONE text=" · HEAD"
+1:0-11 fg=Yellow bg=Reset mod=BOLD text="aaaaaaaaaaaa"
 1:14-17 fg=Cyan bg=Reset mod=BOLD text="HEAD"
 1:18-18 fg=DarkGray bg=Reset mod=NONE text="→"
 1:19-22 fg=Green bg=Reset mod=BOLD text="main"
 2:0-20 fg=Reset bg=Reset mod=BOLD text="make history pleasant"
-3:0-40 fg=DarkGray bg=Reset mod=NONE text="Author: Pat Example <pat@example.invalid>"
-4:0-31 fg=DarkGray bg=Reset mod=NONE text="Date: 2023-11-14 18:13:20 -04:00"
-5:0-31 fg=DarkGray bg=Reset mod=NONE text="Parents: root · Files: 1 (+1 -1)"
-8:0-37 fg=Yellow bg=Reset mod=BOLD text="diff --git a/src/main.rs b/src/main.rs"
-9:0-10 fg=Cyan bg=Reset mod=BOLD text="@@ -1 +1 @@"
-10:0-3 fg=Red bg=Reset mod=NONE text="-old"
-11:0-3 fg=Green bg=Reset mod=NONE text="+new"
-27:0-99 fg=DarkGray bg=Reset mod=NONE text=" j/k scroll · f files · [/] hunk                                                              line 1"
+3:0-67 fg=DarkGray bg=Reset mod=NONE text="Pat Example · 2y ago · 2023-11-14 18:13 -04:00 · pat@example.invalid"
+4:0-22 fg=DarkGray bg=Reset mod=NONE text="root commit · 1 file · "
+4:23-24 fg=Green bg=Reset mod=NONE text="+1"
+4:26-27 fg=Red bg=Reset mod=NONE text="-1"
+10:0-1 fg=Yellow bg=Reset mod=BOLD text="M "
+10:2-12 fg=Reset bg=Reset mod=BOLD text="src/main.rs"
+10:13-92 fg=DarkGray bg=Reset mod=NONE text=" ───────────────────────────────────────────────────────────────────────────────"
+10:93-95 fg=Green bg=Reset mod=NONE text=" +1"
+10:96-98 fg=Red bg=Reset mod=NONE text=" -1"
+11:0-9 fg=DarkGray bg=Reset mod=NONE text="        │ "
+11:10-20 fg=Cyan bg=Reset mod=NONE text="@@ -1 +1 @@"
+12:0-9 fg=Red bg=Reset mod=DIM text="        │ "
+12:10-10 fg=Red bg=Reset mod=NONE text="-"
+12:11-13 fg=Red bg=Reset mod=BOLD | UNDERLINED text="old"
+13:0-9 fg=Green bg=Reset mod=DIM text="        │ "
+13:10-10 fg=Green bg=Reset mod=NONE text="+"
+13:11-13 fg=Green bg=Reset mod=BOLD | UNDERLINED text="new"
+27:1-4 fg=Reset bg=Reset mod=BOLD text="j/k "
+27:5-13 fg=DarkGray bg=Reset mod=NONE text="scroll · "
+27:14-17 fg=Reset bg=Reset mod=BOLD text="[/] "
+27:18-24 fg=DarkGray bg=Reset mod=NONE text="hunk · "
+27:25-26 fg=Reset bg=Reset mod=BOLD text="f "
+27:27-34 fg=DarkGray bg=Reset mod=NONE text="files · "
+27:35-36 fg=Reset bg=Reset mod=BOLD text="? "
+27:37-40 fg=DarkGray bg=Reset mod=NONE text="help"
+27:93-99 fg=DarkGray bg=Reset mod=NONE text="line 1 "
 
 === Compare ===
 TEXT
- phig COMPARE phig-demo / main  HEAD
+ COMPARE  phig-demo · main · HEAD
+
+
+
+
+
+
+
+
+
+
+
+
                                        Comparison unavailable
 
 
@@ -131,66 +185,27 @@ TEXT
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
- j/k scroll · x swap · M mode                                                                 line 1
+ j/k scroll · x swap · M mode · ? help                                                       line 1
 STYLES
-0:0-13 fg=Cyan bg=Reset mod=BOLD text=" phig COMPARE "
-0:23-35 fg=DarkGray bg=Reset mod=NONE text=" / main  HEAD"
-1:0-99 fg=DarkGray bg=Reset mod=NONE text="                                       Comparison unavailable                                       "
-2:0-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                    "
-3:0-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                    "
-4:0-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                    "
-5:0-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                    "
-6:0-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                    "
-7:0-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                    "
-8:0-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                    "
-9:0-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                    "
-10:0-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                    "
-11:0-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                    "
-12:0-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                    "
-13:0-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                    "
-14:0-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                    "
-15:0-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                    "
-16:0-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                    "
-17:0-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                    "
-18:0-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                    "
-19:0-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                    "
-20:0-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                    "
-21:0-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                    "
-22:0-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                    "
-23:0-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                    "
-24:0-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                    "
-25:0-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                    "
-26:0-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                    "
-27:0-99 fg=DarkGray bg=Reset mod=NONE text=" j/k scroll · x swap · M mode                                                                 line 1"
+0:0-8 fg=Cyan bg=Reset mod=BOLD | REVERSED text=" COMPARE "
+0:10-18 fg=Reset bg=Reset mod=BOLD text="phig-demo"
+0:19-21 fg=DarkGray bg=Reset mod=NONE text=" · "
+0:22-25 fg=Green bg=Reset mod=NONE text="main"
+0:26-32 fg=DarkGray bg=Reset mod=NONE text=" · HEAD"
+13:0-99 fg=DarkGray bg=Reset mod=NONE text="                                       Comparison unavailable                                       "
+27:1-4 fg=Reset bg=Reset mod=BOLD text="j/k "
+27:5-13 fg=DarkGray bg=Reset mod=NONE text="scroll · "
+27:14-15 fg=Reset bg=Reset mod=BOLD text="x "
+27:16-22 fg=DarkGray bg=Reset mod=NONE text="swap · "
+27:23-24 fg=Reset bg=Reset mod=BOLD text="M "
+27:25-31 fg=DarkGray bg=Reset mod=NONE text="mode · "
+27:32-33 fg=Reset bg=Reset mod=BOLD text="? "
+27:34-37 fg=DarkGray bg=Reset mod=NONE text="help"
+27:93-99 fg=DarkGray bg=Reset mod=NONE text="line 1 "
 
 === Refs ===
 TEXT
- phig REFS phig-demo / main  HEAD
-                                           Nothing to show
-
-
-
-
-
-
-
-
-
-
-
-────────────────────────────────────────────────────────────────────────────────────────────────────
+ REFS  phig-demo · main · HEAD
 
 
 
@@ -203,43 +218,41 @@ TEXT
 
 
 
+                                               No refs
 
- j/k move · Enter open · / search                                                                0/0
+
+
+
+
+
+
+
+
+
+
+
+
+ j/k move · Enter open · / search · ? help                                                      0/0
 STYLES
-0:0-10 fg=Cyan bg=Reset mod=BOLD text=" phig REFS "
-0:20-32 fg=DarkGray bg=Reset mod=NONE text=" / main  HEAD"
-1:0-99 fg=DarkGray bg=Reset mod=NONE text="                                           Nothing to show                                          "
-2:0-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                    "
-3:0-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                    "
-4:0-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                    "
-5:0-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                    "
-6:0-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                    "
-7:0-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                    "
-8:0-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                    "
-9:0-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                    "
-10:0-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                    "
-11:0-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                    "
-12:0-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                    "
-13:0-99 fg=DarkGray bg=Reset mod=NONE text="────────────────────────────────────────────────────────────────────────────────────────────────────"
-27:0-99 fg=DarkGray bg=Reset mod=NONE text=" j/k move · Enter open · / search                                                                0/0"
+0:0-5 fg=Cyan bg=Reset mod=BOLD | REVERSED text=" REFS "
+0:7-15 fg=Reset bg=Reset mod=BOLD text="phig-demo"
+0:16-18 fg=DarkGray bg=Reset mod=NONE text=" · "
+0:19-22 fg=Green bg=Reset mod=NONE text="main"
+0:23-29 fg=DarkGray bg=Reset mod=NONE text=" · HEAD"
+13:0-99 fg=DarkGray bg=Reset mod=NONE text="                                               No refs                                              "
+27:1-4 fg=Reset bg=Reset mod=BOLD text="j/k "
+27:5-11 fg=DarkGray bg=Reset mod=NONE text="move · "
+27:12-17 fg=Reset bg=Reset mod=BOLD text="Enter "
+27:18-24 fg=DarkGray bg=Reset mod=NONE text="open · "
+27:25-26 fg=Reset bg=Reset mod=BOLD text="/ "
+27:27-35 fg=DarkGray bg=Reset mod=NONE text="search · "
+27:36-37 fg=Reset bg=Reset mod=BOLD text="? "
+27:38-41 fg=DarkGray bg=Reset mod=NONE text="help"
+27:96-99 fg=DarkGray bg=Reset mod=NONE text="0/0 "
 
 === Status ===
 TEXT
- phig STATUS phig-demo / main  HEAD
-                                           Nothing to show
-
-
-
-
-
-
-
-
-
-
-
-────────────────────────────────────────────────────────────────────────────────────────────────────
-Select a tracked change to preview
+ STATUS  phig-demo · main · HEAD
 
 
 
@@ -252,41 +265,51 @@ Select a tracked change to preview
 
 
 
- j/k move · no changes · / search                                                                0/0
+                                         Working tree clean
+
+
+
+
+
+
+
+
+
+
+
+
+
+ j/k move · no changes · d staged/unstaged · ? help                                             0/0
 STYLES
-0:0-12 fg=Cyan bg=Reset mod=BOLD text=" phig STATUS "
-0:22-34 fg=DarkGray bg=Reset mod=NONE text=" / main  HEAD"
-1:0-99 fg=DarkGray bg=Reset mod=NONE text="                                           Nothing to show                                          "
-2:0-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                    "
-3:0-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                    "
-4:0-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                    "
-5:0-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                    "
-6:0-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                    "
-7:0-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                    "
-8:0-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                    "
-9:0-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                    "
-10:0-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                    "
-11:0-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                    "
-12:0-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                    "
-13:0-99 fg=DarkGray bg=Reset mod=NONE text="────────────────────────────────────────────────────────────────────────────────────────────────────"
-14:0-99 fg=DarkGray bg=Reset mod=NONE text="Select a tracked change to preview                                                                  "
-15:0-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                    "
-16:0-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                    "
-17:0-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                    "
-18:0-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                    "
-19:0-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                    "
-20:0-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                    "
-21:0-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                    "
-22:0-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                    "
-23:0-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                    "
-24:0-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                    "
-25:0-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                    "
-26:0-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                    "
-27:0-99 fg=DarkGray bg=Reset mod=NONE text=" j/k move · no changes · / search                                                                0/0"
+0:0-7 fg=Cyan bg=Reset mod=BOLD | REVERSED text=" STATUS "
+0:9-17 fg=Reset bg=Reset mod=BOLD text="phig-demo"
+0:18-20 fg=DarkGray bg=Reset mod=NONE text=" · "
+0:21-24 fg=Green bg=Reset mod=NONE text="main"
+0:25-31 fg=DarkGray bg=Reset mod=NONE text=" · HEAD"
+13:0-99 fg=DarkGray bg=Reset mod=NONE text="                                         Working tree clean                                         "
+27:1-4 fg=Reset bg=Reset mod=BOLD text="j/k "
+27:5-24 fg=DarkGray bg=Reset mod=NONE text="move · no changes · "
+27:25-26 fg=Reset bg=Reset mod=BOLD text="d "
+27:27-44 fg=DarkGray bg=Reset mod=NONE text="staged/unstaged · "
+27:45-46 fg=Reset bg=Reset mod=BOLD text="? "
+27:47-50 fg=DarkGray bg=Reset mod=NONE text="help"
+27:96-99 fg=DarkGray bg=Reset mod=NONE text="0/0 "
 
 === StatusDiff ===
 TEXT
- phig STATUS DIFF phig-demo / main  HEAD
+ STATUS DIFF  phig-demo · main · HEAD
+
+
+
+
+
+
+
+
+
+
+
+
                                       Working diff unavailable
 
 
@@ -301,54 +324,40 @@ TEXT
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
- j/k scroll · f files · [/] hunk                                                              line 1
+ j/k scroll · [/] hunk · f files · ? help                                                    line 1
 STYLES
-0:0-17 fg=Cyan bg=Reset mod=BOLD text=" phig STATUS DIFF "
-0:27-39 fg=DarkGray bg=Reset mod=NONE text=" / main  HEAD"
-1:0-99 fg=DarkGray bg=Reset mod=NONE text="                                      Working diff unavailable                                      "
-2:0-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                    "
-3:0-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                    "
-4:0-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                    "
-5:0-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                    "
-6:0-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                    "
-7:0-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                    "
-8:0-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                    "
-9:0-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                    "
-10:0-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                    "
-11:0-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                    "
-12:0-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                    "
-13:0-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                    "
-14:0-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                    "
-15:0-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                    "
-16:0-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                    "
-17:0-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                    "
-18:0-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                    "
-19:0-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                    "
-20:0-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                    "
-21:0-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                    "
-22:0-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                    "
-23:0-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                    "
-24:0-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                    "
-25:0-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                    "
-26:0-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                    "
-27:0-99 fg=DarkGray bg=Reset mod=NONE text=" j/k scroll · f files · [/] hunk                                                              line 1"
+0:0-12 fg=Cyan bg=Reset mod=BOLD | REVERSED text=" STATUS DIFF "
+0:14-22 fg=Reset bg=Reset mod=BOLD text="phig-demo"
+0:23-25 fg=DarkGray bg=Reset mod=NONE text=" · "
+0:26-29 fg=Green bg=Reset mod=NONE text="main"
+0:30-36 fg=DarkGray bg=Reset mod=NONE text=" · HEAD"
+13:0-99 fg=DarkGray bg=Reset mod=NONE text="                                      Working diff unavailable                                      "
+27:1-4 fg=Reset bg=Reset mod=BOLD text="j/k "
+27:5-13 fg=DarkGray bg=Reset mod=NONE text="scroll · "
+27:14-17 fg=Reset bg=Reset mod=BOLD text="[/] "
+27:18-24 fg=DarkGray bg=Reset mod=NONE text="hunk · "
+27:25-26 fg=Reset bg=Reset mod=BOLD text="f "
+27:27-34 fg=DarkGray bg=Reset mod=NONE text="files · "
+27:35-36 fg=Reset bg=Reset mod=BOLD text="? "
+27:37-40 fg=DarkGray bg=Reset mod=NONE text="help"
+27:93-99 fg=DarkGray bg=Reset mod=NONE text="line 1 "
 
 === Tree ===
 TEXT
- phig TREE phig-demo / main  HEAD  /
-                                           Nothing to show
+ TREE  phig-demo · main · HEAD  /
+
+
+
+
+
+
+
+
+
+
+
+
+                                             Empty tree
 
 
 
@@ -362,54 +371,40 @@ TEXT
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
- j/k move · Enter open · Backspace up                                                            0/0
+ j/k move · Enter open · Backspace up · ? help                                                  0/0
 STYLES
-0:0-10 fg=Cyan bg=Reset mod=BOLD text=" phig TREE "
-0:20-35 fg=DarkGray bg=Reset mod=NONE text=" / main  HEAD  /"
-1:0-99 fg=DarkGray bg=Reset mod=NONE text="                                           Nothing to show                                          "
-2:0-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                    "
-3:0-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                    "
-4:0-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                    "
-5:0-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                    "
-6:0-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                    "
-7:0-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                    "
-8:0-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                    "
-9:0-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                    "
-10:0-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                    "
-11:0-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                    "
-12:0-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                    "
-13:0-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                    "
-14:0-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                    "
-15:0-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                    "
-16:0-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                    "
-17:0-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                    "
-18:0-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                    "
-19:0-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                    "
-20:0-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                    "
-21:0-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                    "
-22:0-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                    "
-23:0-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                    "
-24:0-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                    "
-25:0-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                    "
-26:0-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                    "
-27:0-99 fg=DarkGray bg=Reset mod=NONE text=" j/k move · Enter open · Backspace up                                                            0/0"
+0:0-5 fg=Cyan bg=Reset mod=BOLD | REVERSED text=" TREE "
+0:7-15 fg=Reset bg=Reset mod=BOLD text="phig-demo"
+0:16-18 fg=DarkGray bg=Reset mod=NONE text=" · "
+0:19-22 fg=Green bg=Reset mod=NONE text="main"
+0:23-32 fg=DarkGray bg=Reset mod=NONE text=" · HEAD  /"
+13:0-99 fg=DarkGray bg=Reset mod=NONE text="                                             Empty tree                                             "
+27:1-4 fg=Reset bg=Reset mod=BOLD text="j/k "
+27:5-11 fg=DarkGray bg=Reset mod=NONE text="move · "
+27:12-17 fg=Reset bg=Reset mod=BOLD text="Enter "
+27:18-24 fg=DarkGray bg=Reset mod=NONE text="open · "
+27:25-34 fg=Reset bg=Reset mod=BOLD text="Backspace "
+27:35-39 fg=DarkGray bg=Reset mod=NONE text="up · "
+27:40-41 fg=Reset bg=Reset mod=BOLD text="? "
+27:42-45 fg=DarkGray bg=Reset mod=NONE text="help"
+27:96-99 fg=DarkGray bg=Reset mod=NONE text="0/0 "
 
 === Blob ===
 TEXT
- phig BLOB phig-demo / main  HEAD
-Loading blob…
+ BLOB  phig-demo · main · HEAD
+
+
+
+
+
+
+
+
+
+
+
+
+                                            Loading blob…
 
 
 
@@ -423,40 +418,27 @@ Loading blob…
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
- j/k scroll · / search · b blame                                                              line 1
+ j/k scroll · / search · b blame · ? help                                                    line 1
 STYLES
-0:0-10 fg=Cyan bg=Reset mod=BOLD text=" phig BLOB "
-0:20-32 fg=DarkGray bg=Reset mod=NONE text=" / main  HEAD"
-27:0-99 fg=DarkGray bg=Reset mod=NONE text=" j/k scroll · / search · b blame                                                              line 1"
+0:0-5 fg=Cyan bg=Reset mod=BOLD | REVERSED text=" BLOB "
+0:7-15 fg=Reset bg=Reset mod=BOLD text="phig-demo"
+0:16-18 fg=DarkGray bg=Reset mod=NONE text=" · "
+0:19-22 fg=Green bg=Reset mod=NONE text="main"
+0:23-29 fg=DarkGray bg=Reset mod=NONE text=" · HEAD"
+13:0-99 fg=DarkGray bg=Reset mod=NONE text="                                            Loading blob…                                           "
+27:1-4 fg=Reset bg=Reset mod=BOLD text="j/k "
+27:5-13 fg=DarkGray bg=Reset mod=NONE text="scroll · "
+27:14-15 fg=Reset bg=Reset mod=BOLD text="/ "
+27:16-24 fg=DarkGray bg=Reset mod=NONE text="search · "
+27:25-26 fg=Reset bg=Reset mod=BOLD text="b "
+27:27-34 fg=DarkGray bg=Reset mod=NONE text="blame · "
+27:35-36 fg=Reset bg=Reset mod=BOLD text="? "
+27:37-40 fg=DarkGray bg=Reset mod=NONE text="help"
+27:93-99 fg=DarkGray bg=Reset mod=NONE text="line 1 "
 
 === Blame ===
 TEXT
- phig BLAME phig-demo / main  HEAD
-                                           Nothing to show
-
-
-
-
-
-
-
-
-
-
-
-────────────────────────────────────────────────────────────────────────────────────────────────────
+ BLAME  phig-demo · main · HEAD
 
 
 
@@ -469,42 +451,41 @@ TEXT
 
 
 
+                                           No blame lines
 
- j/k move · Enter open · / search                                                                0/0
+
+
+
+
+
+
+
+
+
+
+
+
+ j/k move · Enter open · / search · ? help                                                      0/0
 STYLES
-0:0-11 fg=Cyan bg=Reset mod=BOLD text=" phig BLAME "
-0:21-33 fg=DarkGray bg=Reset mod=NONE text=" / main  HEAD"
-1:0-99 fg=DarkGray bg=Reset mod=NONE text="                                           Nothing to show                                          "
-2:0-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                    "
-3:0-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                    "
-4:0-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                    "
-5:0-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                    "
-6:0-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                    "
-7:0-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                    "
-8:0-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                    "
-9:0-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                    "
-10:0-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                    "
-11:0-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                    "
-12:0-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                    "
-13:0-99 fg=DarkGray bg=Reset mod=NONE text="────────────────────────────────────────────────────────────────────────────────────────────────────"
-27:0-99 fg=DarkGray bg=Reset mod=NONE text=" j/k move · Enter open · / search                                                                0/0"
+0:0-6 fg=Cyan bg=Reset mod=BOLD | REVERSED text=" BLAME "
+0:8-16 fg=Reset bg=Reset mod=BOLD text="phig-demo"
+0:17-19 fg=DarkGray bg=Reset mod=NONE text=" · "
+0:20-23 fg=Green bg=Reset mod=NONE text="main"
+0:24-30 fg=DarkGray bg=Reset mod=NONE text=" · HEAD"
+13:0-99 fg=DarkGray bg=Reset mod=NONE text="                                           No blame lines                                           "
+27:1-4 fg=Reset bg=Reset mod=BOLD text="j/k "
+27:5-11 fg=DarkGray bg=Reset mod=NONE text="move · "
+27:12-17 fg=Reset bg=Reset mod=BOLD text="Enter "
+27:18-24 fg=DarkGray bg=Reset mod=NONE text="open · "
+27:25-26 fg=Reset bg=Reset mod=BOLD text="/ "
+27:27-35 fg=DarkGray bg=Reset mod=NONE text="search · "
+27:36-37 fg=Reset bg=Reset mod=BOLD text="? "
+27:38-41 fg=DarkGray bg=Reset mod=NONE text="help"
+27:96-99 fg=DarkGray bg=Reset mod=NONE text="0/0 "
 
 === Stash ===
 TEXT
- phig STASH phig-demo / main  HEAD
-                                           Nothing to show
-
-
-
-
-
-
-
-
-
-
-
-────────────────────────────────────────────────────────────────────────────────────────────────────
+ STASH  phig-demo · main · HEAD
 
 
 
@@ -517,22 +498,34 @@ TEXT
 
 
 
+                                             No stashes
 
- j/k move · Enter open · / search                                                                0/0
+
+
+
+
+
+
+
+
+
+
+
+
+ j/k move · Enter open · / search · ? help                                                      0/0
 STYLES
-0:0-11 fg=Cyan bg=Reset mod=BOLD text=" phig STASH "
-0:21-33 fg=DarkGray bg=Reset mod=NONE text=" / main  HEAD"
-1:0-99 fg=DarkGray bg=Reset mod=NONE text="                                           Nothing to show                                          "
-2:0-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                    "
-3:0-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                    "
-4:0-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                    "
-5:0-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                    "
-6:0-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                    "
-7:0-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                    "
-8:0-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                    "
-9:0-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                    "
-10:0-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                    "
-11:0-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                    "
-12:0-99 fg=DarkGray bg=Reset mod=NONE text="                                                                                                    "
-13:0-99 fg=DarkGray bg=Reset mod=NONE text="────────────────────────────────────────────────────────────────────────────────────────────────────"
-27:0-99 fg=DarkGray bg=Reset mod=NONE text=" j/k move · Enter open · / search                                                                0/0"
+0:0-6 fg=Cyan bg=Reset mod=BOLD | REVERSED text=" STASH "
+0:8-16 fg=Reset bg=Reset mod=BOLD text="phig-demo"
+0:17-19 fg=DarkGray bg=Reset mod=NONE text=" · "
+0:20-23 fg=Green bg=Reset mod=NONE text="main"
+0:24-30 fg=DarkGray bg=Reset mod=NONE text=" · HEAD"
+13:0-99 fg=DarkGray bg=Reset mod=NONE text="                                             No stashes                                             "
+27:1-4 fg=Reset bg=Reset mod=BOLD text="j/k "
+27:5-11 fg=DarkGray bg=Reset mod=NONE text="move · "
+27:12-17 fg=Reset bg=Reset mod=BOLD text="Enter "
+27:18-24 fg=DarkGray bg=Reset mod=NONE text="open · "
+27:25-26 fg=Reset bg=Reset mod=BOLD text="/ "
+27:27-35 fg=DarkGray bg=Reset mod=NONE text="search · "
+27:36-37 fg=Reset bg=Reset mod=BOLD text="? "
+27:38-41 fg=DarkGray bg=Reset mod=NONE text="help"
+27:96-99 fg=DarkGray bg=Reset mod=NONE text="0/0 "

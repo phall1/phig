@@ -1,6 +1,7 @@
 //! Temporary file navigation alongside a dominant patch preview.
 
 use super::{
+    diff::status_style,
     format::{display_width, truncate_with},
     fullscreen,
     theme::RenderContext,
@@ -9,7 +10,6 @@ use crate::app::{App, DiffTree, DiffTreeEntry, TreeStatus};
 use ratatui::{
     Frame,
     layout::Rect,
-    style::Style,
     text::{Line, Span},
     widgets::Paragraph,
 };
@@ -228,16 +228,6 @@ fn entry_line(
         context.style(context.removed()),
     ));
     Line::from(spans)
-}
-
-fn status_style(status: TreeStatus, context: &RenderContext) -> Style {
-    let color = match status {
-        TreeStatus::Added => context.added(),
-        TreeStatus::Deleted => context.removed(),
-        TreeStatus::Renamed => context.accent(),
-        TreeStatus::Modified => context.warning(),
-    };
-    context.style(color)
 }
 
 /// Ancestor continuations plus the final tee/corner for one row, capped so a

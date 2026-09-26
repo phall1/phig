@@ -292,8 +292,10 @@ fn split_pages_from_added_side_preserve_anchor_across_width_changes() {
     app.update(Action::Move(1), 2);
     assert_eq!(app.diff_scroll, 6); // unified advances to +C
     app.diff_split_available = true;
-    app.update(Action::Move(1), 2);
+    app.update(Action::Move(1), 1);
     assert_eq!(app.diff_scroll, 7); // widening preserves +C's logical row
+    app.update(Action::Move(1), 2);
+    assert_eq!(app.diff_scroll, 7); // the final page is already full
 }
 
 #[test]

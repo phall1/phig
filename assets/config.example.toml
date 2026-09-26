@@ -33,6 +33,7 @@ warning = "yellow"
 error = "red"
 selection_fg = "cyan"
 selection_bg = "reset" # native background; set a color for block selection
+graph_lanes = ["cyan", "green", "yellow", "magenta", "blue", "red"]
 
 # Keys name semantic actions, so remaps survive layout changes.
 # [keys]

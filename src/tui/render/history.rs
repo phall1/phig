@@ -4,10 +4,10 @@ use std::collections::{HashMap, HashSet};
 
 use ratatui::{
     Frame,
-    layout::{Alignment, Constraint, Direction, Layout, Rect},
+    layout::{Constraint, Direction, Layout, Rect},
     style::{Modifier, Style},
     text::{Line, Span},
-    widgets::{List, ListItem, ListState, Paragraph, Wrap},
+    widgets::{List, ListItem, ListState, Paragraph},
 };
 
 use crate::{
@@ -19,10 +19,12 @@ use crate::{
 use super::{
     decorate::{decoration_spans, lane_name, spans_width},
     diff::render_diff,
-    format::{display_date, display_width, format_commit_date, pad_right, truncate_with},
+    format::{
+        display_width, list_date, pad_left, pad_right, relative_age, truncate_with, wrap_words,
+    },
     graph::{GraphCache, GraphRow, lane_limit},
     layout::log_layout,
-    render_divider,
+    render_divider, render_notice,
     theme::RenderContext,
 };
 
@@ -49,32 +51,18 @@ fn render_history(
     cache: &mut GraphCache,
 ) {
     if app.commits.is_empty() {
+        let ellipsis = context.glyphs().ellipsis;
         let message = if app.history_loading {
-            return frame.render_widget(
-                Paragraph::new(format!("Loading history{}", context.glyphs().ellipsis))
-                    .alignment(Alignment::Center)
-                    .style(context.style(context.muted())),
-                area,
-            );
+            format!("Loading history{ellipsis}")
         } else if app.history_error.is_some() {
-            return frame.render_widget(
-                Paragraph::new(format!(
-                    "History unavailable {} retry or dismiss",
-                    context.glyphs().dash
-                ))
-                .alignment(Alignment::Center)
-                .style(context.style(context.muted())),
-                area,
-            );
+            format!(
+                "History unavailable {} retry or dismiss",
+                context.glyphs().dash
+            )
         } else {
-            "No commits in this history"
+            "No commits in this history".to_owned()
         };
-        frame.render_widget(
-            Paragraph::new(message)
-                .alignment(Alignment::Center)
-                .style(context.style(context.muted())),
-            area,
-        );
+        render_notice(frame, area, &message, context);
         return;
     }
 
@@ -95,6 +83,7 @@ fn render_history(
         .map(|row| row.width() + usize::from(row.folded_lanes() > 0))
         .max()
         .unwrap_or(0);
+    let columns = LogColumns::plan(&app.commits[start..end], graph_width, area.width, context);
     let lane_names = visible_lane_names(&app.commits[..end], &rows[..end]);
     let named_in_view: HashSet<usize> = app.commits[start..end]
         .iter()
@@ -116,7 +105,7 @@ fn render_history(
                 row,
                 HistoryLineOpts {
                     width: area.width,
-                    graph_width,
+                    columns,
                     marked: app.marked_oid.as_ref() == Some(&commit.id),
                     selected: index == app.selected,
                     selected_branch,
@@ -187,127 +176,167 @@ fn log_highlight_style(context: &RenderContext, active: bool) -> Style {
     Style::default().add_modifier(Modifier::BOLD)
 }
 
+/// Hash cells: eight hex digits plus the gap before the next column.
+const HASH_WIDTH: usize = 9;
+/// Author names beyond this are truncated; the subject deserves the room.
+const AUTHOR_MAX: usize = 16;
+const AUTHOR_COMPACT: usize = 8;
+/// Subject cells each optional column must leave behind to be shown.
+const SUBJECT_WITH_AUTHOR: usize = 32;
+const SUBJECT_WITH_DATE: usize = 16;
+
+/// Column widths shared by every row on screen, so hash, date, author, and
+/// subject start at the same cell on every row regardless of named refs.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) struct LogColumns {
+    pub graph: usize,
+    pub date: usize,
+    pub author: usize,
+}
+
+impl LogColumns {
+    pub(super) fn plan(
+        commits: &[Commit],
+        graph: usize,
+        width: u16,
+        context: &RenderContext,
+    ) -> Self {
+        let gutter = display_width(context.glyphs().selected);
+        let available = usize::from(width).saturating_sub(gutter + graph + HASH_WIDTH);
+        let date = commits
+            .iter()
+            .map(|commit| display_width(&commit_date(commit, context)))
+            .max()
+            .unwrap_or(0);
+        let author = commits
+            .iter()
+            .map(|commit| display_width(&sanitize_str(&commit.author.name)))
+            .max()
+            .unwrap_or(0)
+            .min(AUTHOR_MAX);
+        let fits = |used: usize, subject: usize| used + subject <= available;
+        let (date, author) = if fits(date + 1 + author + 1, SUBJECT_WITH_AUTHOR) {
+            (date, author)
+        } else if fits(date + 1 + AUTHOR_COMPACT + 1, SUBJECT_WITH_AUTHOR) {
+            (date, author.min(AUTHOR_COMPACT))
+        } else if fits(date + 1, SUBJECT_WITH_DATE) {
+            (date, 0)
+        } else {
+            (0, 0)
+        };
+        Self {
+            graph,
+            date,
+            author,
+        }
+    }
+
+    fn fixed_width(self, gutter: usize) -> usize {
+        gutter
+            + self.graph
+            + HASH_WIDTH
+            + if self.date > 0 { self.date + 1 } else { 0 }
+            + if self.author > 0 { self.author + 1 } else { 0 }
+    }
+}
+
+fn commit_date(commit: &Commit, context: &RenderContext) -> String {
+    list_date(
+        commit.author.timestamp,
+        &commit.author.timezone,
+        context.config().date_mode,
+    )
+}
+
 pub(super) struct HistoryLineOpts<'a> {
     pub width: u16,
-    pub graph_width: usize,
+    pub columns: LogColumns,
     pub marked: bool,
     pub selected: bool,
     pub selected_branch: Option<usize>,
     pub inherited_label: Option<&'a str>,
 }
 
+/// One log row: `gutter graph hash date author refs subject`.
+///
+/// The selection marker lives in the row so it can stay accent-colored
+/// without List highlight replacing graph and decoration colors. Named refs
+/// sit inline before the subject, where they cannot shift the aligned
+/// metadata columns.
 pub(super) fn history_line(
     commit: &Commit,
     graph: &GraphRow,
     opts: HistoryLineOpts<'_>,
     context: &RenderContext,
 ) -> Line<'static> {
-    // The selection marker lives in the row so it can stay accent-colored
-    // without List highlight replacing graph and decoration colors.
-    let item_width = usize::from(opts.width);
-    let cursor_width = display_width(context.glyphs().selected);
-    let cursor = if opts.selected {
-        Span::styled(
-            context.glyphs().selected.to_owned(),
-            context.strong(context.accent()),
-        )
-    } else {
-        Span::raw(" ".repeat(cursor_width))
+    let glyphs = context.glyphs();
+    let gutter_width = display_width(glyphs.selected);
+    let columns = LogColumns {
+        graph: opts.columns.graph.max(graph.width()),
+        ..opts.columns
     };
-    let mark = if opts.marked {
-        context.glyphs().marked
+    let muted = context.style(context.muted());
+    let gutter = if opts.selected {
+        Span::styled(glyphs.selected.to_owned(), context.strong(context.accent()))
+    } else if opts.marked {
+        Span::styled(glyphs.marked.to_owned(), context.strong(context.accent()))
     } else {
-        "  "
+        Span::raw(" ".repeat(gutter_width))
     };
-    // Normal rows end on a blank lane gap. Folded rows need one extra cell
-    // after the bundle marker to keep it distinct from the object id.
-    let graph_width = opts.graph_width.max(graph.width());
-    let fixed_width = cursor_width + display_width(mark) + graph_width + 9;
-    let mut remaining = item_width.saturating_sub(fixed_width);
-    let minimum_subject = display_width(&commit.subject).min(12);
-
-    let mut decoration_field = decoration_spans(
-        &commit.decorations,
-        opts.inherited_label,
-        remaining.saturating_sub(minimum_subject.saturating_add(1)),
-        Some(graph.color()),
-        context,
-    );
-    if !decoration_field.is_empty() {
-        decoration_field.push(Span::raw(" "));
-        remaining = remaining.saturating_sub(spans_width(&decoration_field));
-    }
-
-    let age = display_date(
-        commit.author.timestamp,
-        &commit.author.timezone,
-        context.config().date_mode,
-    );
-    let age_field = format!("{age} ");
-    let show_age = display_width(&age_field).saturating_add(minimum_subject) <= remaining;
-    if show_age {
-        remaining = remaining.saturating_sub(display_width(&age_field));
-    }
-
-    let author_field = author_field(
-        &commit.author.name,
-        opts.width,
-        remaining,
-        minimum_subject,
-        context,
-    );
-    if let Some(author) = &author_field {
-        remaining = remaining.saturating_sub(display_width(author));
-    }
-    let subject = truncate_with(&commit.subject, remaining, context.glyphs().ellipsis);
-
-    let mut spans = vec![cursor, Span::styled(mark, context.strong(context.accent()))];
+    let mut spans = vec![gutter];
     spans.extend(match opts.selected_branch {
         Some(color) => graph.spans_with_highlight(context, Some(color)),
         None => graph.spans(context),
     });
     spans.push(Span::raw(
-        " ".repeat(graph_width.saturating_sub(graph.width())),
+        " ".repeat(columns.graph.saturating_sub(graph.width())),
     ));
-    spans.extend([
-        Span::styled(
-            commit.id.short(8).to_owned(),
-            context.style(context.warning()),
-        ),
-        Span::raw(" "),
-    ]);
-    spans.extend(decoration_field);
-    if show_age {
-        spans.push(Span::styled(age_field, context.style(context.muted())));
-    }
-    if let Some(author) = author_field {
-        spans.push(Span::styled(author, context.style(context.muted())));
-    }
-    spans.push(Span::raw(subject));
-    Line::from(spans)
-}
-
-fn author_field(
-    name: &str,
-    width: u16,
-    remaining: usize,
-    minimum_subject: usize,
-    context: &RenderContext,
-) -> Option<String> {
-    let author_width = if width >= 78 && remaining >= minimum_subject.saturating_add(19) {
-        18
-    } else if remaining >= minimum_subject.saturating_add(11) {
-        10
+    let hash_style = if opts.marked {
+        context.emphasize(context.strong(context.accent()), Modifier::UNDERLINED)
     } else {
-        return None;
+        context.style(context.warning())
     };
-    Some(format!(
-        "{} ",
-        pad_right(
-            &truncate_with(name, author_width, context.glyphs().ellipsis),
-            author_width
-        )
-    ))
+    spans.push(Span::styled(commit.id.short(8).to_owned(), hash_style));
+    spans.push(Span::raw(" "));
+    if columns.date > 0 {
+        spans.push(Span::styled(
+            format!("{} ", pad_left(&commit_date(commit, context), columns.date)),
+            muted,
+        ));
+    }
+    if columns.author > 0 {
+        let name = truncate_with(
+            &sanitize_str(&commit.author.name),
+            columns.author,
+            glyphs.ellipsis,
+        );
+        spans.push(Span::styled(
+            format!("{} ", pad_right(&name, columns.author)),
+            muted,
+        ));
+    }
+
+    let mut remaining = usize::from(opts.width).saturating_sub(columns.fixed_width(gutter_width));
+    let subject = sanitize_str(&commit.subject);
+    let minimum_subject = display_width(&subject).min(16);
+    let mut decorations = decoration_spans(
+        &commit.decorations,
+        opts.inherited_label,
+        remaining.saturating_sub(minimum_subject + 1),
+        Some(graph.color()),
+        context,
+    );
+    if !decorations.is_empty() {
+        decorations.push(Span::raw(" "));
+        remaining = remaining.saturating_sub(spans_width(&decorations));
+    }
+    spans.extend(decorations);
+    spans.push(Span::raw(truncate_with(
+        &subject,
+        remaining,
+        glyphs.ellipsis,
+    )));
+    Line::from(spans)
 }
 
 pub(super) fn render_preview(
@@ -316,157 +345,280 @@ pub(super) fn render_preview(
     area: Rect,
     context: &RenderContext,
 ) {
-    if app.preview_loading && app.preview.is_none() {
-        frame.render_widget(
-            Paragraph::new(format!("Loading diff{}", context.glyphs().ellipsis))
-                .style(context.style(context.muted())),
-            area,
-        );
-        return;
-    }
     if app.preview.is_none() {
-        let message = if app.preview_error.is_some() {
-            return frame.render_widget(
-                Paragraph::new(format!(
-                    "Commit detail unavailable {} retry or dismiss",
-                    context.glyphs().dash
-                ))
-                .style(context.style(context.muted())),
-                area,
-            );
+        let message = if app.preview_loading {
+            format!("Loading diff{}", context.glyphs().ellipsis)
+        } else if app.preview_error.is_some() {
+            format!(
+                "Commit detail unavailable {} retry or dismiss",
+                context.glyphs().dash
+            )
         } else {
-            "Select a commit to preview its diff"
+            "Select a commit to preview its diff".to_owned()
         };
-        frame.render_widget(
-            Paragraph::new(message).style(context.style(context.muted())),
-            area,
-        );
+        render_notice(frame, area, &message, context);
         return;
     }
-    let header_height = metadata_height(app, area.height);
+    let header_height = metadata_height(app, area.width, area.height);
     let sections = Layout::default()
         .direction(Direction::Vertical)
         .constraints([Constraint::Length(header_height), Constraint::Min(0)])
         .split(area);
-    let metadata = detail_metadata(app, usize::from(header_height), context);
-    frame.render_widget(
-        Paragraph::new(metadata).wrap(Wrap { trim: false }),
-        sections[0],
-    );
+    let metadata = detail_metadata(app, area, context);
+    frame.render_widget(Paragraph::new(metadata), sections[0]);
     render_diff(frame, app, sections[1], context);
 }
 
-pub(super) fn metadata_height(app: &App, available: u16) -> u16 {
-    if app.view != View::Detail && app.view != View::Log {
-        return 0;
-    }
-    let Some(detail) = &app.preview else {
-        return 0;
-    };
-    let body_lines = detail
-        .commit
-        .body
-        .lines()
-        .filter(|line| !line.trim().is_empty())
-        .count()
-        .min(3) as u16;
-    let desired = 5_u16.saturating_add(body_lines);
-    desired.min(available.saturating_sub(3)).min(8)
+/// Commit metadata above a patch, pre-wrapped so height and paint agree.
+struct MetadataPlan {
+    subject: Vec<String>,
+    body: Vec<String>,
+    hidden_body: usize,
 }
 
-fn detail_metadata(app: &App, height: usize, context: &RenderContext) -> Vec<Line<'static>> {
-    let Some(detail) = &app.preview else {
+/// Fixed rows around the wrapped subject: ids, byline, and stats.
+const METADATA_FIXED_ROWS: usize = 3;
+/// Patch rows the header must always leave visible.
+const METADATA_MIN_PATCH_ROWS: usize = 3;
+
+impl MetadataPlan {
+    fn new(app: &App, width: u16, available: u16) -> Option<Self> {
+        if app.view != View::Detail && app.view != View::Log {
+            return None;
+        }
+        let detail = app.preview.as_ref()?;
+        let width = usize::from(width.max(1));
+        let available = usize::from(available);
+        let detail_view = app.view == View::Detail;
+        let mut subject = wrap_words(&sanitize_str(&detail.commit.subject), width);
+        subject.truncate(if detail_view { 3 } else { 2 });
+        let fixed = METADATA_FIXED_ROWS + subject.len() + 1;
+        let wanted = if detail_view {
+            (available * 2 / 5).max(4)
+        } else {
+            3
+        };
+        // One blank row separates body from the stats line.
+        let budget = wanted.min(
+            available
+                .saturating_sub(fixed + METADATA_MIN_PATCH_ROWS)
+                .saturating_sub(1),
+        );
+        let mut body = body_rows(&detail.commit.body, width);
+        let hidden_body = body.len().saturating_sub(budget);
+        body.truncate(budget);
+        Some(Self {
+            subject,
+            body,
+            hidden_body,
+        })
+    }
+
+    fn height(&self) -> usize {
+        let body = if self.body.is_empty() {
+            0
+        } else {
+            self.body.len() + 1
+        };
+        METADATA_FIXED_ROWS + self.subject.len() + body + 1
+    }
+}
+
+/// Wrap a commit body for a pane. Hard-wrapped paragraphs are reflowed only
+/// when the pane is narrower than their lines; lists, indented blocks, and
+/// trailers keep their own lines.
+fn body_rows(body: &str, width: usize) -> Vec<String> {
+    let lines: Vec<String> = body
+        .lines()
+        .map(|line| sanitize_str(line.trim_end()))
+        .collect();
+    let reflow = lines.iter().any(|line| display_width(line) > width);
+    let mut paragraphs: Vec<String> = Vec::new();
+    let mut joinable = false;
+    for line in lines {
+        if line.trim().is_empty() {
+            if paragraphs.last().is_some_and(|last| !last.is_empty()) {
+                paragraphs.push(String::new());
+            }
+            joinable = false;
+            continue;
+        }
+        let structural = line.starts_with([' ', '\t', '-', '*', '•', '>'])
+            || line.split_once(": ").is_some_and(|(key, _)| {
+                !key.is_empty() && key.chars().all(|c| c.is_ascii_alphanumeric() || c == '-')
+            })
+            || line
+                .split_once(". ")
+                .is_some_and(|(number, _)| number.chars().all(|c| c.is_ascii_digit()));
+        let trailer = line.contains(": ");
+        match paragraphs.last_mut() {
+            Some(last) if reflow && joinable && !structural => {
+                last.push(' ');
+                last.push_str(line.trim_start());
+            }
+            _ => paragraphs.push(line),
+        }
+        joinable = !structural || !trailer;
+    }
+    while paragraphs.last().is_some_and(String::is_empty) {
+        paragraphs.pop();
+    }
+    paragraphs
+        .iter()
+        .flat_map(|paragraph| wrap_words(paragraph, width))
+        .collect()
+}
+
+pub(super) fn metadata_height(app: &App, width: u16, available: u16) -> u16 {
+    MetadataPlan::new(app, width, available).map_or(0, |plan| {
+        u16::try_from(plan.height())
+            .unwrap_or(u16::MAX)
+            .min(available.saturating_sub(METADATA_MIN_PATCH_ROWS as u16))
+    })
+}
+
+fn detail_metadata(app: &App, area: Rect, context: &RenderContext) -> Vec<Line<'static>> {
+    let (Some(detail), Some(plan)) = (
+        &app.preview,
+        MetadataPlan::new(app, area.width, area.height),
+    ) else {
         return Vec::new();
     };
-    let parent = if detail.commit.parents.len() > 1 {
-        format!(
-            "  parent {}/{}",
-            app.parent_index.saturating_add(1),
-            detail.commit.parents.len()
-        )
-    } else {
-        String::new()
-    };
-    let added = detail
-        .diff
-        .lines
-        .iter()
-        .filter(|line| line.kind == DiffLineKind::Added)
-        .count();
-    let removed = detail
-        .diff
-        .lines
-        .iter()
-        .filter(|line| line.kind == DiffLineKind::Removed)
-        .count();
-    let parents = if detail.commit.parents.is_empty() {
-        "root".to_owned()
-    } else {
-        detail
-            .commit
-            .parents
-            .iter()
-            .map(|oid| oid.short(8))
-            .collect::<Vec<_>>()
-            .join(" ")
-    };
+    let glyphs = context.glyphs();
+    let separator = format!(" {} ", glyphs.separator);
     let muted = context.style(context.muted());
-    let mut oid = vec![Span::styled(
-        detail.commit.id.short(12).to_owned(),
-        context.style(context.warning()),
+    let width = usize::from(area.width);
+    let commit = &detail.commit;
+
+    let mut ids = vec![Span::styled(
+        commit.id.short(12).to_owned(),
+        context.strong(context.warning()),
     )];
-    let decorations = decoration_spans(&detail.commit.decorations, None, 48, None, context);
+    let decorations = decoration_spans(
+        &commit.decorations,
+        None,
+        width.saturating_sub(14),
+        None,
+        context,
+    );
     if !decorations.is_empty() {
-        oid.push(Span::raw("  "));
-        oid.extend(decorations);
+        ids.push(Span::raw("  "));
+        ids.extend(decorations);
     }
-    oid.push(Span::styled(parent, muted));
-    let mut lines = vec![
-        Line::from(oid),
-        Line::from(Span::styled(
-            sanitize_str(&detail.commit.subject),
-            if context.is_monochrome() {
-                ratatui::style::Style::reset()
+
+    let subject_style = if context.is_monochrome() {
+        Style::reset()
+    } else {
+        Style::default().bold()
+    };
+    let byline = format!(
+        "{}{separator}{} ago{separator}{} {}{separator}{}",
+        sanitize_str(&commit.author.name),
+        relative_age(commit.author.timestamp),
+        list_date(
+            commit.author.timestamp,
+            &commit.author.timezone,
+            crate::tui::render::DateMode::Local
+        ),
+        sanitize_str(&commit.author.timezone),
+        sanitize_str(&commit.author.email),
+    );
+
+    let mut lines = vec![Line::from(ids)];
+    lines.extend(
+        plan.subject
+            .iter()
+            .map(|row| Line::styled(row.clone(), subject_style)),
+    );
+    lines.push(Line::styled(
+        truncate_with(&byline, width, glyphs.ellipsis),
+        muted,
+    ));
+    lines.push(stats_line(app, detail, &separator, context));
+    if !plan.body.is_empty() {
+        lines.push(Line::raw(""));
+        let last = plan.body.len() - 1;
+        for (index, row) in plan.body.iter().enumerate() {
+            if index == last && plan.hidden_body > 0 {
+                lines.push(Line::styled(
+                    format!("{} {} more lines", glyphs.ellipsis, plan.hidden_body + 1),
+                    muted,
+                ));
             } else {
-                ratatui::style::Style::default().bold()
-            },
-        )),
-        Line::from(Span::styled(
-            format!(
-                "Author: {} <{}>",
-                sanitize_str(&detail.commit.author.name),
-                sanitize_str(&detail.commit.author.email)
-            ),
-            muted,
-        )),
-        Line::from(Span::styled(
-            format!(
-                "Date: {}",
-                format_commit_date(
-                    detail.commit.author.timestamp,
-                    &detail.commit.author.timezone
-                )
-            ),
-            muted,
-        )),
-        Line::from(Span::styled(
-            format!(
-                "Parents: {parents} {separator} Files: {} (+{added} -{removed})",
-                detail.diff.files.len(),
-                separator = context.glyphs().separator,
-            ),
-            muted,
-        )),
-    ];
-    for body_line in detail
-        .commit
-        .body
-        .lines()
-        .filter(|line| !line.trim().is_empty())
-        .take(height.saturating_sub(lines.len()))
-    {
-        lines.push(Line::raw(sanitize_str(body_line)));
+                lines.push(Line::raw(row.clone()));
+            }
+        }
     }
-    lines.truncate(height);
     lines
+}
+
+fn stats_line(
+    app: &App,
+    detail: &crate::domain::CommitDetail,
+    separator: &str,
+    context: &RenderContext,
+) -> Line<'static> {
+    let muted = context.style(context.muted());
+    let (added, removed) =
+        detail
+            .diff
+            .lines
+            .iter()
+            .fold((0, 0), |(added, removed), line| match line.kind {
+                DiffLineKind::Added => (added + 1, removed),
+                DiffLineKind::Removed => (added, removed + 1),
+                _ => (added, removed),
+            });
+    let parents = &detail.commit.parents;
+    let mut spans = match parents.len() {
+        0 => vec![Span::styled("root commit".to_owned(), muted)],
+        1 => vec![
+            Span::styled("parent ".to_owned(), muted),
+            Span::styled(
+                parents[0].short(8).to_owned(),
+                context.style(context.warning()),
+            ),
+        ],
+        count => {
+            let mut spans = vec![Span::styled("merge ".to_owned(), muted)];
+            for (index, parent) in parents.iter().enumerate() {
+                let style = if index == app.parent_index {
+                    context.emphasize(context.strong(context.warning()), Modifier::UNDERLINED)
+                } else {
+                    context.style(context.warning())
+                };
+                if index > 0 {
+                    spans.push(Span::raw(" "));
+                }
+                spans.push(Span::styled(parent.short(8).to_owned(), style));
+            }
+            spans.push(Span::styled(
+                format!(
+                    "  parent {}/{count} ({})",
+                    app.parent_index.saturating_add(1),
+                    context.key(&crate::app::Action::NextParent)
+                ),
+                muted,
+            ));
+            spans
+        }
+    };
+    let files = detail.diff.files.len();
+    spans.push(Span::styled(
+        format!(
+            "{separator}{files} file{}{separator}",
+            if files == 1 { "" } else { "s" }
+        ),
+        muted,
+    ));
+    spans.push(Span::styled(
+        format!("+{added}"),
+        context.style(context.added()),
+    ));
+    spans.push(Span::raw(" "));
+    spans.push(Span::styled(
+        format!("-{removed}"),
+        context.style(context.removed()),
+    ));
+    Line::from(spans)
 }

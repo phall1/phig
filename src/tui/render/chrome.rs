@@ -55,15 +55,22 @@ pub(super) fn render_header(frame: &mut Frame<'_>, app: &App, area: Rect, contex
         (Some(label), false) => sanitize_str(label),
         (None, _) => sanitize_str(&app.revision),
     };
+    // The view badge is reverse video so it reads as a tab in any palette,
+    // including monochrome.
+    let badge = context.emphasize(
+        context.strong(context.accent()),
+        ratatui::style::Modifier::REVERSED,
+    );
+    let separator = format!(" {} ", context.glyphs().separator);
+    let muted = context.style(context.muted());
     let mut left = vec![
-        Span::styled(" phig ", context.strong(context.accent())),
-        Span::styled(
-            format!("{} ", view_label(app.view)),
-            context.strong(context.accent()),
-        ),
-        Span::styled(repository, Style::reset()),
-        Span::styled(format!(" / {branch}"), context.style(context.muted())),
-        Span::styled(format!("  {revision}"), context.style(context.muted())),
+        Span::styled(format!(" {} ", view_label(app.view)), badge),
+        Span::raw(" "),
+        Span::styled(repository, context.strong(ratatui::style::Color::Reset)),
+        Span::styled(separator.clone(), muted),
+        Span::styled(branch, context.style(context.added())),
+        Span::styled(separator, muted),
+        Span::styled(revision, muted),
     ];
     if app.view == View::Tree {
         left.push(Span::styled(
@@ -161,6 +168,10 @@ fn position(app: &App) -> String {
         );
     }
     match app.view {
+        // More history streams in on demand; `+` says the count is a floor.
+        View::Log if app.has_more && !app.commits.is_empty() => {
+            format!("{}+", index_position(app.selected, app.commits.len()))
+        }
         View::Log => index_position(app.selected, app.commits.len()),
         View::Refs => index_position(app.inspect.selected, app.inspect.refs.len()),
         View::Status => index_position(app.inspect.selected, app.inspect.status_entries().len()),
@@ -177,84 +188,87 @@ fn key_pair(context: &RenderContext, first: &Action, second: &Action) -> String 
     format!("{}/{}", context.key(first), context.key(second))
 }
 
-fn hints(app: &App, context: &RenderContext) -> Vec<String> {
+/// A footer hint: the key in normal weight, then what it does.
+type Hint = (String, &'static str);
+
+fn hints(app: &App, context: &RenderContext) -> Vec<Hint> {
+    let key = |action: &Action| context.key(action);
+    let pair = |first: &Action, second: &Action| key_pair(context, first, second);
     if matches!(app.overlay, Overlay::DiffTree(_)) {
         return vec![
-            format!("{} open", context.key(&Action::Open)),
-            format!(
-                "{}/{} fold {s} {}/{} all",
-                context.key(&Action::TreeCollapse),
-                context.key(&Action::TreeExpand),
-                context.key(&Action::TreeCollapseAll),
-                context.key(&Action::TreeExpandAll),
-                s = context.glyphs().separator,
+            (key(&Action::Open), "open"),
+            (pair(&Action::TreeCollapse, &Action::TreeExpand), "fold"),
+            (
+                pair(&Action::TreeCollapseAll, &Action::TreeExpandAll),
+                "fold all",
             ),
-            format!("{} cancel", context.key(&Action::Back)),
+            (key(&Action::Back), "cancel"),
         ];
     }
+    let hunk = || pair(&Action::NextHunk(-1), &Action::NextHunk(1));
     if app.diff_fullscreen {
         return vec![
-            format!("{} restore", context.key(&Action::ToggleDiffFullscreen)),
-            format!(
-                "{}/{} hunk",
-                context.key(&Action::NextHunk(-1)),
-                context.key(&Action::NextHunk(1))
-            ),
-            format!("{} tree", context.key(&Action::ToggleDiffTree)),
+            (key(&Action::ToggleDiffFullscreen), "restore"),
+            (hunk(), "hunk"),
+            (key(&Action::ToggleDiffTree), "files"),
         ];
     }
-    let move_keys = key_pair(context, &Action::Move(1), &Action::Move(-1));
+    let move_keys = pair(&Action::Move(1), &Action::Move(-1));
     match app.view {
-        View::Log | View::Refs | View::Blame | View::Stash => vec![
-            format!("{move_keys} move"),
-            format!("{} open", context.key(&Action::Open)),
-            format!("{} search", context.key(&Action::StartSearch)),
+        View::Log => vec![
+            (move_keys, "move"),
+            (key(&Action::Open), "open"),
+            (key(&Action::StartSearch), "search"),
+            (key(&Action::Mark), "mark"),
+        ],
+        View::Refs | View::Blame | View::Stash => vec![
+            (move_keys, "move"),
+            (key(&Action::Open), "open"),
+            (key(&Action::StartSearch), "search"),
         ],
         View::Status => {
-            let preview_hint = if app.inspect.status_entries().is_empty() {
-                "no changes".into()
+            let preview: Hint = if app.inspect.status_entries().is_empty() {
+                (String::new(), "no changes")
             } else if app.inspect.working_diff.is_some() {
-                format!("{} open", context.key(&Action::Open))
+                (key(&Action::Open), "open")
             } else if app.inspect.loading || app.inspect.working_diff_pending.is_some() {
-                "loading diff".into()
+                (String::new(), "loading diff")
             } else {
-                "no diff".into()
+                (String::new(), "no diff")
             };
             vec![
-                format!("{move_keys} move"),
-                preview_hint,
-                format!("{} search", context.key(&Action::StartSearch)),
+                (move_keys, "move"),
+                preview,
+                (key(&Action::ToggleStatusDiff), "staged/unstaged"),
             ]
         }
         View::Tree => vec![
-            format!("{move_keys} move"),
-            format!("{} open", context.key(&Action::Open)),
-            format!("{} up", context.key(&Action::Ascend)),
+            (move_keys, "move"),
+            (key(&Action::Open), "open"),
+            (key(&Action::Ascend), "up"),
         ],
         View::Detail | View::StatusDiff => vec![
-            format!("{move_keys} scroll"),
-            format!("{} files", context.key(&Action::StartFilePicker)),
-            format!(
-                "{}/{} hunk",
-                context.key(&Action::NextHunk(-1)),
-                context.key(&Action::NextHunk(1))
-            ),
+            (move_keys, "scroll"),
+            (hunk(), "hunk"),
+            (key(&Action::StartFilePicker), "files"),
+            (key(&Action::ToggleDiffTree), "tree"),
         ],
         View::Compare => vec![
-            format!("{move_keys} scroll"),
-            format!("{} swap", context.key(&Action::SwapCompare)),
-            format!("{} mode", context.key(&Action::ToggleCompareMode)),
+            (move_keys, "scroll"),
+            (key(&Action::SwapCompare), "swap"),
+            (key(&Action::ToggleCompareMode), "mode"),
+            (hunk(), "hunk"),
         ],
         View::Blob => vec![
-            format!("{move_keys} scroll"),
-            format!("{} search", context.key(&Action::StartSearch)),
-            format!("{} blame", context.key(&Action::ViewBlame)),
+            (move_keys, "scroll"),
+            (key(&Action::StartSearch), "search"),
+            (key(&Action::ViewBlame), "blame"),
         ],
     }
 }
 
 pub(super) fn render_footer(frame: &mut Frame<'_>, app: &App, area: Rect, context: &RenderContext) {
-    let position = position(app);
+    let position = format!("{} ", position(app));
     let position_width = u16::try_from(display_width(&position)).unwrap_or(area.width);
     let parts = Layout::horizontal([
         Constraint::Min(1),
@@ -262,40 +276,68 @@ pub(super) fn render_footer(frame: &mut Frame<'_>, app: &App, area: Rect, contex
     ])
     .split(area);
     let left_width = usize::from(parts[0].width);
+    let muted = context.style(context.muted());
+    let key_style = if context.is_monochrome() {
+        Style::reset()
+    } else {
+        Style::default().bold()
+    };
 
     let left = if let Some(selection) = &app.selection_contract {
-        format!(
-            " {} emit {} {} {} cancel",
-            selection.accept_key,
-            selection.target.label().to_ascii_lowercase(),
-            context.glyphs().separator,
-            selection.cancel_keys
-        )
+        Line::from(vec![
+            Span::raw(" "),
+            Span::styled(selection.accept_key.clone(), key_style),
+            Span::styled(
+                format!(
+                    " emit {} {} ",
+                    selection.target.label().to_ascii_lowercase(),
+                    context.glyphs().separator
+                ),
+                muted,
+            ),
+            Span::styled(selection.cancel_keys.clone(), key_style),
+            Span::styled(" cancel", muted),
+        ])
     } else if let Some(notice) = &app.notice {
-        format!(" {notice}")
+        Line::styled(format!(" {notice}"), context.style(context.accent()))
     } else {
-        let mut text = String::from(" ");
-        for hint in hints(app, context).into_iter().take(3) {
-            let next = if text.trim().is_empty() {
-                hint
-            } else {
-                format!(" {} {hint}", context.glyphs().separator)
-            };
-            if display_width(&text) + display_width(&next) > left_width {
+        // Contextual hints first; `?` always closes the row so the full key
+        // reference is one keystroke away on every screen.
+        let mut hints = hints(app, context);
+        hints.truncate(if app.view == View::Log { 4 } else { 3 });
+        let help: Hint = (context.key(&Action::ToggleHelp), "help");
+        let separator = format!(" {} ", context.glyphs().separator);
+        let hint_width = |(key, label): &Hint| {
+            display_width(key) + usize::from(!key.is_empty()) + display_width(label)
+        };
+        let mut used = 1 + hint_width(&help);
+        let mut chosen = Vec::new();
+        for hint in hints {
+            let width = hint_width(&hint) + display_width(&separator);
+            if used + width + display_width(&separator) > left_width {
                 break;
             }
-            text.push_str(&next);
+            used += width;
+            chosen.push(hint);
         }
-        text
+        chosen.push(help);
+        let mut spans = vec![Span::raw(" ")];
+        for (index, (key, label)) in chosen.into_iter().enumerate() {
+            if index > 0 {
+                spans.push(Span::styled(separator.clone(), muted));
+            }
+            if !key.is_empty() {
+                spans.push(Span::styled(format!("{key} "), key_style));
+            }
+            spans.push(Span::styled(label, muted));
+        }
+        Line::from(spans)
     };
-    frame.render_widget(
-        Paragraph::new(left).style(context.style(context.muted())),
-        parts[0],
-    );
+    frame.render_widget(Paragraph::new(left), parts[0]);
     frame.render_widget(
         Paragraph::new(position)
             .alignment(Alignment::Right)
-            .style(context.style(context.muted())),
+            .style(muted),
         parts[1],
     );
 }
@@ -329,79 +371,230 @@ fn overlay_regions(
         .border_style(context.style(context.muted()));
     let inner = block.inner(popup);
     frame.render_widget(block, popup);
+    // One cell of horizontal padding keeps content off the frame.
+    let inner = Rect::new(
+        inner.x.saturating_add(1).min(inner.right()),
+        inner.y,
+        inner.width.saturating_sub(2),
+        inner.height,
+    );
     let parts = Layout::vertical([Constraint::Min(1), Constraint::Length(1)]).split(inner);
     (parts[0], parts[1])
 }
 
-pub(super) fn render_help(frame: &mut Frame<'_>, app: &App, area: Rect, context: &RenderContext) {
-    let (body, footer) = overlay_regions(frame, area, 68, 16, "Help", false, context);
-    let move_keys = key_pair(context, &Action::Move(1), &Action::Move(-1));
-    let lines = vec![
-        Line::raw(format!("{} move / scroll", pad_right(&move_keys, 14))),
-        Line::raw(format!(
-            "{} open {s} {} back",
-            pad_right(&context.key(&Action::Open), 14),
-            context.key(&Action::Back),
-            s = context.glyphs().separator,
-        )),
-        Line::raw(format!(
-            "{} search {s} {}/{} matches",
-            pad_right(&context.key(&Action::StartSearch), 14),
-            context.key(&Action::NextMatch),
-            context.key(&Action::PreviousMatch),
-            s = context.glyphs().separator,
-        )),
-        Line::raw(format!(
-            "{} commands {s} {} changed files",
-            pad_right(&context.key(&Action::StartPalette), 14),
-            context.key(&Action::StartFilePicker),
-            s = context.glyphs().separator,
-        )),
-        Line::raw(format!(
-            "{} expand/restore diff {s} {} file tree",
-            pad_right(&context.key(&Action::ToggleDiffFullscreen), 14),
-            context.key(&Action::ToggleDiffTree),
-            s = context.glyphs().separator,
-        )),
-        Line::raw(format!(
-            "{}/{} hunks {s} {}/{} files",
-            context.key(&Action::NextHunk(-1)),
-            context.key(&Action::NextHunk(1)),
-            context.key(&Action::NextFile(-1)),
-            context.key(&Action::NextFile(1)),
-            s = context.glyphs().separator,
-        )),
-        Line::raw(format!(
-            "{} split/unified diff",
-            pad_right(&context.key(&Action::ToggleDiffStyle), 14)
-        )),
-        Line::raw(format!(
-            "{} refs {s} {} status {s} {} tree {s} {} blame {s} {} stash",
-            context.key(&Action::ViewRefs),
-            context.key(&Action::ViewStatus),
-            context.key(&Action::ViewTree),
-            context.key(&Action::ViewBlame),
-            context.key(&Action::ViewStash),
-            s = context.glyphs().separator,
-        )),
-        Line::raw(format!(
-            "{} mark {s} {} compare {s} {} copy {s} {} preview",
-            context.key(&Action::Mark),
-            context.key(&Action::StartCompare),
-            context.key(&Action::CopySelection),
-            context.key(&Action::TogglePreview),
-            s = context.glyphs().separator,
-        )),
-        Line::raw(""),
-        Line::styled(
-            format!("{} view", view_label(app.view).to_ascii_lowercase()),
-            context.style(context.muted()),
+/// One help row: the keys for one or more actions and what they do.
+struct HelpEntry {
+    actions: &'static [Action],
+    label: &'static str,
+}
+
+const fn entry(actions: &'static [Action], label: &'static str) -> HelpEntry {
+    HelpEntry { actions, label }
+}
+
+/// The cheat sheet, grouped the way people reach for keys. The palette (`:`)
+/// remains the complete, searchable list.
+const HELP_SECTIONS: &[(&str, &[HelpEntry])] = &[
+    (
+        "Move",
+        &[
+            entry(&[Action::Move(1), Action::Move(-1)], "down/up"),
+            entry(&[Action::Page(1), Action::Page(-1)], "page down/up"),
+            entry(&[Action::First, Action::Last], "top/bottom"),
+            entry(&[Action::Open], "open"),
+            entry(&[Action::Back], "back"),
+            entry(&[Action::Quit], "quit"),
+        ],
+    ),
+    (
+        "Find",
+        &[
+            entry(&[Action::StartSearch], "search"),
+            entry(
+                &[Action::NextMatch, Action::PreviousMatch],
+                "next/prev match",
+            ),
+            entry(&[Action::StartFilePicker], "jump to file"),
+            entry(&[Action::StartPalette], "every command"),
+        ],
+    ),
+    (
+        "Diff",
+        &[
+            entry(
+                &[Action::NextHunk(1), Action::NextHunk(-1)],
+                "next/prev hunk",
+            ),
+            entry(
+                &[Action::NextFile(1), Action::NextFile(-1)],
+                "next/prev file",
+            ),
+            entry(&[Action::ToggleDiffTree], "file tree"),
+            entry(&[Action::ToggleDiffFullscreen], "expand diff"),
+            entry(&[Action::ToggleDiffStyle], "split/unified"),
+            entry(&[Action::NextParent], "merge parent"),
+            entry(&[Action::TogglePreview], "preview on/off"),
+        ],
+    ),
+    (
+        "Views",
+        &[
+            entry(&[Action::ViewRefs], "refs"),
+            entry(&[Action::ViewStatus], "status"),
+            entry(&[Action::ViewTree], "tree"),
+            entry(&[Action::ViewBlame], "blame"),
+            entry(&[Action::ViewStash], "stashes"),
+        ],
+    ),
+    (
+        "Compare",
+        &[
+            entry(&[Action::Mark], "mark endpoint"),
+            entry(&[Action::StartCompare], "compare"),
+            entry(&[Action::SwapCompare], "swap sides"),
+            entry(&[Action::ToggleCompareMode], "base/exact"),
+            entry(&[Action::ToggleStatusDiff], "staged/unstaged"),
+            entry(&[Action::CopySelection], "copy id/path"),
+        ],
+    ),
+];
+
+const HELP_COLUMN_GAP: usize = 3;
+
+/// Keys for a group of actions; a shared modifier is written once, so
+/// `Ctrl+d` and `Ctrl+u` read as `Ctrl+d/u`.
+fn help_keys(context: &RenderContext, actions: &[Action]) -> String {
+    let keys: Vec<String> = actions.iter().map(|action| context.key(action)).collect();
+    let prefix = keys
+        .first()
+        .and_then(|key| key.rfind('+').map(|end| &key[..=end]))
+        .filter(|prefix| {
+            keys.iter()
+                .all(|key| key.starts_with(prefix) && key.len() > prefix.len())
+        });
+    match prefix {
+        Some(prefix) if keys.len() > 1 => format!(
+            "{prefix}{}",
+            keys.iter()
+                .map(|key| &key[prefix.len()..])
+                .collect::<Vec<_>>()
+                .join("/")
         ),
-    ];
-    frame.render_widget(Paragraph::new(lines).wrap(Wrap { trim: false }), body);
+        _ => keys.join("/"),
+    }
+}
+
+/// Render one section as aligned `keys  label` rows under a heading.
+fn help_section(
+    title: &str,
+    entries: &[HelpEntry],
+    key_width: usize,
+    width: usize,
+    context: &RenderContext,
+) -> Vec<Line<'static>> {
+    let mut lines = vec![Line::styled(
+        title.to_owned(),
+        context.strong(context.accent()),
+    )];
+    for entry in entries {
+        let keys = help_keys(context, entry.actions);
+        lines.push(Line::from(vec![
+            Span::styled(
+                pad_right(&keys, key_width),
+                context.strong(ratatui::style::Color::Reset),
+            ),
+            Span::raw("  "),
+            Span::styled(
+                truncate_with(
+                    entry.label,
+                    width.saturating_sub(key_width + 2),
+                    context.glyphs().ellipsis,
+                ),
+                context.style(context.muted()),
+            ),
+        ]));
+    }
+    lines
+}
+
+pub(super) fn render_help(frame: &mut Frame<'_>, app: &App, area: Rect, context: &RenderContext) {
+    let key_width = HELP_SECTIONS
+        .iter()
+        .flat_map(|(_, entries)| entries.iter())
+        .map(|entry| display_width(&help_keys(context, entry.actions)))
+        .max()
+        .unwrap_or(0)
+        .min(12);
+    let column_width = key_width + 2 + 16;
+    let inner_width =
+        usize::from(area.width.saturating_sub(4)).min(3 * column_width + 2 * HELP_COLUMN_GAP);
+    let columns = ((inner_width + HELP_COLUMN_GAP) / (column_width + HELP_COLUMN_GAP)).max(1);
+    let column_width = if columns == 1 {
+        inner_width
+    } else {
+        column_width
+    };
+
+    // Masonry: each section goes to the shortest column so far.
+    let mut stacks: Vec<Vec<Line<'static>>> = vec![Vec::new(); columns];
+    for (title, entries) in HELP_SECTIONS {
+        let target = (0..columns)
+            .min_by_key(|column| stacks[*column].len())
+            .unwrap_or(0);
+        if !stacks[target].is_empty() {
+            stacks[target].push(Line::raw(""));
+        }
+        stacks[target].extend(help_section(
+            title,
+            entries,
+            key_width,
+            column_width,
+            context,
+        ));
+    }
+    let content_height = stacks.iter().map(Vec::len).max().unwrap_or(0);
+    let width = columns * column_width + (columns - 1) * HELP_COLUMN_GAP + 4;
+    let height = content_height + 3;
+    let (body, footer) = overlay_regions(
+        frame,
+        area,
+        u16::try_from(width).unwrap_or(u16::MAX),
+        u16::try_from(height).unwrap_or(u16::MAX),
+        "Keys",
+        false,
+        context,
+    );
+    for (column, lines) in stacks.into_iter().enumerate() {
+        let x = body.x + u16::try_from(column * (column_width + HELP_COLUMN_GAP)).unwrap_or(0);
+        if x >= body.right() {
+            break;
+        }
+        let area = Rect::new(
+            x,
+            body.y,
+            (body.right() - x).min(column_width as u16),
+            body.height,
+        );
+        frame.render_widget(Paragraph::new(lines), area);
+    }
+    let muted = context.style(context.muted());
+    let key = context.strong(ratatui::style::Color::Reset);
     frame.render_widget(
-        Paragraph::new(format!("{} close", context.key(&Action::ToggleHelp)))
-            .style(context.style(context.muted())),
+        Paragraph::new(Line::from(vec![
+            Span::styled(context.key(&Action::StartPalette), key),
+            Span::styled(" all commands", muted),
+            Span::styled(format!(" {} ", context.glyphs().separator), muted),
+            Span::styled(context.key(&Action::ToggleHelp), key),
+            Span::styled(" close", muted),
+            Span::styled(
+                format!(
+                    " {} {} view",
+                    context.glyphs().separator,
+                    view_label(app.view).to_ascii_lowercase()
+                ),
+                muted,
+            ),
+        ])),
         footer,
     );
 }

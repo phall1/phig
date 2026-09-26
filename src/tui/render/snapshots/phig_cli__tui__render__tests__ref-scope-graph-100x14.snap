@@ -1,67 +1,68 @@
 ---
 source: src/tui/render/tests.rs
+assertion_line: 98
 expression: "snapshot.lines().map(str::trim_end).collect::<Vec<_>>().join(\"\\n\")"
 ---
 unicode 100x14
- phig LOG phig-demo / main  all refs                                                        loading…
-›   ◆─╮     01010101 HEAD→main origin/main 2y Pat Example        merge other
-    │ ●     03030303 2y Pat Example        other-a
-    ● │     02020202 2y Pat Example        main-b
-    ◆─┼─╮   04040404 2y Pat Example        merge feature
-    │ │ ●   05050505 origin/feature 2y Pat Example        feat-b
-    │ │ │ ● 09090909 topic 2y Pat Example        topic-a
-    │ │ ●─╯ 08080808 2y Pat Example        feat-a
-    ● │ │   07070707 2y Pat Example        main-a
-    ●─┴─╯   06060606 tag:v1 2y Pat Example        one
-    ◌       0a0a0a0a 2y Pat Example        base
+ LOG  phig-demo · main · all refs                                                           loading…
+› ◆─╮     01010101 2y Pat Example HEAD→main origin/main merge other
+  │ ●     03030303 2y Pat Example other-a
+  ● │     02020202 2y Pat Example main-b
+  ◆─┼─╮   04040404 2y Pat Example merge feature
+  │ │ ●   05050505 2y Pat Example origin/feature feat-b
+  │ │ │ ● 09090909 2y Pat Example topic topic-a
+  │ │ ●─╯ 08080808 2y Pat Example feat-a
+  ● │ │   07070707 2y Pat Example main-a
+  ●─┴─╯   06060606 2y Pat Example tag:v1 one
+  ◌       0a0a0a0a 2y Pat Example base
 
 
- j/k move · Enter open · / search                                                               1/10
+ j/k move · Enter open · / search · v mark · ? help                                            1/10
 
 narrow 58x14
- phig LOG phig-demo / main  all refs              loading…
-›   ◆─╮     01010101 HEAD→main origin/main 2y merge other
-    │ ●     03030303 2y Pat Examp… other-a
-    ● │     02020202 2y Pat Examp… main-b
-    ◆─┼─╮   04040404 2y Pat Examp… merge feature
-    │ │ ●   05050505 origin/feature 2y Pat Examp… feat-b
-    │ │ │ ● 09090909 topic 2y Pat Examp… topic-a
-    │ │ ●─╯ 08080808 2y Pat Examp… feat-a
-    ● │ │   07070707 2y Pat Examp… main-a
-    ●─┴─╯   06060606 tag:v1 2y Pat Examp… one
-    ◌       0a0a0a0a 2y Pat Examp… base
+ LOG  phig-demo · main · all refs                 loading…
+› ◆─╮     01010101 2y HEAD→main origin/main merge other
+  │ ●     03030303 2y other-a
+  ● │     02020202 2y main-b
+  ◆─┼─╮   04040404 2y merge feature
+  │ │ ●   05050505 2y origin/feature feat-b
+  │ │ │ ● 09090909 2y topic topic-a
+  │ │ ●─╯ 08080808 2y feat-a
+  ● │ │   07070707 2y main-a
+  ●─┴─╯   06060606 2y tag:v1 one
+  ◌       0a0a0a0a 2y base
 
 
- j/k move · Enter open · / search                     1/10
+ j/k move · Enter open · / search · ? help           1/10
 
 folded 44x14
- phig LOG phig-demo / main  all ref loading…
-›   ◆─╮    01010101 HEAD→main 2y merge other
-    │ ●    03030303 2y Pat Examp… other-a
-    ● │    02020202 2y Pat Examp… main-b
-    ◆─┼─╮  04040404 2y merge feature
-    │ │ ●  05050505 origin/feature 2y feat-b
-    │ │ ●~ 09090909 topic 2y topic-a
-    │ │ ●~ 08080808 2y Pat Examp… feat-a
-    ● │ │  07070707 2y Pat Examp… main-a
-    ●─┴─╯  06060606 tag:v1 2y Pat Examp… one
-    ◌      0a0a0a0a 2y Pat Examp… base
+ LOG  phig-demo · main · all refs   loading…
+› ◆─╮    01010101 2y HEAD→main merge other
+  │ ●    03030303 2y other-a
+  ● │    02020202 2y main-b
+  ◆─┼─╮  04040404 2y merge feature
+  │ │ ●  05050505 2y origin/feature feat-b
+  │ │ ●~ 09090909 2y topic topic-a
+  │ │ ●~ 08080808 2y feat-a
+  ● │ │  07070707 2y main-a
+  ●─┴─╯  06060606 2y tag:v1 one
+  ◌      0a0a0a0a 2y base
 
 
- j/k move · Enter open · / search       1/10
+ j/k move · Enter open · ? help        1/10
 
 ascii 100x14
- phig LOG phig-demo / main  all refs                                                      loading...
->   *-\     01010101 HEAD->main origin/main 2y Pat Example        merge other
-    | o     03030303 2y Pat Example        other-a
-    o |     02020202 2y Pat Example        main-b
-    *-+-\   04040404 2y Pat Example        merge feature
-    | | o   05050505 origin/feature 2y Pat Example        feat-b
-    | | | o 09090909 topic 2y Pat Example        topic-a
-    | | o-/ 08080808 2y Pat Example        feat-a
-    o | |   07070707 2y Pat Example        main-a
-    o-+-/   06060606 tag:v1 2y Pat Example        one
-    .       0a0a0a0a 2y Pat Example        base
+ LOG  phig-demo | main | all refs                                                         loading...
+> *-\     01010101 2y Pat Example HEAD->main origin/main merge other
+  | o     03030303 2y Pat Example other-a
+  o |     02020202 2y Pat Example main-b
+  *-+-\   04040404 2y Pat Example merge feature
+  | | o   05050505 2y Pat Example origin/feature feat-b
+  | | | o 09090909 2y Pat Example topic topic-a
+  | | o-/ 08080808 2y Pat Example feat-a
+  o | |   07070707 2y Pat Example main-a
+  o-+-/   06060606 2y Pat Example tag:v1 one
+  .       0a0a0a0a 2y Pat Example base
 
 
- j/k move | Enter open | / search                                                               1/10
+ j/k move | Enter open | / search | v mark | ? help                                            1/10

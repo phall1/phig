@@ -1,13 +1,15 @@
 ---
 source: src/tui/render/tests.rs
+assertion_line: 701
 expression: expanded
 ---
 120x28
- phig LOG phig-demo / main  HEAD
+ LOG  phig-demo · main · HEAD
 DIFF aaaaaaaaaa  unified  src/main.rs  ·  file 1/1  ·  hunk 1/1
-@@ -1 +1 @@
-   1      │ -old
-        1 │ +new
+M src/main.rs ─────────────────────────────────────────────────────────────────────────────────────────────────── +1 -1
+        │ @@ -1 +1 @@
+  1     │ -old
+      1 │ +new
 
 
 
@@ -29,15 +31,15 @@ DIFF aaaaaaaaaa  unified  src/main.rs  ·  file 1/1  ·  hunk 1/1
 
 
 
-
- F restore · [/] hunk · T tree                                                                                  line 2/4
+ F restore · [/] hunk · T files · ? help                                                                       line 2/4
 
 60x16
- phig LOG phig-demo / main  HEAD
+ LOG  phig-demo · main · HEAD
 DIFF aaaaaaaaaa  src/main.rs  ·  file 1/1  ·  hunk 1/1
-@@ -1 +1 @@
-   1      │ -old
-        1 │ +new
+M src/main.rs ─────────────────────────────────────── +1 -1
+        │ @@ -1 +1 @@
+  1     │ -old
+      1 │ +new
 
 
 
@@ -47,5 +49,4 @@ DIFF aaaaaaaaaa  src/main.rs  ·  file 1/1  ·  hunk 1/1
 
 
 
-
- F restore · [/] hunk · T tree                      line 2/4
+ F restore · [/] hunk · T files · ? help           line 2/4

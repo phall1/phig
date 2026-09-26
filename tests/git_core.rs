@@ -102,7 +102,7 @@ fn exercises_read_only_repository_surface() {
         history.commits[0]
             .decorations
             .iter()
-            .any(|decoration| decoration == "comma,name")
+            .any(|decoration| decoration == "refs/heads/comma,name")
     );
 
     let detail = client

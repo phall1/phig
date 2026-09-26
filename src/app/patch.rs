@@ -9,11 +9,48 @@ pub(crate) struct PatchLine {
     pub pair: Option<usize>,
 }
 
+/// Added and removed line counts for one changed file.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub(crate) struct FileStats {
+    pub added: usize,
+    pub removed: usize,
+}
+
+/// Screen rows for one diff presentation and each raw line's row.
+///
+/// A raw line that is not drawn (a paired addition in split mode, or Git's
+/// `index`/`---`/`+++` header lines that the file banner replaces) maps to
+/// the next drawn row, so any raw scroll target still lands on screen.
+#[derive(Debug, Clone, Default)]
+pub(crate) struct RowMap {
+    pub rows: Vec<usize>,
+    pub positions: Vec<usize>,
+}
+
+impl RowMap {
+    pub fn position(&self, raw: usize) -> usize {
+        self.positions
+            .get(raw)
+            .copied()
+            .unwrap_or(0)
+            .min(self.rows.len().saturating_sub(1))
+    }
+
+    pub fn move_by(&self, scroll: usize, delta: i32) -> usize {
+        let next = (self.position(scroll) as i64 + i64::from(delta))
+            .clamp(0, self.rows.len().saturating_sub(1) as i64) as usize;
+        self.rows.get(next).copied().unwrap_or(0)
+    }
+}
+
 #[derive(Debug, Clone, Default)]
 pub(crate) struct PatchIndex {
     pub lines: Vec<PatchLine>,
-    pub split_rows: Vec<usize>,
-    pub split_positions: Vec<usize>,
+    pub unified: RowMap,
+    pub split: RowMap,
+    pub file_stats: Vec<FileStats>,
+    /// Widest old/new line number, so gutters fit the file instead of a guess.
+    pub number_width: usize,
     kinds: Vec<DiffLineKind>,
     hunks: Vec<crate::domain::Hunk>,
 }
@@ -22,8 +59,14 @@ impl PatchIndex {
     pub fn new(diff: &Diff) -> Self {
         let mut index = Self {
             lines: vec![PatchLine::default(); diff.lines.len()],
-            split_rows: Vec::new(),
-            split_positions: vec![0; diff.lines.len()],
+            unified: RowMap::default(),
+            split: RowMap::default(),
+            file_stats: diff
+                .files
+                .iter()
+                .map(|file| file_stats(diff, file))
+                .collect(),
+            number_width: 0,
             kinds: diff.lines.iter().map(|line| line.kind).collect(),
             hunks: diff
                 .files
@@ -38,28 +81,43 @@ impl PatchIndex {
             }
         }
         index.replacements(diff);
-        index.index_split_rows(diff);
+        index.number_width = index
+            .lines
+            .iter()
+            .flat_map(|line| [line.old, line.new])
+            .flatten()
+            .max()
+            .map_or(1, |n| n.to_string().len())
+            .max(3);
+        let hidden = banner_replaced_lines(diff);
+        index.unified = index.row_map(diff, &hidden, false);
+        index.split = index.row_map(diff, &hidden, true);
         index
     }
 
-    fn index_split_rows(&mut self, diff: &Diff) {
+    fn row_map(&self, diff: &Diff, hidden: &[bool], split: bool) -> RowMap {
+        let mut map = RowMap {
+            rows: Vec::new(),
+            positions: vec![0; diff.lines.len()],
+        };
         for (i, line) in diff.lines.iter().enumerate() {
-            if line.kind == DiffLineKind::Added
+            if split
+                && line.kind == DiffLineKind::Added
                 && let Some(pair) = self.lines[i].pair
             {
-                self.split_positions[i] = self.split_positions[pair];
+                map.positions[i] = map.positions[pair];
                 continue;
             }
-            self.split_positions[i] = self.split_rows.len();
-            self.split_rows.push(i);
+            map.positions[i] = map.rows.len();
+            if !hidden[i] {
+                map.rows.push(i);
+            }
         }
+        map
     }
 
-    pub fn move_split(&self, scroll: usize, delta: i32) -> usize {
-        let row = self.split_positions.get(scroll).copied().unwrap_or(0);
-        let next = (row as i64 + i64::from(delta))
-            .clamp(0, self.split_rows.len().saturating_sub(1) as i64) as usize;
-        self.split_rows.get(next).copied().unwrap_or(0)
+    pub fn rows(&self, split: bool) -> &RowMap {
+        if split { &self.split } else { &self.unified }
     }
 
     fn matches_source(&self, diff: &Diff) -> bool {
@@ -124,6 +182,49 @@ impl PatchIndex {
             }
         }
     }
+}
+
+fn file_stats(diff: &Diff, file: &crate::domain::DiffFile) -> FileStats {
+    let end = diff
+        .files
+        .iter()
+        .find(|next| next.header_line > file.header_line)
+        .map_or(diff.lines.len(), |next| next.header_line);
+    diff.lines[file.header_line.min(end)..end]
+        .iter()
+        .fold(FileStats::default(), |stats, line| match line.kind {
+            DiffLineKind::Added => FileStats {
+                added: stats.added + 1,
+                ..stats
+            },
+            DiffLineKind::Removed => FileStats {
+                removed: stats.removed + 1,
+                ..stats
+            },
+            _ => stats,
+        })
+}
+
+/// Git's `index`, `---`, and `+++` lines restate what a file banner shows.
+/// Only lines between a file header and its first hunk are candidates.
+fn banner_replaced_lines(diff: &Diff) -> Vec<bool> {
+    let mut hidden = vec![false; diff.lines.len()];
+    for (ordinal, file) in diff.files.iter().enumerate() {
+        let end = file
+            .hunks
+            .first()
+            .map(|hunk| hunk.header_line)
+            .or_else(|| diff.files.get(ordinal + 1).map(|next| next.header_line))
+            .unwrap_or(diff.lines.len())
+            .min(diff.lines.len());
+        let start = file.header_line.saturating_add(1).min(end);
+        for (line, hide) in diff.lines[start..end].iter().zip(&mut hidden[start..end]) {
+            *hide = (line.kind == DiffLineKind::FileHeader
+                && (line.text.starts_with("--- ") || line.text.starts_with("+++ ")))
+                || (line.kind == DiffLineKind::Metadata && line.text.starts_with("index "));
+        }
+    }
+    hidden
 }
 
 fn run_end(diff: &Diff, start: usize, kind: DiffLineKind) -> usize {
@@ -212,9 +313,38 @@ mod tests {
             (Some(12), Some(12))
         );
         assert_eq!((index.lines[12].old, index.lines[12].new), (None, Some(1)));
-        assert_eq!(index.move_split(5, 1), 7);
-        assert_eq!(index.move_split(6, -1), 4);
-        assert_eq!(index.split_positions[5], index.split_positions[6]);
+        assert_eq!(index.split.move_by(5, 1), 7);
+        assert_eq!(index.split.move_by(6, -1), 4);
+        assert_eq!(index.split.positions[5], index.split.positions[6]);
+        assert_eq!(index.number_width, 3);
+        assert_eq!(
+            index.file_stats[0],
+            FileStats {
+                added: 1,
+                removed: 1
+            }
+        );
+    }
+
+    #[test]
+    fn banner_replaced_headers_are_skipped_but_still_reachable() {
+        let diff = fixture();
+        let index = PatchIndex::new(&diff);
+        // Raw lines 1 and 2 are `---`/`+++` for the first file.
+        assert!(!index.unified.rows.contains(&1));
+        assert!(!index.unified.rows.contains(&2));
+        assert_eq!(index.unified.rows[..2], [0, 3]);
+        // Scrolling onto a hidden line lands on the next drawn row.
+        assert_eq!(index.unified.position(1), index.unified.position(3));
+        assert_eq!(index.unified.move_by(0, 1), 3);
+        assert_eq!(index.unified.move_by(3, -1), 0);
+        // Mode changes are real information and stay visible.
+        let mode = diff
+            .lines
+            .iter()
+            .position(|line| line.text.starts_with("old mode"))
+            .unwrap();
+        assert!(index.unified.rows.contains(&mode));
     }
 
     #[test]

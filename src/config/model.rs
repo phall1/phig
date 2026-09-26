@@ -141,6 +141,8 @@ pub struct ThemeConfig {
     pub error: String,
     pub selection_fg: String,
     pub selection_bg: String,
+    /// Graph lane colors, cycled per branch in history order.
+    pub graph_lanes: Vec<String>,
 }
 
 impl Default for ThemeConfig {
@@ -154,6 +156,9 @@ impl Default for ThemeConfig {
             error: "red".into(),
             selection_fg: "cyan".into(),
             selection_bg: "reset".into(),
+            graph_lanes: ["cyan", "green", "yellow", "magenta", "blue", "red"]
+                .map(String::from)
+                .to_vec(),
         }
     }
 }

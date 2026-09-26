@@ -11,10 +11,17 @@ Figma: none provided; the user requested adapting these viewer references.
 
 ## Behavior
 
-1. Unified patches show subdued old/new line numbers beside explicit `+`/`-`
-   signs. Metadata and hunk headers remain distinct. Replacement lines emphasize
-   their differing span; unrelated additions/deletions remain whole-line changes.
-   Unicode stays intact, and monochrome retains signs and emphasis.
+1. Each file opens with a one-row banner: its change badge (`A`/`D`/`M`/`R`),
+   path (`old → new` for renames), a quiet rule, and `+N -M` counts. The banner
+   replaces Git's `index`, `---`, and `+++` rows, which restate it; scrolling
+   and search targets on those rows land on the next drawn row. Mode changes,
+   similarity, binary notes, and `\ No newline` stay visible in the content
+   column. Unified patches show subdued old/new line numbers, sized to the
+   patch's largest line number, beside explicit `+`/`-` signs; hunk headers
+   keep the range quiet and the enclosing function readable. Replacement lines
+   emphasize their differing span; unrelated additions/deletions remain
+   whole-line changes. Unicode stays intact, and monochrome retains signs and
+   emphasis. Scrolling stops once the final page is full.
 2. `T` opens a changed-file tree for the active patch. It reads like a file
    browser: box-drawing guides (`├`/`└`/`│`) mark nesting, directories sort
    first (then files, case-insensitively) with every subtree kept contiguous
@@ -48,9 +55,10 @@ Figma: none provided; the user requested adapting these viewer references.
 
 Presentation-only line indexes are built when patch results enter the reducer;
 they never enter machine JSON or Git records. Cached navigation constructs only
-visible styled rows. `similar` 2.7 (also used by Grok's Rust pager) supplies Unicode
-word refinement, bounded to 1,000-byte lines with a 2 ms algorithm deadline per
-comparison and equally sized adjacent replacement runs. Refinement runs only for
+visible styled rows. `similar` supplies Unicode word refinement, bounded to
+400-byte lines and equally sized adjacent replacement runs. The bound is by
+length rather than a wall-clock deadline, so emphasis is identical on every
+frame and machine. Refinement runs only for
 visible rows; ambiguous pairings use whole-line styling. Public App mutations are
 validated against cached line kinds and hunk metadata without rescanning text.
 The tree snapshots structural metadata on open,

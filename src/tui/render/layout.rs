@@ -8,6 +8,8 @@ use super::history::metadata_height;
 
 pub(super) const COMPARE_HEADER_ROWS: u16 = 3;
 pub(super) const STATUS_DIFF_HEADER_ROWS: u16 = 1;
+/// At this width a list and its preview sit side by side.
+const SIDE_BY_SIDE_WIDTH: u16 = 110;
 
 /// Rows available to patch content after reserving the truncation notice.
 pub(super) fn diff_content_rows(height: u16, truncated: bool) -> u16 {
@@ -49,18 +51,30 @@ pub(crate) fn preview_focus_available(app: &App, width: u16, height: u16) -> boo
 }
 
 pub(super) fn pane_layout(app: &App, area: Rect, stacked_percent: u16) -> PaneLayout {
+    pane_layout_with(app, area, stacked_percent, 48)
+}
+
+/// `side_percent` is the list's share of a side-by-side split.
+pub(super) fn pane_layout_with(
+    app: &App,
+    area: Rect,
+    stacked_percent: u16,
+    side_percent: u16,
+) -> PaneLayout {
     if !app.show_preview || area.height < 16 || area.width < 72 {
         return PaneLayout::single(area);
     }
-    if area.width >= 110 {
-        let content = area.width.saturating_sub(1);
-        let primary_width = content.saturating_mul(42) / 100;
+    if area.width >= SIDE_BY_SIDE_WIDTH {
+        // The list keeps about half the width so subjects stay readable; the
+        // preview gets one cell of breathing room after the divider.
+        let content = area.width.saturating_sub(2);
+        let primary_width = content.saturating_mul(side_percent) / 100;
         let secondary_width = content.saturating_sub(primary_width);
         PaneLayout {
             primary: Rect::new(area.x, area.y, primary_width, area.height),
             divider: Some(Rect::new(area.x + primary_width, area.y, 1, area.height)),
             secondary: Some(Rect::new(
-                area.x + primary_width + 1,
+                area.x + primary_width + 2,
                 area.y,
                 secondary_width,
                 area.height,
@@ -90,6 +104,10 @@ pub(super) fn log_layout(app: &App, area: Rect) -> PaneLayout {
 }
 
 pub(super) fn list_preview_layout(app: &App, area: Rect) -> PaneLayout {
+    if app.view == View::Blame {
+        // Blame is read as source; its lines need most of the width.
+        return pane_layout_with(app, area, 50, 62);
+    }
     pane_layout(app, area, 50)
 }
 
@@ -124,7 +142,7 @@ pub(crate) fn page_rows(app: &App, width: u16, height: u16) -> usize {
     let persistent_header = match app.view {
         View::Compare => COMPARE_HEADER_ROWS,
         View::StatusDiff => STATUS_DIFF_HEADER_ROWS,
-        _ => metadata_height(app, preview.height),
+        _ => metadata_height(app, preview.width, preview.height),
     };
     let content_height = preview.height.saturating_sub(persistent_header);
     let truncated = app.active_diff().is_some_and(|diff| diff.truncated);

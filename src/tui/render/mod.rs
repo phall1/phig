@@ -15,7 +15,7 @@ mod theme;
 
 use ratatui::{
     Frame,
-    layout::{Constraint, Direction, Layout},
+    layout::{Constraint, Direction, Layout, Rect},
     text::{Line, Text},
     widgets::Paragraph,
 };
@@ -64,6 +64,30 @@ fn render_divider(frame: &mut Frame<'_>, layout: layout::PaneLayout, context: &R
     frame.render_widget(
         Paragraph::new(text).style(context.style(context.muted())),
         area,
+    );
+}
+
+/// A quiet status message centered in `area`, for loading, empty, and
+/// unavailable states, so every surface reports them the same way.
+pub(super) fn render_notice(
+    frame: &mut Frame<'_>,
+    area: Rect,
+    text: &str,
+    context: &RenderContext,
+) {
+    if area.is_empty() {
+        return;
+    }
+    let rows = format::wrap_words(text, usize::from(area.width));
+    let height = u16::try_from(rows.len())
+        .unwrap_or(u16::MAX)
+        .min(area.height);
+    let y = area.y + area.height.saturating_sub(height) / 2;
+    frame.render_widget(
+        Paragraph::new(rows.into_iter().map(Line::from).collect::<Vec<_>>())
+            .alignment(ratatui::layout::Alignment::Center)
+            .style(context.style(context.muted())),
+        Rect::new(area.x, y, area.width, height),
     );
 }
 

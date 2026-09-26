@@ -225,6 +225,9 @@ pub struct App {
     /// The TUI adapter supplies this semantic fact; the app never owns geometry.
     pub preview_focus_available: bool,
     pub diff_scroll: usize,
+    /// Patch rows on screen during the last update, so scrolling stops when
+    /// the final page is full. Zero means unknown and disables the clamp.
+    pub diff_viewport: usize,
     /// Expand the active patch without changing its semantic view or selection.
     pub diff_fullscreen: bool,
     pub diff_split: bool,
@@ -285,6 +288,7 @@ impl App {
             show_preview: true,
             preview_focus_available: true,
             diff_scroll: 0,
+            diff_viewport: 0,
             diff_fullscreen: false,
             diff_split: false,
             diff_split_available: false,
