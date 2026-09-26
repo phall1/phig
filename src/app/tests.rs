@@ -295,7 +295,9 @@ fn split_pages_from_added_side_preserve_anchor_across_width_changes() {
     app.update(Action::Move(1), 1);
     assert_eq!(app.diff_scroll, 7); // widening preserves +C's logical row
     app.update(Action::Move(1), 2);
-    assert_eq!(app.diff_scroll, 7); // the final page is already full
+    // The final page (c/C, d) is already on screen, so the step settles on
+    // its drawn top rather than moving an invisible cursor.
+    assert_eq!(app.diff_scroll, 4);
 }
 
 #[test]
@@ -1248,4 +1250,121 @@ fn blob_search_finds_lines_and_reports_misses_from_the_cached_text() {
     assert_eq!(app.diff_scroll, 2, "a miss keeps the last position");
     let _ = app.update(Action::SearchClear, 10);
     assert!(!app.search_miss);
+}
+
+fn long_patch(lines: usize) -> Diff {
+    use crate::git::parse::{DiffFileIdentity, parse_diff};
+    let mut text = format!(
+        "diff --git a/f b/f\nindex 1..2 100644\n--- a/f\n+++ b/f\n@@ -1,{lines} +1,{lines} @@\n"
+    );
+    for index in 0..lines {
+        text.push_str(&format!(" line {index}\n"));
+    }
+    parse_diff(
+        text.as_bytes(),
+        &[DiffFileIdentity {
+            old_path: Some(GitPath::new(b"f".to_vec())),
+            new_path: Some(GitPath::new(b"f".to_vec())),
+        }],
+        false,
+    )
+    .unwrap()
+}
+
+#[test]
+fn jumps_to_the_end_keep_scroll_on_the_drawn_top_so_steps_back_move() {
+    let mut app = app();
+    app.view = View::StatusDiff;
+    app.apply_working_diff(long_patch(60));
+    let rows = app.patch_index().unified.rows.len();
+    let _ = app.update(Action::Last, 10);
+    // `G` anchors on the last line; the first step back moves the view.
+    let _ = app.update(Action::Move(-1), 10);
+    assert_eq!(
+        app.patch_index().unified.position(app.diff_scroll),
+        rows - 10 - 1
+    );
+}
+
+#[test]
+fn blob_last_then_down_does_not_jump_up() {
+    use base64::{Engine as _, engine::general_purpose::STANDARD};
+    let mut app = app();
+    app.view = View::Blob;
+    let text: String = (0..50).map(|n| format!("{n}\n")).collect();
+    app.apply_blob(crate::domain::Blob {
+        id: oid('d'),
+        path: None,
+        bytes_base64: STANDARD.encode(&text),
+        size: text.len(),
+        binary: Some(false),
+        truncated: false,
+    });
+    let _ = app.update(Action::Last, 10);
+    let _ = app.update(Action::Move(1), 10);
+    assert_eq!(
+        app.diff_scroll,
+        app.blob_lines().len() - 10,
+        "down settles on the final page"
+    );
+    let _ = app.update(Action::Move(-1), 10);
+    assert_eq!(app.diff_scroll, app.blob_lines().len() - 11);
+}
+
+#[test]
+fn search_skips_header_rows_the_banner_replaces() {
+    let mut app = app();
+    app.view = View::StatusDiff;
+    app.apply_working_diff(long_patch(3));
+    let _ = app.update(Action::StartSearch, 10);
+    for character in "b/f".chars() {
+        let _ = app.update(Action::SearchInput(character), 10);
+    }
+    // `+++ b/f` is hidden; the only drawn hit is the banner line itself.
+    assert_eq!(app.diff_scroll, 0);
+    assert!(!app.search_miss);
+}
+
+#[test]
+fn detail_returns_to_its_own_commit_not_the_log_selection() {
+    let mut app = app();
+    let _ = app.update(Action::ViewStash, 10);
+    let _ = app.apply_stashes(vec![crate::domain::StashEntry {
+        selector: "stash@{0}".into(),
+        id: oid('e'),
+        parents: vec![oid('a')],
+        timestamp: None,
+        subject: "wip".into(),
+    }]);
+    let _ = app.update(Action::Open, 10);
+    assert_eq!(app.view, View::Detail);
+    app.apply_preview(CommitDetail {
+        commit: commit('e', "wip"),
+        selected_parent: None,
+        diff: working_diff("+x"),
+    });
+    let _ = app.update(Action::ViewRefs, 10);
+    let effects = app.update(Action::Back, 10);
+    assert_eq!(app.view, View::Detail);
+    assert!(
+        effects.iter().any(|effect| matches!(
+            effect,
+            Effect::LoadPreview { revision, .. } if *revision == oid('e').to_string()
+        )),
+        "{effects:?}"
+    );
+}
+
+#[test]
+fn enter_with_help_open_in_select_mode_only_closes_help() {
+    let mut app = app();
+    app.selection_contract = Some(SelectionContract {
+        target: SelectionTarget::Commit,
+        accept_key: "Enter".into(),
+        cancel_keys: "Esc/q".into(),
+    });
+    let _ = app.update(Action::ToggleHelp, 10);
+    let _ = app.update(Action::Open, 10);
+    assert_eq!(app.overlay, Overlay::None);
+    assert_eq!(app.view, View::Log);
 }

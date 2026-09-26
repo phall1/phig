@@ -246,6 +246,7 @@ impl App {
     pub(super) fn open_active(&mut self) -> Vec<Effect> {
         match self.view {
             View::Log => {
+                self.detail_target = self.selected_commit().map(|commit| commit.id.to_string());
                 self.view_stack.push(View::Log);
                 self.view = View::Detail;
                 self.focus = Focus::Preview;
@@ -325,6 +326,7 @@ impl App {
                 let Some(line) = self.inspect.blame.get(self.inspect.selected) else {
                     return Vec::new();
                 };
+                self.detail_target = Some(line.id.to_string());
                 self.view_stack.push(View::Blame);
                 self.view = View::Detail;
                 self.focus = Focus::Preview;
@@ -337,6 +339,7 @@ impl App {
                 let Some(stash) = self.inspect.stashes.get(self.inspect.selected) else {
                     return Vec::new();
                 };
+                self.detail_target = Some(stash.id.to_string());
                 self.view_stack.push(View::Stash);
                 self.view = View::Detail;
                 self.focus = Focus::Preview;
@@ -493,25 +496,32 @@ impl App {
         self.request_preview()
     }
 
+    /// Step through the active document. Jumps (`G`, next file or hunk,
+    /// search hits, pickers) may leave `diff_scroll` below the drawn top of
+    /// the final page, where it still names the current file; a step starts
+    /// from what is on screen, so it always moves the view, and never scrolls
+    /// past a full final page.
     pub(super) fn scroll_diff(&mut self, delta: i32) {
+        let step = |current: usize, last_page: usize| {
+            (current.min(last_page) as i64 + i64::from(delta)).clamp(0, last_page as i64) as usize
+        };
         if self.active_diff().is_some() {
             let split = self.diff_split && self.diff_split_available;
             let index = self.patch_index();
             let map = index.rows(split);
-            let current = map.position(self.diff_scroll);
-            let mut next = map.position(map.move_by(self.diff_scroll, delta));
-            if delta > 0 && self.diff_viewport > 0 {
-                // Stop once the last row is on screen instead of scrolling
-                // the patch away into blank space.
-                let last_page = map.rows.len().saturating_sub(self.diff_viewport);
-                next = next.min(last_page.max(current));
-            }
+            let next = step(
+                map.position(self.diff_scroll),
+                self.last_page(map.rows.len()),
+            );
             self.diff_scroll = map.rows.get(next).copied().unwrap_or(0);
             return;
         }
-        // Blob lines scroll like a pager: stop once the last line is shown.
-        let maximum = self.diff_len().saturating_sub(self.diff_viewport.max(1)) as i64;
-        self.diff_scroll = (self.diff_scroll as i64 + i64::from(delta)).clamp(0, maximum) as usize;
+        self.diff_scroll = step(self.diff_scroll, self.last_page(self.diff_len()));
+    }
+
+    /// First row of a full final page of `rows` rows.
+    fn last_page(&self, rows: usize) -> usize {
+        rows.saturating_sub(self.diff_viewport.max(1))
     }
 
     pub(super) fn diff_len(&self) -> usize {

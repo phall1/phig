@@ -240,6 +240,9 @@ pub struct App {
     pub(super) working_index: Option<super::patch::PatchIndex>,
     pub(super) comparison_index: Option<super::patch::PatchIndex>,
     pub(super) blob_text: Option<super::inspect::BlobText>,
+    /// Revision the detail view shows; it need not be the log selection
+    /// (a stash, a blame line, or `phig show REV`).
+    pub(super) detail_target: Option<String>,
     pub parent_index: usize,
     pub search_query: String,
     /// Direction of a search waiting for another history page (`true` is forward).
@@ -303,6 +306,7 @@ impl App {
             working_index: None,
             comparison_index: None,
             blob_text: None,
+            detail_target: None,
             parent_index: 0,
             search_query: String::new(),
             search_pending: None,
@@ -335,6 +339,9 @@ impl App {
     ) {
         self.view = view;
         self.show_mode = view == View::Detail;
+        if self.show_mode {
+            self.detail_target = Some(self.revision.clone());
+        }
         self.inspect.compare_base = compare_base.unwrap_or_else(|| "main".into());
         self.inspect.compare_head = compare_head;
         self.inspect.compare_mode = compare_mode;

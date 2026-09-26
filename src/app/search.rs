@@ -152,8 +152,13 @@ impl App {
         let Some(diff) = self.active_diff() else {
             return Vec::new();
         };
+        // Header lines the file banner replaces are not on screen; a hit
+        // there would move nothing and highlight nothing.
+        let patch = self.patch_index();
         let index = search_indices(self.diff_scroll, diff.lines.len(), forward, include_current)
+            .filter(|index| patch.unified.is_drawn(*index))
             .find(|index| diff.lines[*index].text.to_lowercase().contains(needle));
+        drop(patch);
         match index {
             Some(index) => self.diff_scroll = index,
             None => self.search_miss = true,

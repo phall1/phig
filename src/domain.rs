@@ -220,9 +220,33 @@ pub struct Commit {
     pub parents: Vec<Oid>,
     pub author: Signature,
     pub committer: Signature,
+    /// Git's decorations with full refnames (`refs/heads/x`), so kinds stay
+    /// unambiguous. Machine output keeps Git's short names.
+    #[serde(serialize_with = "serialize_short_decorations")]
     pub decorations: Vec<String>,
     pub subject: String,
     pub body: String,
+}
+
+/// Git's `--decorate=short` spelling of a full-refname decoration.
+pub fn short_decoration(decoration: &str) -> String {
+    let (prefix, name) = decoration
+        .strip_prefix("HEAD -> ")
+        .map(|name| ("HEAD -> ", name))
+        .or_else(|| decoration.strip_prefix("tag: ").map(|name| ("tag: ", name)))
+        .unwrap_or(("", decoration));
+    let name = ["refs/heads/", "refs/remotes/", "refs/tags/"]
+        .iter()
+        .find_map(|namespace| name.strip_prefix(namespace))
+        .unwrap_or(name);
+    format!("{prefix}{name}")
+}
+
+fn serialize_short_decorations<S: serde::Serializer>(
+    decorations: &[String],
+    serializer: S,
+) -> Result<S::Ok, S::Error> {
+    serializer.collect_seq(decorations.iter().map(|item| short_decoration(item)))
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -542,6 +566,20 @@ pub struct Comparison {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn decorations_serialize_with_gits_short_names() {
+        for (full, short) in [
+            ("HEAD -> refs/heads/feat/x", "HEAD -> feat/x"),
+            ("tag: refs/tags/v1", "tag: v1"),
+            ("refs/remotes/origin/main", "origin/main"),
+            ("refs/heads/main", "main"),
+            ("refs/stash", "refs/stash"),
+            ("HEAD", "HEAD"),
+        ] {
+            assert_eq!(short_decoration(full), short);
+        }
+    }
 
     #[test]
     fn oid_does_not_assume_sha1() {

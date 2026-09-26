@@ -21,6 +21,11 @@ impl App {
             ) => {
                 self.overlay = Overlay::None;
             }
+            (Overlay::Help, Action::Open) if self.selection_contract.is_some() => {
+                // In `phig select`, Enter accepts a selection; with help open
+                // it only closes the sheet rather than navigating away.
+                self.overlay = Overlay::None;
+            }
             (Overlay::Help, action) => {
                 // Any other key closes the sheet and does what it says.
                 self.overlay = Overlay::None;

@@ -107,8 +107,13 @@ pub(super) fn find_ignore_case(text: &str, needle: &str) -> Vec<std::ops::Range<
             let Some((offset, character)) = chars.next() else {
                 break false;
             };
+            // A character may lowercase to several (`İ` → `i̇`); each must
+            // match the needle in turn.
             let mut lower = character.to_lowercase();
-            if lower.next() != Some(*expected) || lower.next().is_some() {
+            if lower.next() != Some(*expected) {
+                break false;
+            }
+            if !lower.all(|next| wanted.next() == Some(&next)) {
                 break false;
             }
             end = start + offset + character.len_utf8();
@@ -171,6 +176,15 @@ pub(super) fn highlight_matches<'a>(
 
 /// Greedy word wrap by terminal cells. Words wider than a row are split.
 pub(super) fn wrap_words(value: &str, width: usize) -> Vec<String> {
+    // Leading indentation belongs to the first row (indented code in a
+    // commit body must stay indented); words wrap after it.
+    let body = value.trim_start_matches(' ');
+    let indent = &value[..value.len() - body.len()];
+    if !indent.is_empty() && display_width(indent) < width {
+        let mut rows = wrap_words(body, width - display_width(indent));
+        rows[0].insert_str(0, indent);
+        return rows;
+    }
     let width = width.max(1);
     let mut rows = Vec::new();
     let mut row = String::new();
@@ -278,6 +292,7 @@ mod tests {
         assert_eq!(find_ignore_case("Foo foo FOO", "foo"), [0..3, 4..7, 8..11]);
         assert_eq!(find_ignore_case("café CAFÉ", "café"), [0..5, 6..11]);
         assert!(find_ignore_case("abc", "").is_empty());
+        assert_eq!(find_ignore_case("xİy", "i\u{307}y"), vec![1..4]);
         let spans = vec![Span::raw("ab"), Span::raw("cd")];
         let marked = Style::default().underlined();
         let out = highlight_matches(spans, "BC", marked);
@@ -294,6 +309,8 @@ mod tests {
         assert_eq!(wrap_words("abcdefghij", 4), ["abcd", "efgh", "ij"]);
         assert_eq!(wrap_words("界界界", 4), ["界界", "界"]);
         assert_eq!(wrap_words("", 4), [""]);
+        assert_eq!(wrap_words("    let x = 1;", 20), ["    let x = 1;"]);
+        assert_eq!(wrap_words("  a b", 4), ["  a", "b"]);
     }
 
     #[test]

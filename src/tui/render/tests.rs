@@ -1691,3 +1691,16 @@ fn ref_previews_name_their_commit_and_the_picker_footer_says_compare() {
     assert!(footer.contains("Enter compare"), "{footer}");
     assert!(footer.contains("Esc cancel"), "{footer}");
 }
+
+#[test]
+fn split_availability_uses_the_log_layout_the_renderer_draws() {
+    let mut app = sample_app();
+    app.show_preview = true;
+    for width in [195, 200, 220] {
+        // The log list keeps 55%, leaving the preview under 100 columns.
+        assert!(!diff_split_available(&app, width, 40), "{width}");
+    }
+    assert!(diff_split_available(&app, 230, 40));
+    app.view = View::Detail;
+    assert!(diff_split_available(&app, 100, 40));
+}

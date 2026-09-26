@@ -36,10 +36,12 @@ impl RowMap {
             .min(self.rows.len().saturating_sub(1))
     }
 
-    pub fn move_by(&self, scroll: usize, delta: i32) -> usize {
-        let next = (self.position(scroll) as i64 + i64::from(delta))
-            .clamp(0, self.rows.len().saturating_sub(1) as i64) as usize;
-        self.rows.get(next).copied().unwrap_or(0)
+    /// Whether raw line `raw` has a row of its own.
+    pub fn is_drawn(&self, raw: usize) -> bool {
+        self.positions
+            .get(raw)
+            .and_then(|position| self.rows.get(*position))
+            == Some(&raw)
     }
 }
 
@@ -185,11 +187,14 @@ impl PatchIndex {
 }
 
 fn file_stats(diff: &Diff, file: &crate::domain::DiffFile) -> FileStats {
+    // Public records may be edited by embedding callers, so every bound is
+    // clamped to the lines actually present.
     let end = diff
         .files
         .iter()
         .find(|next| next.header_line > file.header_line)
-        .map_or(diff.lines.len(), |next| next.header_line);
+        .map_or(diff.lines.len(), |next| next.header_line)
+        .min(diff.lines.len());
     diff.lines[file.header_line.min(end)..end]
         .iter()
         .fold(FileStats::default(), |stats, line| match line.kind {
@@ -298,6 +303,12 @@ pub(crate) fn fixture() -> Diff {
 mod tests {
     use super::*;
 
+    /// The raw line `delta` drawn rows away from `scroll`.
+    fn step(map: &RowMap, scroll: usize, delta: i64) -> usize {
+        let row = (map.position(scroll) as i64 + delta).clamp(0, map.rows.len() as i64 - 1);
+        map.rows[row as usize]
+    }
+
     #[test]
     fn parsed_hunks_have_independent_source_numbers_and_split_anchors() {
         let diff = fixture();
@@ -313,8 +324,8 @@ mod tests {
             (Some(12), Some(12))
         );
         assert_eq!((index.lines[12].old, index.lines[12].new), (None, Some(1)));
-        assert_eq!(index.split.move_by(5, 1), 7);
-        assert_eq!(index.split.move_by(6, -1), 4);
+        assert_eq!(step(&index.split, 5, 1), 7);
+        assert_eq!(step(&index.split, 6, -1), 4);
         assert_eq!(index.split.positions[5], index.split.positions[6]);
         assert_eq!(index.number_width, 3);
         assert_eq!(
@@ -336,8 +347,8 @@ mod tests {
         assert_eq!(index.unified.rows[..2], [0, 3]);
         // Scrolling onto a hidden line lands on the next drawn row.
         assert_eq!(index.unified.position(1), index.unified.position(3));
-        assert_eq!(index.unified.move_by(0, 1), 3);
-        assert_eq!(index.unified.move_by(3, -1), 0);
+        assert_eq!(step(&index.unified, 0, 1), 3);
+        assert_eq!(step(&index.unified, 3, -1), 0);
         // Mode changes are real information and stay visible.
         let mode = diff
             .lines
