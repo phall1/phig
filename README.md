@@ -107,21 +107,28 @@ Set `ui.glyphs = "ascii"` when a terminal cannot display Unicode line art.
 | `f` | filter/jump changed files | `y` | copy with OSC 52 |
 | `F` | expand/restore diff | `p` | show/hide preview |
 | `v` | mark endpoint | `c` | compare marked/current |
-| `:` | command palette | `?` | contextual help |
+| `T` | changed-file tree | `S` | split/unified diff |
+| `r` `s` `t` `b` `z` | refs, status, tree, blame, stash | `M` | merge-base/exact |
+| `:` | command palette | `?` | key sheet |
 
 The command palette (`:`) and changed-file picker (`f`) support ranked fuzzy
 matching: try `tglpr` for **Toggle preview**, or `smrs` for **src/main.rs**.
 Matching letters are highlighted, result counts update as you type, and the
-palette shows your effective shortcuts. Use arrows to choose and `Enter` to go.
+palette shows your effective shortcuts. Use arrows, `Tab`, or `Ctrl-n`/`Ctrl-p`
+to choose and `Enter` to go; `Ctrl-u` clears the query. `?` opens a sectioned
+key sheet, and any key it lists closes it and runs.
 
 Press `F` to read the active patch full-screen, with a sticky file/hunk location.
 `F` or `Esc` restores the previous layout and position. Crowded `--all` graphs
 keep every parent connection internally, mark bundled lanes with `~`, and
-emphasize the selected branch across the visible rows. Named refs sit next to
-the object id (`HEAD→main`, remotes, `tag:v1`) in the matching lane color, so
-a branch stays identifiable after its tip has scrolled away.
+emphasize the selected branch across the visible rows. History rows are an
+aligned grid of id, date, and author; named refs (`HEAD→main`, remotes,
+`tag:v1`) sit inline before the subject in the matching lane color, so a branch
+stays identifiable after its tip has scrolled away. Patches open each file with
+a one-line banner (`M path ──── +3 -1`) instead of Git's raw headers, and `/`
+highlights every hit on screen.
 
-The footer is always the local source of truth. Documented semantic navigation
+The footer is always the local source of truth, and always ends with `? help`. Documented semantic navigation
 and view actions are remappable; see [configuration](docs/configuration.md).
 
 ## Agent and phux workflows
