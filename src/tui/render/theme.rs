@@ -402,6 +402,17 @@ impl RenderContext {
         }
     }
 
+    /// Search hits: reverse video, tinted where color is allowed, so a match
+    /// stands out in any palette without depending on color.
+    pub fn search_hit(&self) -> Style {
+        let style = Style::default().add_modifier(ratatui::style::Modifier::REVERSED);
+        if self.monochrome {
+            style
+        } else {
+            style.fg(self.config.theme.warning)
+        }
+    }
+
     pub fn selection_style(&self, active: bool) -> Style {
         if self.monochrome {
             return Style::reset();

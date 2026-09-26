@@ -20,7 +20,8 @@ use super::{
     decorate::{decoration_spans, lane_name, spans_width},
     diff::render_diff,
     format::{
-        display_width, list_date, pad_left, pad_right, relative_age, truncate_with, wrap_words,
+        display_width, highlight_matches, list_date, pad_left, pad_right, relative_age,
+        truncate_with, wrap_words,
     },
     graph::{GraphCache, GraphRow, lane_limit},
     layout::log_layout,
@@ -109,6 +110,7 @@ fn render_history(
                     marked: app.marked_oid.as_ref() == Some(&commit.id),
                     selected: index == app.selected,
                     selected_branch,
+                    search: &app.search_query,
                     inherited_label: inherited_lane_label(
                         commit,
                         row.color(),
@@ -255,6 +257,8 @@ pub(super) struct HistoryLineOpts<'a> {
     pub selected: bool,
     pub selected_branch: Option<usize>,
     pub inherited_label: Option<&'a str>,
+    /// Active search query, highlighted where it matches.
+    pub search: &'a str,
 }
 
 /// One log row: `gutter graph hash date author refs subject`.
@@ -296,7 +300,11 @@ pub(super) fn history_line(
     } else {
         context.style(context.warning())
     };
-    spans.push(Span::styled(commit.id.short(8).to_owned(), hash_style));
+    // Search hits are marked in the fields log search reads: id, author,
+    // and subject.
+    let hit =
+        |span: Span<'static>| highlight_matches(vec![span], opts.search, context.search_hit());
+    spans.extend(hit(Span::styled(commit.id.short(8).to_owned(), hash_style)));
     spans.push(Span::raw(" "));
     if columns.date > 0 {
         spans.push(Span::styled(
@@ -310,10 +318,10 @@ pub(super) fn history_line(
             columns.author,
             glyphs.ellipsis,
         );
-        spans.push(Span::styled(
+        spans.extend(hit(Span::styled(
             format!("{} ", pad_right(&name, columns.author)),
             muted,
-        ));
+        )));
     }
 
     let mut remaining = usize::from(opts.width).saturating_sub(columns.fixed_width(gutter_width));
@@ -331,11 +339,11 @@ pub(super) fn history_line(
         remaining = remaining.saturating_sub(spans_width(&decorations));
     }
     spans.extend(decorations);
-    spans.push(Span::raw(truncate_with(
+    spans.extend(hit(Span::raw(truncate_with(
         &subject,
         remaining,
         glyphs.ellipsis,
-    )));
+    ))));
     Line::from(spans)
 }
 

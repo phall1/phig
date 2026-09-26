@@ -1221,3 +1221,31 @@ fn abandoning_keeps_loading_state_for_reissued_requests() {
     app.abandon_requests(&reissued);
     assert!(app.preview_loading);
 }
+
+#[test]
+fn blob_search_finds_lines_and_reports_misses_from_the_cached_text() {
+    use base64::{Engine as _, engine::general_purpose::STANDARD};
+    let mut app = app();
+    app.view = View::Blob;
+    app.apply_blob(crate::domain::Blob {
+        id: oid('c'),
+        path: Some(GitPath::new(b"notes.txt".to_vec())),
+        bytes_base64: STANDARD.encode("alpha\nbeta\nGamma ray\n"),
+        size: 21,
+        binary: Some(false),
+        truncated: false,
+    });
+    assert_eq!(app.blob_lines().len(), 4);
+    assert!(matches!(app.blob_lines(), std::borrow::Cow::Borrowed(_)));
+    let _ = app.update(Action::StartSearch, 10);
+    for character in "gamma".chars() {
+        let _ = app.update(Action::SearchInput(character), 10);
+    }
+    assert_eq!(app.diff_scroll, 2);
+    assert!(!app.search_miss);
+    let _ = app.update(Action::SearchInput('x'), 10);
+    assert!(app.search_miss, "a query with no hit is reported");
+    assert_eq!(app.diff_scroll, 2, "a miss keeps the last position");
+    let _ = app.update(Action::SearchClear, 10);
+    assert!(!app.search_miss);
+}

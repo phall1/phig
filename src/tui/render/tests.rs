@@ -1469,6 +1469,7 @@ fn history_preserves_subjects_and_cell_width_across_date_modes() {
                     selected: false,
                     selected_branch: None,
                     inherited_label: None,
+                    search: "",
                 },
                 &context,
             );

@@ -116,11 +116,7 @@ impl App {
             View::Blame => self.inspect.blame.len(),
             View::Stash => self.inspect.stashes.len(),
             View::Detail | View::Compare | View::StatusDiff => self.diff_len(),
-            View::Blob => self
-                .inspect
-                .blob
-                .as_ref()
-                .map_or(0, |blob| blob.bytes().split(|byte| *byte == b'\n').count()),
+            View::Blob => self.blob_lines().len(),
         }
     }
 
@@ -530,11 +526,7 @@ impl App {
                 .working_diff
                 .as_ref()
                 .map_or(0, |diff| diff.lines.len()),
-            View::Blob => self
-                .inspect
-                .blob
-                .as_ref()
-                .map_or(0, |blob| blob.bytes().split(|byte| *byte == b'\n').count()),
+            View::Blob => self.blob_lines().len(),
             _ => self
                 .preview
                 .as_ref()
