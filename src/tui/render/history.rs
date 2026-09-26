@@ -186,6 +186,8 @@ const AUTHOR_COMPACT: usize = 8;
 /// Subject cells each optional column must leave behind to be shown.
 const SUBJECT_WITH_AUTHOR: usize = 32;
 const SUBJECT_WITH_DATE: usize = 16;
+/// Narrowest room worth giving a named ref.
+const MIN_REF_CELLS: usize = 7;
 
 /// Column widths shared by every row on screen, so hash, date, author, and
 /// subject start at the same cell on every row regardless of named refs.
@@ -210,17 +212,31 @@ impl LogColumns {
             .map(|commit| display_width(&commit_date(commit, context)))
             .max()
             .unwrap_or(0);
-        let author = commits
-            .iter()
-            .map(|commit| display_width(&sanitize_str(&commit.author.name)))
+        let names = || {
+            commits
+                .iter()
+                .map(|commit| sanitize_str(&commit.author.name))
+        };
+        let author = names()
+            .map(|name| display_width(&name))
             .max()
             .unwrap_or(0)
             .min(AUTHOR_MAX);
+        let short = names()
+            .map(|name| {
+                display_width(&short_name(
+                    &name,
+                    AUTHOR_COMPACT,
+                    context.glyphs().ellipsis,
+                ))
+            })
+            .max()
+            .unwrap_or(0);
         let fits = |used: usize, subject: usize| used + subject <= available;
         let (date, author) = if fits(date + 1 + author + 1, SUBJECT_WITH_AUTHOR) {
             (date, author)
-        } else if fits(date + 1 + AUTHOR_COMPACT + 1, SUBJECT_WITH_AUTHOR) {
-            (date, author.min(AUTHOR_COMPACT))
+        } else if fits(date + 1 + short + 1, SUBJECT_WITH_AUTHOR) {
+            (date, short)
         } else if fits(date + 1, SUBJECT_WITH_DATE) {
             (date, 0)
         } else {
@@ -240,6 +256,16 @@ impl LogColumns {
             + if self.date > 0 { self.date + 1 } else { 0 }
             + if self.author > 0 { self.author + 1 } else { 0 }
     }
+}
+
+/// A name that fits `width`: the whole name, else the first name, else a
+/// clipped first name. `Maya` reads better than `Maya Ch…`.
+fn short_name(name: &str, width: usize, ellipsis: &str) -> String {
+    if display_width(name) <= width {
+        return name.to_owned();
+    }
+    let first = name.split_whitespace().next().unwrap_or(name);
+    truncate_with(first, width, ellipsis)
 }
 
 fn commit_date(commit: &Commit, context: &RenderContext) -> String {
@@ -313,7 +339,7 @@ pub(super) fn history_line(
         ));
     }
     if columns.author > 0 {
-        let name = truncate_with(
+        let name = short_name(
             &sanitize_str(&commit.author.name),
             columns.author,
             glyphs.ellipsis,
@@ -327,10 +353,17 @@ pub(super) fn history_line(
     let mut remaining = usize::from(opts.width).saturating_sub(columns.fixed_width(gutter_width));
     let subject = sanitize_str(&commit.subject);
     let minimum_subject = display_width(&subject).min(16);
+    // A ref squeezed below a few cells is noise (`H…`); leave it out.
+    let ref_budget = remaining.saturating_sub(minimum_subject + 1);
+    let ref_budget = if ref_budget < MIN_REF_CELLS {
+        0
+    } else {
+        ref_budget
+    };
     let mut decorations = decoration_spans(
         &commit.decorations,
         opts.inherited_label,
-        remaining.saturating_sub(minimum_subject + 1),
+        ref_budget,
         Some(graph.color()),
         context,
     );
@@ -542,7 +575,7 @@ fn detail_metadata(app: &App, area: Rect, context: &RenderContext) -> Vec<Line<'
         truncate_with(&byline, width, glyphs.ellipsis),
         muted,
     ));
-    lines.push(stats_line(app, detail, &separator, context));
+    lines.push(stats_line(app, detail, (&separator, width), context));
     if !plan.body.is_empty() {
         lines.push(Line::raw(""));
         let last = plan.body.len() - 1;
@@ -563,7 +596,7 @@ fn detail_metadata(app: &App, area: Rect, context: &RenderContext) -> Vec<Line<'
 fn stats_line(
     app: &App,
     detail: &crate::domain::CommitDetail,
-    separator: &str,
+    (separator, width): (&str, usize),
     context: &RenderContext,
 ) -> Line<'static> {
     let muted = context.style(context.muted());
@@ -577,56 +610,78 @@ fn stats_line(
                 DiffLineKind::Removed => (added, removed + 1),
                 _ => (added, removed),
             });
-    let parents = &detail.commit.parents;
-    let mut spans = match parents.len() {
-        0 => vec![Span::styled("root commit".to_owned(), muted)],
-        1 => vec![
-            Span::styled("parent ".to_owned(), muted),
-            Span::styled(
-                parents[0].short(8).to_owned(),
-                context.style(context.warning()),
-            ),
-        ],
-        count => {
-            let mut spans = vec![Span::styled("merge ".to_owned(), muted)];
-            for (index, parent) in parents.iter().enumerate() {
-                let style = if index == app.parent_index {
-                    context.emphasize(context.strong(context.warning()), Modifier::UNDERLINED)
-                } else {
-                    context.style(context.warning())
-                };
-                if index > 0 {
-                    spans.push(Span::raw(" "));
-                }
-                spans.push(Span::styled(parent.short(8).to_owned(), style));
-            }
-            spans.push(Span::styled(
-                format!(
-                    "  parent {}/{count} ({})",
-                    app.parent_index.saturating_add(1),
-                    context.key(&crate::app::Action::NextParent)
-                ),
-                muted,
-            ));
-            spans
-        }
-    };
     let files = detail.diff.files.len();
-    spans.push(Span::styled(
+    let mut totals = vec![
+        Span::styled(
+            format!(
+                "{separator}{files} file{}{separator}",
+                if files == 1 { "" } else { "s" }
+            ),
+            muted,
+        ),
+        Span::styled(format!("+{added}"), context.style(context.added())),
+        Span::raw(" "),
+        Span::styled(format!("-{removed}"), context.style(context.removed())),
+    ];
+    // Totals always fit; the parent description gives way from its least
+    // useful part when the pane is narrow.
+    let room = width.saturating_sub(spans_width(&totals));
+    let mut spans = parent_spans(app, &detail.commit.parents, room, context);
+    spans.append(&mut totals);
+    Line::from(spans)
+}
+
+fn parent_spans(
+    app: &App,
+    parents: &[crate::domain::Oid],
+    room: usize,
+    context: &RenderContext,
+) -> Vec<Span<'static>> {
+    let muted = context.style(context.muted());
+    let oid = context.style(context.warning());
+    match parents.len() {
+        0 => return vec![Span::styled("root commit".to_owned(), muted)],
+        1 => {
+            return vec![
+                Span::styled("parent ".to_owned(), muted),
+                Span::styled(parents[0].short(8).to_owned(), oid),
+            ];
+        }
+        _ => {}
+    }
+    let count = parents.len();
+    let mut spans = vec![Span::styled("merge ".to_owned(), muted)];
+    for (index, parent) in parents.iter().enumerate() {
+        let style = if index == app.parent_index {
+            context.emphasize(context.strong(context.warning()), Modifier::UNDERLINED)
+        } else {
+            oid
+        };
+        if index > 0 {
+            spans.push(Span::raw(" "));
+        }
+        spans.push(Span::styled(parent.short(8).to_owned(), style));
+    }
+    let hint = Span::styled(
         format!(
-            "{separator}{files} file{}{separator}",
-            if files == 1 { "" } else { "s" }
+            "  parent {}/{count} ({})",
+            app.parent_index.saturating_add(1),
+            context.key(&crate::app::Action::NextParent)
         ),
         muted,
-    ));
-    spans.push(Span::styled(
-        format!("+{added}"),
-        context.style(context.added()),
-    ));
-    spans.push(Span::raw(" "));
-    spans.push(Span::styled(
-        format!("-{removed}"),
-        context.style(context.removed()),
-    ));
-    Line::from(spans)
+    );
+    if spans_width(&spans) + spans_width(std::slice::from_ref(&hint)) <= room {
+        spans.push(hint);
+        return spans;
+    }
+    if spans_width(&spans) <= room {
+        return spans;
+    }
+    vec![Span::styled(
+        format!(
+            "merge, parent {}/{count}",
+            app.parent_index.saturating_add(1)
+        ),
+        muted,
+    )]
 }

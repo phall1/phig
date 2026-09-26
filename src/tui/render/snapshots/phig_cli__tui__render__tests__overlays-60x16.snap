@@ -81,7 +81,7 @@ STYLES
 FILES
 TEXT
  LOG  phig-demo · main · HEAD
-› ◌ aaaaaaaa 1700000000 HEAD→main make history pleasant
+› ◌ aaaaaaaa 1700000000 Pat HEAD→main make history pleasant
 
 
  ╭ Changed files ─────────────────────────────────────────╮
@@ -105,11 +105,11 @@ STYLES
 1:0-3 fg=Cyan bg=Reset mod=BOLD text="› ◌ "
 1:4-11 fg=Yellow bg=Reset mod=BOLD text="aaaaaaaa"
 1:12-12 fg=Reset bg=Reset mod=BOLD text=" "
-1:13-23 fg=DarkGray bg=Reset mod=BOLD text="1700000000 "
-1:24-27 fg=Cyan bg=Reset mod=BOLD text="HEAD"
-1:28-28 fg=DarkGray bg=Reset mod=BOLD text="→"
-1:29-32 fg=Cyan bg=Reset mod=BOLD text="main"
-1:33-59 fg=Reset bg=Reset mod=BOLD text=" make history pleasant     "
+1:13-27 fg=DarkGray bg=Reset mod=BOLD text="1700000000 Pat "
+1:28-31 fg=Cyan bg=Reset mod=BOLD text="HEAD"
+1:32-32 fg=DarkGray bg=Reset mod=BOLD text="→"
+1:33-36 fg=Cyan bg=Reset mod=BOLD text="main"
+1:37-59 fg=Reset bg=Reset mod=BOLD text=" make history pleasant "
 4:1-1 fg=DarkGray bg=Reset mod=NONE text="╭"
 4:2-16 fg=Cyan bg=Reset mod=BOLD text=" Changed files "
 4:17-58 fg=DarkGray bg=Reset mod=NONE text="─────────────────────────────────────────╮"
@@ -144,7 +144,7 @@ STYLES
 ERROR
 TEXT
  LOG  phig-demo · main · HEAD                 request failed
-› ◌ aaaaaaaa 1700000000 HEAD→main make history pleasant
+› ◌ aaaaaaaa 1700000000 Pat HEAD→main make history pleasant
 
 
  ╭ Request failed ────────────────────────────────────────╮
@@ -169,11 +169,11 @@ STYLES
 1:0-3 fg=Cyan bg=Reset mod=BOLD text="› ◌ "
 1:4-11 fg=Yellow bg=Reset mod=BOLD text="aaaaaaaa"
 1:12-12 fg=Reset bg=Reset mod=BOLD text=" "
-1:13-23 fg=DarkGray bg=Reset mod=BOLD text="1700000000 "
-1:24-27 fg=Cyan bg=Reset mod=BOLD text="HEAD"
-1:28-28 fg=DarkGray bg=Reset mod=BOLD text="→"
-1:29-32 fg=Cyan bg=Reset mod=BOLD text="main"
-1:33-59 fg=Reset bg=Reset mod=BOLD text=" make history pleasant     "
+1:13-27 fg=DarkGray bg=Reset mod=BOLD text="1700000000 Pat "
+1:28-31 fg=Cyan bg=Reset mod=BOLD text="HEAD"
+1:32-32 fg=DarkGray bg=Reset mod=BOLD text="→"
+1:33-36 fg=Cyan bg=Reset mod=BOLD text="main"
+1:37-59 fg=Reset bg=Reset mod=BOLD text=" make history pleasant "
 4:1-1 fg=DarkGray bg=Reset mod=NONE text="╭"
 4:2-17 fg=Red bg=Reset mod=BOLD text=" Request failed "
 4:18-58 fg=DarkGray bg=Reset mod=NONE text="────────────────────────────────────────╮"

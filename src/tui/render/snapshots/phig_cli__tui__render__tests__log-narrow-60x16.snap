@@ -5,7 +5,7 @@ expression: "styled_screen(60, 16, &sample_app())"
 ---
 TEXT
  LOG  phig-demo · main · HEAD
-› ◌ aaaaaaaa 1700000000 HEAD→main make history pleasant
+› ◌ aaaaaaaa 1700000000 Pat HEAD→main make history pleasant
 
 
 
@@ -29,11 +29,11 @@ STYLES
 1:0-3 fg=Cyan bg=Reset mod=BOLD text="› ◌ "
 1:4-11 fg=Yellow bg=Reset mod=BOLD text="aaaaaaaa"
 1:12-12 fg=Reset bg=Reset mod=BOLD text=" "
-1:13-23 fg=DarkGray bg=Reset mod=BOLD text="1700000000 "
-1:24-27 fg=Cyan bg=Reset mod=BOLD text="HEAD"
-1:28-28 fg=DarkGray bg=Reset mod=BOLD text="→"
-1:29-32 fg=Cyan bg=Reset mod=BOLD text="main"
-1:33-59 fg=Reset bg=Reset mod=BOLD text=" make history pleasant     "
+1:13-27 fg=DarkGray bg=Reset mod=BOLD text="1700000000 Pat "
+1:28-31 fg=Cyan bg=Reset mod=BOLD text="HEAD"
+1:32-32 fg=DarkGray bg=Reset mod=BOLD text="→"
+1:33-36 fg=Cyan bg=Reset mod=BOLD text="main"
+1:37-59 fg=Reset bg=Reset mod=BOLD text=" make history pleasant "
 15:1-4 fg=Reset bg=Reset mod=BOLD text="j/k "
 15:5-11 fg=DarkGray bg=Reset mod=NONE text="move · "
 15:12-17 fg=Reset bg=Reset mod=BOLD text="Enter "

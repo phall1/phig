@@ -1,6 +1,6 @@
 ---
 source: src/tui/render/tests.rs
-assertion_line: 1247
+assertion_line: 1250
 expression: "format!(\"palette 60x16\\n{palette}\\nfiles 120x28\\n{}\",\nstyled_screen(120, 28, &app))"
 ---
 palette 60x16
@@ -102,15 +102,15 @@ STYLES
 files 120x28
 TEXT
  LOG  phig-demo · main · HEAD
-› ◌ aaaaaaaa 1700000000 HEAD→main make history pleasant │ aaaaaaaaaaaa  HEAD→main
-                                                        │ make history pleasant
-                                                        │ Pat Example · 2y ago · 2023-11-14 18:13 -04:00 · pat@example.…
-                                                        │ root commit · 1 file · +1 -1
-                                                        │
-                                                        │ Explain the change safely.
-                                                        │
-                                                        │ Second body paragraph.
-                                                        │
+› ◌ aaaaaaaa 1700000000 Pat HEAD→main make history pleasant     │ aaaaaaaaaaaa  HEAD→main
+                                                                │ make history pleasant
+                                                                │ Pat Example · 2y ago · 2023-11-14 18:13 -04:00 · pat@…
+                                                                │ root commit · 1 file · +1 -1
+                                                                │
+                                                                │ Explain the change safely.
+                                                                │
+                                                                │ Second body paragraph.
+                                                                │
                           ╭ Changed files ───────────────────────────────────────────────────╮
                           │ file: smrs                                              1 result │
                           │ › src/main.rs                                                    │
@@ -118,16 +118,16 @@ TEXT
                           │                                                                  │
                           │ ↑/↓ move · Enter jump · Esc close                                │
                           ╰──────────────────────────────────────────────────────────────────╯
-                                                        │
-                                                        │
-                                                        │
-                                                        │
-                                                        │
-                                                        │
-                                                        │
-                                                        │
-                                                        │
-                                                        │
+                                                                │
+                                                                │
+                                                                │
+                                                                │
+                                                                │
+                                                                │
+                                                                │
+                                                                │
+                                                                │
+                                                                │
  j/k move · Enter open · / search · v mark · ? help                                                                 1/1
 STYLES
 0:0-4 fg=Cyan bg=Reset mod=BOLD | REVERSED text=" LOG "
@@ -138,29 +138,29 @@ STYLES
 1:0-3 fg=Cyan bg=Reset mod=BOLD text="› ◌ "
 1:4-11 fg=Yellow bg=Reset mod=BOLD text="aaaaaaaa"
 1:12-12 fg=Reset bg=Reset mod=BOLD text=" "
-1:13-23 fg=DarkGray bg=Reset mod=BOLD text="1700000000 "
-1:24-27 fg=Cyan bg=Reset mod=BOLD text="HEAD"
-1:28-28 fg=DarkGray bg=Reset mod=BOLD text="→"
-1:29-32 fg=Cyan bg=Reset mod=BOLD text="main"
-1:33-55 fg=Reset bg=Reset mod=BOLD text=" make history pleasant "
-1:56-56 fg=DarkGray bg=Reset mod=NONE text="│"
-1:58-69 fg=Yellow bg=Reset mod=BOLD text="aaaaaaaaaaaa"
-1:72-75 fg=Cyan bg=Reset mod=BOLD text="HEAD"
-1:76-76 fg=DarkGray bg=Reset mod=NONE text="→"
-1:77-80 fg=Green bg=Reset mod=BOLD text="main"
-2:56-56 fg=DarkGray bg=Reset mod=NONE text="│"
-2:58-78 fg=Reset bg=Reset mod=BOLD text="make history pleasant"
-3:56-56 fg=DarkGray bg=Reset mod=NONE text="│"
-3:58-119 fg=DarkGray bg=Reset mod=NONE text="Pat Example · 2y ago · 2023-11-14 18:13 -04:00 · pat@example.…"
-4:56-56 fg=DarkGray bg=Reset mod=NONE text="│"
-4:58-80 fg=DarkGray bg=Reset mod=NONE text="root commit · 1 file · "
-4:81-82 fg=Green bg=Reset mod=NONE text="+1"
-4:84-85 fg=Red bg=Reset mod=NONE text="-1"
-5:56-56 fg=DarkGray bg=Reset mod=NONE text="│"
-6:56-56 fg=DarkGray bg=Reset mod=NONE text="│"
-7:56-56 fg=DarkGray bg=Reset mod=NONE text="│"
-8:56-56 fg=DarkGray bg=Reset mod=NONE text="│"
-9:56-56 fg=DarkGray bg=Reset mod=NONE text="│"
+1:13-27 fg=DarkGray bg=Reset mod=BOLD text="1700000000 Pat "
+1:28-31 fg=Cyan bg=Reset mod=BOLD text="HEAD"
+1:32-32 fg=DarkGray bg=Reset mod=BOLD text="→"
+1:33-36 fg=Cyan bg=Reset mod=BOLD text="main"
+1:37-63 fg=Reset bg=Reset mod=BOLD text=" make history pleasant     "
+1:64-64 fg=DarkGray bg=Reset mod=NONE text="│"
+1:66-77 fg=Yellow bg=Reset mod=BOLD text="aaaaaaaaaaaa"
+1:80-83 fg=Cyan bg=Reset mod=BOLD text="HEAD"
+1:84-84 fg=DarkGray bg=Reset mod=NONE text="→"
+1:85-88 fg=Green bg=Reset mod=BOLD text="main"
+2:64-64 fg=DarkGray bg=Reset mod=NONE text="│"
+2:66-86 fg=Reset bg=Reset mod=BOLD text="make history pleasant"
+3:64-64 fg=DarkGray bg=Reset mod=NONE text="│"
+3:66-119 fg=DarkGray bg=Reset mod=NONE text="Pat Example · 2y ago · 2023-11-14 18:13 -04:00 · pat@…"
+4:64-64 fg=DarkGray bg=Reset mod=NONE text="│"
+4:66-88 fg=DarkGray bg=Reset mod=NONE text="root commit · 1 file · "
+4:89-90 fg=Green bg=Reset mod=NONE text="+1"
+4:92-93 fg=Red bg=Reset mod=NONE text="-1"
+5:64-64 fg=DarkGray bg=Reset mod=NONE text="│"
+6:64-64 fg=DarkGray bg=Reset mod=NONE text="│"
+7:64-64 fg=DarkGray bg=Reset mod=NONE text="│"
+8:64-64 fg=DarkGray bg=Reset mod=NONE text="│"
+9:64-64 fg=DarkGray bg=Reset mod=NONE text="│"
 10:26-26 fg=DarkGray bg=Reset mod=NONE text="╭"
 10:27-41 fg=Cyan bg=Reset mod=BOLD text=" Changed files "
 10:42-93 fg=DarkGray bg=Reset mod=NONE text="───────────────────────────────────────────────────╮"
@@ -185,26 +185,26 @@ STYLES
 15:28-91 fg=DarkGray bg=Reset mod=NONE text="↑/↓ move · Enter jump · Esc close                               "
 15:93-93 fg=DarkGray bg=Reset mod=NONE text="│"
 16:26-93 fg=DarkGray bg=Reset mod=NONE text="╰──────────────────────────────────────────────────────────────────╯"
-17:56-56 fg=DarkGray bg=Reset mod=NONE text="│"
-17:58-119 fg=DarkGray bg=Reset mod=NONE text="                                                              "
-18:56-56 fg=DarkGray bg=Reset mod=NONE text="│"
-18:58-119 fg=DarkGray bg=Reset mod=NONE text="                                                              "
-19:56-56 fg=DarkGray bg=Reset mod=NONE text="│"
-19:58-119 fg=DarkGray bg=Reset mod=NONE text="                                                              "
-20:56-56 fg=DarkGray bg=Reset mod=NONE text="│"
-20:58-119 fg=DarkGray bg=Reset mod=NONE text="                                                              "
-21:56-56 fg=DarkGray bg=Reset mod=NONE text="│"
-21:58-119 fg=DarkGray bg=Reset mod=NONE text="                                                              "
-22:56-56 fg=DarkGray bg=Reset mod=NONE text="│"
-22:58-119 fg=DarkGray bg=Reset mod=NONE text="                                                              "
-23:56-56 fg=DarkGray bg=Reset mod=NONE text="│"
-23:58-119 fg=DarkGray bg=Reset mod=NONE text="                                                              "
-24:56-56 fg=DarkGray bg=Reset mod=NONE text="│"
-24:58-119 fg=DarkGray bg=Reset mod=NONE text="                                                              "
-25:56-56 fg=DarkGray bg=Reset mod=NONE text="│"
-25:58-119 fg=DarkGray bg=Reset mod=NONE text="                                                              "
-26:56-56 fg=DarkGray bg=Reset mod=NONE text="│"
-26:58-119 fg=DarkGray bg=Reset mod=NONE text="                                                              "
+17:64-64 fg=DarkGray bg=Reset mod=NONE text="│"
+17:66-119 fg=DarkGray bg=Reset mod=NONE text="                                                      "
+18:64-64 fg=DarkGray bg=Reset mod=NONE text="│"
+18:66-119 fg=DarkGray bg=Reset mod=NONE text="                                                      "
+19:64-64 fg=DarkGray bg=Reset mod=NONE text="│"
+19:66-119 fg=DarkGray bg=Reset mod=NONE text="                                                      "
+20:64-64 fg=DarkGray bg=Reset mod=NONE text="│"
+20:66-119 fg=DarkGray bg=Reset mod=NONE text="                                                      "
+21:64-64 fg=DarkGray bg=Reset mod=NONE text="│"
+21:66-119 fg=DarkGray bg=Reset mod=NONE text="                                                      "
+22:64-64 fg=DarkGray bg=Reset mod=NONE text="│"
+22:66-119 fg=DarkGray bg=Reset mod=NONE text="                                                      "
+23:64-64 fg=DarkGray bg=Reset mod=NONE text="│"
+23:66-119 fg=DarkGray bg=Reset mod=NONE text="                                                      "
+24:64-64 fg=DarkGray bg=Reset mod=NONE text="│"
+24:66-119 fg=DarkGray bg=Reset mod=NONE text="                                                      "
+25:64-64 fg=DarkGray bg=Reset mod=NONE text="│"
+25:66-119 fg=DarkGray bg=Reset mod=NONE text="                                                      "
+26:64-64 fg=DarkGray bg=Reset mod=NONE text="│"
+26:66-119 fg=DarkGray bg=Reset mod=NONE text="                                                      "
 27:1-4 fg=Reset bg=Reset mod=BOLD text="j/k "
 27:5-11 fg=DarkGray bg=Reset mod=NONE text="move · "
 27:12-17 fg=Reset bg=Reset mod=BOLD text="Enter "

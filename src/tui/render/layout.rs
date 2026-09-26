@@ -99,8 +99,10 @@ pub(super) fn pane_layout_with(
     }
 }
 
+/// History is the dominant surface; its preview is a glance, so the list
+/// keeps a little more than half the width.
 pub(super) fn log_layout(app: &App, area: Rect) -> PaneLayout {
-    pane_layout(app, area, 45)
+    pane_layout_with(app, area, 45, 55)
 }
 
 pub(super) fn list_preview_layout(app: &App, area: Rect) -> PaneLayout {
