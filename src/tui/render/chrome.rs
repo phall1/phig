@@ -272,6 +272,52 @@ fn hints(app: &App, context: &RenderContext) -> Vec<Hint> {
     }
 }
 
+/// Contextual hints first; `?` always closes the row so the full key
+/// reference is one keystroke away on every screen.
+fn hint_line(
+    app: &App,
+    left_width: usize,
+    key_style: Style,
+    context: &RenderContext,
+) -> Line<'static> {
+    let muted = context.style(context.muted());
+    let mut hints = hints(app, context);
+    // The log and the file tree each have a fourth hint worth its room.
+    let limit = if app.view == View::Log || matches!(app.overlay, Overlay::DiffTree(_)) {
+        4
+    } else {
+        3
+    };
+    hints.truncate(limit);
+    let help: Hint = (context.key(&Action::ToggleHelp), "help");
+    let separator = format!(" {} ", context.glyphs().separator);
+    let hint_width = |(key, label): &Hint| {
+        display_width(key) + usize::from(!key.is_empty()) + display_width(label)
+    };
+    let mut used = 1 + hint_width(&help);
+    let mut chosen = Vec::new();
+    for hint in hints {
+        let width = hint_width(&hint) + display_width(&separator);
+        if used + width > left_width {
+            break;
+        }
+        used += width;
+        chosen.push(hint);
+    }
+    chosen.push(help);
+    let mut spans = vec![Span::raw(" ")];
+    for (index, (key, label)) in chosen.into_iter().enumerate() {
+        if index > 0 {
+            spans.push(Span::styled(separator.clone(), muted));
+        }
+        if !key.is_empty() {
+            spans.push(Span::styled(format!("{key} "), key_style));
+        }
+        spans.push(Span::styled(label, muted));
+    }
+    Line::from(spans)
+}
+
 pub(super) fn render_footer(frame: &mut Frame<'_>, app: &App, area: Rect, context: &RenderContext) {
     let position = format!("{} ", position(app));
     let position_width = u16::try_from(display_width(&position)).unwrap_or(area.width);
@@ -306,43 +352,7 @@ pub(super) fn render_footer(frame: &mut Frame<'_>, app: &App, area: Rect, contex
     } else if let Some(notice) = &app.notice {
         Line::styled(format!(" {notice}"), context.style(context.accent()))
     } else {
-        // Contextual hints first; `?` always closes the row so the full key
-        // reference is one keystroke away on every screen.
-        let mut hints = hints(app, context);
-        // The log and the file tree each have a fourth hint worth its room.
-        let limit = if app.view == View::Log || matches!(app.overlay, Overlay::DiffTree(_)) {
-            4
-        } else {
-            3
-        };
-        hints.truncate(limit);
-        let help: Hint = (context.key(&Action::ToggleHelp), "help");
-        let separator = format!(" {} ", context.glyphs().separator);
-        let hint_width = |(key, label): &Hint| {
-            display_width(key) + usize::from(!key.is_empty()) + display_width(label)
-        };
-        let mut used = 1 + hint_width(&help);
-        let mut chosen = Vec::new();
-        for hint in hints {
-            let width = hint_width(&hint) + display_width(&separator);
-            if used + width + display_width(&separator) > left_width {
-                break;
-            }
-            used += width;
-            chosen.push(hint);
-        }
-        chosen.push(help);
-        let mut spans = vec![Span::raw(" ")];
-        for (index, (key, label)) in chosen.into_iter().enumerate() {
-            if index > 0 {
-                spans.push(Span::styled(separator.clone(), muted));
-            }
-            if !key.is_empty() {
-                spans.push(Span::styled(format!("{key} "), key_style));
-            }
-            spans.push(Span::styled(label, muted));
-        }
-        Line::from(spans)
+        hint_line(app, left_width, key_style, context)
     };
     frame.render_widget(Paragraph::new(left), parts[0]);
     frame.render_widget(
