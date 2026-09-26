@@ -537,3 +537,53 @@ fn keymap_uses_semantic_actions() {
         Some(Action::RetryFailed)
     );
 }
+
+#[test]
+fn pickers_accept_readline_steps_and_clear_while_letters_stay_text() {
+    let mut app = app();
+    let ctrl = |c| KeyEvent::new(KeyCode::Char(c), KeyModifiers::CONTROL);
+    let _ = app.update(Action::StartPalette, 10);
+    assert_eq!(key_action(&app, ctrl('n')), Some(Action::PaletteMove(1)));
+    assert_eq!(key_action(&app, ctrl('k')), Some(Action::PaletteMove(-1)));
+    assert_eq!(
+        key_action(&app, KeyEvent::new(KeyCode::Tab, KeyModifiers::NONE)),
+        Some(Action::PaletteMove(1))
+    );
+    assert_eq!(
+        key_action(&app, KeyEvent::new(KeyCode::Char('n'), KeyModifiers::NONE)),
+        Some(Action::SearchInput('n'))
+    );
+    let _ = app.update(Action::SearchInput('t'), 10);
+    let _ = app.update(Action::SearchInput('g'), 10);
+    assert_eq!(key_action(&app, ctrl('u')), Some(Action::SearchClear));
+    let _ = app.update(Action::SearchClear, 10);
+    assert!(matches!(&app.overlay, Overlay::Palette { draft, selected: 0 } if draft.is_empty()));
+}
+
+#[test]
+fn help_is_a_launcher_for_the_keys_it_lists() {
+    let mut app = app();
+    let _ = app.update(Action::ToggleHelp, 10);
+    assert_eq!(app.overlay, Overlay::Help);
+    assert_eq!(
+        key_action(&app, KeyEvent::new(KeyCode::Char(':'), KeyModifiers::NONE)),
+        Some(Action::StartPalette)
+    );
+    let _ = app.update(Action::StartPalette, 10);
+    assert!(matches!(app.overlay, Overlay::Palette { .. }));
+
+    app.overlay = Overlay::None;
+    let _ = app.update(Action::ToggleHelp, 10);
+    let _ = app.update(Action::ViewRefs, 10);
+    assert_eq!(app.overlay, Overlay::None);
+    assert_eq!(app.view, View::Refs);
+
+    let _ = app.update(Action::ToggleHelp, 10);
+    let _ = app.update(Action::Quit, 10);
+    assert_eq!(
+        app.overlay,
+        Overlay::None,
+        "q closes help instead of quitting"
+    );
+    assert!(!app.should_quit);
+}

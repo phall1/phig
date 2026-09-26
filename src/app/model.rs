@@ -73,6 +73,8 @@ pub enum Action {
     ToggleHelp,
     SearchInput(char),
     SearchBackspace,
+    /// Clear a text overlay's whole query (`Ctrl-u`).
+    SearchClear,
     AcceptSearch,
     CancelOverlay,
     PaletteMove(i32),

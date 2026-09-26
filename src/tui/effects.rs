@@ -20,19 +20,23 @@ const REQUEST_KEYS: [RequestKey; 8] = [
     RequestKey::Compare,
 ];
 
+/// Invalidate every in-flight request when the view context changes.
+/// Returns whether anything was invalidated, so the caller can tell the app
+/// which of its outstanding requests will never answer.
 pub(super) fn invalidate_for_transition(
     coordinator: &Coordinator,
     pending: &mut HashMap<RequestKey, GitQuery>,
     previous: View,
     current: View,
-) {
+) -> bool {
     if view_context(previous) == view_context(current) {
-        return;
+        return false;
     }
     for key in REQUEST_KEYS {
         coordinator.invalidate(key);
         pending.remove(&key);
     }
+    true
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

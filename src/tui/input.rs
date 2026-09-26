@@ -28,21 +28,33 @@ pub(super) fn resolve_action(app: &App, bindings: &KeyBindings, key: KeyEvent) -
     bindings.resolve(key, default)
 }
 
+/// Readline/fzf-style list steps inside pickers: `Ctrl-n`/`Ctrl-j` down,
+/// `Ctrl-p`/`Ctrl-k` up. Plain letters stay query text.
+fn picker_step(code: KeyCode, modifiers: KeyModifiers) -> Option<i32> {
+    if !modifiers.contains(KeyModifiers::CONTROL) {
+        return None;
+    }
+    match code {
+        KeyCode::Char('n' | 'j') => Some(1),
+        KeyCode::Char('p' | 'k') => Some(-1),
+        _ => None,
+    }
+}
+
 pub(super) fn key_action(app: &App, key: KeyEvent) -> Option<Action> {
     match &app.overlay {
-        Overlay::Help => {
-            return match key.code {
-                KeyCode::Esc => Some(Action::CancelOverlay),
-                KeyCode::Char('?') => Some(Action::ToggleHelp),
-                KeyCode::Char('q') => Some(Action::Quit),
-                _ => None,
-            };
-        }
+        // Help is a launcher: Esc closes it, and every other key keeps its
+        // normal meaning so the sheet leads straight to the action it lists.
+        Overlay::Help if key.code == KeyCode::Esc => return Some(Action::CancelOverlay),
+        Overlay::Help => {}
         Overlay::Search { .. } => {
             return match key.code {
                 KeyCode::Esc => Some(Action::CancelOverlay),
                 KeyCode::Enter => Some(Action::AcceptSearch),
                 KeyCode::Backspace => Some(Action::SearchBackspace),
+                KeyCode::Char('u') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                    Some(Action::SearchClear)
+                }
                 KeyCode::Char(character)
                     if !key
                         .modifiers
@@ -54,12 +66,18 @@ pub(super) fn key_action(app: &App, key: KeyEvent) -> Option<Action> {
             };
         }
         Overlay::Palette { .. } => {
+            if let Some(step) = picker_step(key.code, key.modifiers) {
+                return Some(Action::PaletteMove(step));
+            }
             return match key.code {
                 KeyCode::Esc => Some(Action::CancelOverlay),
                 KeyCode::Enter => Some(Action::ExecutePalette),
-                KeyCode::Down => Some(Action::PaletteMove(1)),
-                KeyCode::Up => Some(Action::PaletteMove(-1)),
+                KeyCode::Down | KeyCode::Tab => Some(Action::PaletteMove(1)),
+                KeyCode::Up | KeyCode::BackTab => Some(Action::PaletteMove(-1)),
                 KeyCode::Backspace => Some(Action::SearchBackspace),
+                KeyCode::Char('u') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                    Some(Action::SearchClear)
+                }
                 KeyCode::Char(character)
                     if !key
                         .modifiers
@@ -71,12 +89,18 @@ pub(super) fn key_action(app: &App, key: KeyEvent) -> Option<Action> {
             };
         }
         Overlay::FilePicker { .. } => {
+            if let Some(step) = picker_step(key.code, key.modifiers) {
+                return Some(Action::FilePickerMove(step));
+            }
             return match key.code {
                 KeyCode::Esc => Some(Action::CancelOverlay),
                 KeyCode::Enter => Some(Action::AcceptFilePicker),
-                KeyCode::Down => Some(Action::FilePickerMove(1)),
-                KeyCode::Up => Some(Action::FilePickerMove(-1)),
+                KeyCode::Down | KeyCode::Tab => Some(Action::FilePickerMove(1)),
+                KeyCode::Up | KeyCode::BackTab => Some(Action::FilePickerMove(-1)),
                 KeyCode::Backspace => Some(Action::SearchBackspace),
+                KeyCode::Char('u') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                    Some(Action::SearchClear)
+                }
                 KeyCode::Char(character)
                     if !key
                         .modifiers

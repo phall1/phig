@@ -1175,3 +1175,49 @@ fn pagination_effect_is_bounded_and_idempotent_while_loading() {
     );
     assert!(app.request_more_if_needed().is_empty());
 }
+
+#[test]
+fn abandoned_requests_settle_and_history_preview_resumes_on_return() {
+    let mut app = app();
+    // apply_history asked for the selected commit's preview.
+    assert!(app.preview_loading);
+    let effects = app.update(Action::ViewTree, 10);
+    // The adapter drops every in-flight request on a context change.
+    app.abandon_requests(&effects);
+    assert!(
+        !app.preview_loading,
+        "tree must not wait on a dropped preview"
+    );
+    assert!(!app.history_loading);
+
+    // Coming back re-requests the preview no response will deliver.
+    let effects = app.update(Action::Back, 10);
+    assert_eq!(app.view, View::Log);
+    assert!(
+        effects
+            .iter()
+            .any(|effect| matches!(effect, Effect::LoadPreview { revision, .. } if *revision == oid('a').to_string())),
+        "{effects:?}"
+    );
+    assert!(app.preview_loading);
+
+    // A delivered preview for the selection needs no second request.
+    app.apply_preview(CommitDetail {
+        commit: commit('a', "first"),
+        selected_parent: None,
+        diff: working_diff("+patch"),
+    });
+    let _ = app.update(Action::ViewTree, 10);
+    assert!(app.update(Action::Back, 10).is_empty());
+}
+
+#[test]
+fn abandoning_keeps_loading_state_for_reissued_requests() {
+    let mut app = app();
+    let reissued = [Effect::LoadPreview {
+        revision: oid('a').to_string(),
+        parent_index: 0,
+    }];
+    app.abandon_requests(&reissued);
+    assert!(app.preview_loading);
+}
