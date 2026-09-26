@@ -61,6 +61,12 @@ lto = "thin"
 codegen-units = 1
 strip = "symbols"
 
+# Stripping applies to host artifacts too; a stripped proc-macro dylib loses
+# the metadata rustc loads it by ("can't find crate for `rustversion`" on
+# macOS). Only the shipped binary needs stripping.
+[profile.release.build-override]
+strip = "none"
+
 [profile.dist]
 inherits = "release"
 lto = "fat"

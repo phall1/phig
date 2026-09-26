@@ -1394,7 +1394,7 @@ fn visual_policy_supports_ascii_dividers_calm_selection_and_critical_header() {
             .lines()
             .skip(1)
             .take(26)
-            .all(|line| line.chars().nth(51) == Some('|'))
+            .all(|line| line.chars().nth(59) == Some('|'))
     );
     let mut ascii_help = sample_app();
     ascii_help.show_help();
@@ -1409,7 +1409,7 @@ fn visual_policy_supports_ascii_dividers_calm_selection_and_critical_header() {
             .lines()
             .skip(1)
             .take(26)
-            .all(|line| line.chars().nth(51) == Some('│'))
+            .all(|line| line.chars().nth(59) == Some('│'))
     );
     let stacked = screen(100, 28, &app);
     assert!(stacked.lines().any(|line| line == "─".repeat(100)));
@@ -1616,4 +1616,27 @@ fn help_overlay_is_contextual() {
     assert!(output.contains("Enter"));
     assert!(output.contains("log view"));
     assert!(output.contains(": all commands"));
+}
+
+#[test]
+fn merge_stats_keep_their_totals_when_the_pane_is_narrow() {
+    let mut app = sample_app();
+    app.view = View::Detail;
+    let detail = app.preview.as_mut().unwrap();
+    detail.commit.parents = vec![
+        "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb".parse().unwrap(),
+        "cccccccccccccccccccccccccccccccccccccccc".parse().unwrap(),
+    ];
+    let wide = screen(100, 28, &app);
+    assert!(wide.contains("merge bbbbbbbb cccccccc  parent 1/2 (P) · 1 file · +1 -1"));
+    let medium = screen(44, 20, &app);
+    assert!(
+        medium.contains("merge bbbbbbbb cccccccc · 1 file · +1 -1"),
+        "{medium}"
+    );
+    let narrow = screen(36, 20, &app);
+    assert!(
+        narrow.contains("merge, parent 1/2 · 1 file · +1 -1"),
+        "{narrow}"
+    );
 }

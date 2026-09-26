@@ -1,35 +1,320 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="720" viewBox="0 0 1200 720" role="img" aria-labelledby="title desc">
+<svg xmlns="http://www.w3.org/2000/svg" width="1199" height="708" viewBox="0 0 1199 708" role="img" aria-labelledby="title desc">
   <title id="title">phig history and diff interface</title>
-  <desc id="desc">A calm terminal window with marker-led commit history, a thin divider, and a syntax-colored patch preview.</desc>
-  <rect width="1200" height="720" rx="18" fill="#0b1020"/>
-  <rect x="1" y="1" width="1198" height="718" rx="17" fill="none" stroke="#29324a" stroke-width="2"/>
-  <rect x="1" y="1" width="1198" height="46" rx="17" fill="#171e30"/>
-  <rect x="1" y="30" width="1198" height="17" fill="#171e30"/>
-  <circle cx="26" cy="24" r="6" fill="#f07178"/><circle cx="47" cy="24" r="6" fill="#ffcb6b"/><circle cx="68" cy="24" r="6" fill="#c3e88d"/>
-  <g font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="18">
-    <text x="94" y="30" fill="#80cbc4" font-weight="700">phig  LOG</text><text x="207" y="30" fill="#d7deef">example</text><text x="294" y="30" fill="#74819c">/ main  HEAD</text>
-    <line x1="510" y1="61" x2="510" y2="655" stroke="#38425a" stroke-width="1"/>
-    <text x="22" y="101" fill="#80cbc4" font-weight="700">›</text><text x="42" y="101" fill="#80cbc4">●</text><text x="68" y="101" fill="#80cbc4" font-weight="700">5f5eb699</text><text x="174" y="101" fill="#74819c">2m</text><text x="216" y="101" fill="#74819c">Demo User</text><text x="326" y="101" fill="#f4f7ff">add gamma feature</text>
-    <text x="42" y="143" fill="#82aaff">●</text><text x="68" y="143" fill="#c9d2e6">a1cc260d</text><text x="174" y="143" fill="#74819c">14m</text><text x="216" y="143" fill="#74819c">Demo User</text><text x="326" y="143" fill="#9aa7c2">refine preview</text>
-    <text x="42" y="185" fill="#82aaff">●</text><text x="68" y="185" fill="#c9d2e6">0d39c1a4</text><text x="174" y="185" fill="#74819c">1h</text><text x="216" y="185" fill="#74819c">A. Chen</text><text x="326" y="185" fill="#9aa7c2">bound async load</text>
-    <text x="42" y="227" fill="#c792ea">●</text><text x="68" y="227" fill="#c9d2e6">72b612fd</text><text x="174" y="227" fill="#74819c">3h</text><text x="216" y="227" fill="#74819c">Demo User</text><text x="326" y="227" fill="#9aa7c2">render graph lanes</text>
-    <text x="42" y="269" fill="#82aaff">●</text><text x="68" y="269" fill="#c9d2e6">21291f6a</text><text x="174" y="269" fill="#74819c">1d</text><text x="216" y="269" fill="#74819c">A. Chen</text><text x="326" y="269" fill="#9aa7c2">initial browser</text>
-    <text x="538" y="91" fill="#f4f7ff">5f5eb699be24 · add gamma feature</text>
-    <text x="538" y="121" fill="#74819c">Demo User &lt;demo@example.invalid&gt; · 2 minutes ago</text>
-    <text x="538" y="157" fill="#c9d2e6">diff --git a/src/app.rs b/src/app.rs</text>
-    <text x="538" y="187" fill="#74819c">index fbbee86..85c3040 100644</text>
-    <text x="538" y="217" fill="#f07178">--- a/src/app.rs</text>
-    <text x="538" y="247" fill="#c3e88d">+++ b/src/app.rs</text>
-    <text x="538" y="288" fill="#89ddff" font-weight="700">@@ -1,4 +1,6 @@</text>
-    <text x="538" y="326" fill="#c9d2e6"> pub fn open(repository: &amp;Path) {</text>
-    <text x="538" y="356" fill="#c9d2e6">     let history = load(repository);</text>
-    <text x="538" y="386" fill="#c3e88d">+    let preview = history.selected_diff();</text>
-    <text x="538" y="416" fill="#c3e88d">+    render(history, preview);</text>
-    <text x="538" y="446" fill="#c9d2e6"> }</text>
-    <text x="538" y="496" fill="#ffcb6b">src/app.rs</text><text x="666" y="496" fill="#74819c">+2 −0</text>
-    <text x="538" y="536" fill="#9aa7c2">Read-only inspection · Git is the authority</text>
-    <line x1="18" y1="668" x2="1182" y2="668" stroke="#29324a" stroke-width="1"/>
-    <text x="32" y="692" fill="#74819c">j/k move · Enter open · / search</text>
-    <text x="1110" y="692" fill="#74819c">1/5</text>
+  <desc id="desc">phig rendered in a terminal: an aligned commit graph with named refs beside a commit preview and patch.</desc>
+  <rect width="1199" height="708" rx="12" fill="#0d1117"/>
+  <rect x="0.5" y="0.5" width="1198" height="707" rx="12" fill="none" stroke="#2a3246"/>
+  <path d="M12 0.5h1175a11.5 11.5 0 0 1 11.5 11.5v32h-1198v-32a11.5 11.5 0 0 1 11.5-11.5z" fill="#161b26"/>
+  <circle cx="24" cy="22" r="6" fill="#f07178"/><circle cx="44" cy="22" r="6" fill="#ffcb6b"/><circle cx="64" cy="22" r="6" fill="#c3e88d"/>
+  <g font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="15" xml:space="preserve">
+    <rect x="22.0" y="42.0" width="45.1" height="21" fill="#89ddff"/>
+    <text x="31.0" y="58.0" fill="#0d1117" font-weight="700" textLength="27.1" lengthAdjust="spacingAndGlyphs">LOG</text>
+    <text x="76.2" y="58.0" fill="#d7deef" font-weight="700" textLength="63.2" lengthAdjust="spacingAndGlyphs">example</text>
+    <text x="148.4" y="58.0" fill="#6b7894">·</text>
+    <text x="166.5" y="58.0" fill="#c3e88d" textLength="36.1" lengthAdjust="spacingAndGlyphs">main</text>
+    <text x="211.6" y="58.0" fill="#6b7894">·</text>
+    <text x="229.7" y="58.0" fill="#6b7894" textLength="27.1" lengthAdjust="spacingAndGlyphs">all</text>
+    <text x="265.8" y="58.0" fill="#6b7894" textLength="36.1" lengthAdjust="spacingAndGlyphs">refs</text>
+    <text x="22.0" y="79.0" fill="#89ddff" font-weight="700">›</text>
+    <text x="40.1" y="79.0" fill="#89ddff" font-weight="700">●</text>
+    <text x="94.2" y="79.0" fill="#ffcb6b" font-weight="700" textLength="72.2" lengthAdjust="spacingAndGlyphs">5ed2e3d0</text>
+    <text x="184.5" y="79.0" fill="#6b7894" font-weight="700" textLength="18.1" lengthAdjust="spacingAndGlyphs">2h</text>
+    <text x="211.6" y="79.0" fill="#6b7894" font-weight="700" textLength="36.1" lengthAdjust="spacingAndGlyphs">Maya</text>
+    <text x="256.8" y="79.0" fill="#6b7894" font-weight="700" textLength="36.1" lengthAdjust="spacingAndGlyphs">Chen</text>
+    <text x="320.0" y="79.0" fill="#89ddff" font-weight="700" textLength="36.1" lengthAdjust="spacingAndGlyphs">HEAD</text>
+    <text x="356.1" y="79.0" fill="#6b7894" font-weight="700">→</text>
+    <text x="365.1" y="79.0" fill="#89ddff" font-weight="700" textLength="36.1" lengthAdjust="spacingAndGlyphs">main</text>
+    <text x="410.3" y="79.0" fill="#d7deef" font-weight="700" textLength="54.2" lengthAdjust="spacingAndGlyphs">Ignore</text>
+    <text x="473.5" y="79.0" fill="#d7deef" font-weight="700" textLength="45.1" lengthAdjust="spacingAndGlyphs">blank</text>
+    <text x="527.7" y="79.0" fill="#d7deef" font-weight="700" textLength="63.2" lengthAdjust="spacingAndGlyphs">queries</text>
+    <text x="599.9" y="79.0" fill="#d7deef" font-weight="700" textLength="27.1" lengthAdjust="spacingAndGlyphs">and</text>
+    <text x="636.0" y="79.0" fill="#d7deef" font-weight="700">…</text>
+    <text x="645.1" y="79.0" fill="#6b7894">│</text>
+    <text x="663.1" y="79.0" fill="#ffcb6b" font-weight="700" textLength="108.4" lengthAdjust="spacingAndGlyphs">5ed2e3d00358</text>
+    <text x="789.5" y="79.0" fill="#89ddff" font-weight="700" textLength="36.1" lengthAdjust="spacingAndGlyphs">HEAD</text>
+    <text x="825.7" y="79.0" fill="#6b7894">→</text>
+    <text x="834.7" y="79.0" fill="#c3e88d" font-weight="700" textLength="36.1" lengthAdjust="spacingAndGlyphs">main</text>
+    <text x="40.1" y="100.0" fill="#89ddff" font-weight="700">◆</text>
+    <text x="49.1" y="100.0" fill="#c3e88d" textLength="18.1" lengthAdjust="spacingAndGlyphs">─╮</text>
+    <text x="94.2" y="100.0" fill="#ffcb6b" textLength="72.2" lengthAdjust="spacingAndGlyphs">7790e1b9</text>
+    <text x="184.5" y="100.0" fill="#6b7894" textLength="18.1" lengthAdjust="spacingAndGlyphs">8d</text>
+    <text x="211.6" y="100.0" fill="#6b7894" textLength="36.1" lengthAdjust="spacingAndGlyphs">Maya</text>
+    <text x="256.8" y="100.0" fill="#6b7894" textLength="36.1" lengthAdjust="spacingAndGlyphs">Chen</text>
+    <text x="320.0" y="100.0" fill="#ffcb6b" textLength="90.3" lengthAdjust="spacingAndGlyphs">tag:v0.2.0</text>
+    <text x="419.3" y="100.0" fill="#d7deef" textLength="45.1" lengthAdjust="spacingAndGlyphs">Merge</text>
+    <text x="473.5" y="100.0" fill="#d7deef" textLength="54.2" lengthAdjust="spacingAndGlyphs">branch</text>
+    <text x="536.7" y="100.0" fill="#d7deef" textLength="108.4" lengthAdjust="spacingAndGlyphs">&#x27;feature/se…</text>
+    <text x="645.1" y="100.0" fill="#6b7894">│</text>
+    <text x="663.1" y="100.0" fill="#d7deef" font-weight="700" textLength="54.2" lengthAdjust="spacingAndGlyphs">Ignore</text>
+    <text x="726.3" y="100.0" fill="#d7deef" font-weight="700" textLength="45.1" lengthAdjust="spacingAndGlyphs">blank</text>
+    <text x="780.5" y="100.0" fill="#d7deef" font-weight="700" textLength="63.2" lengthAdjust="spacingAndGlyphs">queries</text>
+    <text x="852.8" y="100.0" fill="#d7deef" font-weight="700" textLength="27.1" lengthAdjust="spacingAndGlyphs">and</text>
+    <text x="888.9" y="100.0" fill="#d7deef" font-weight="700" textLength="54.2" lengthAdjust="spacingAndGlyphs">expose</text>
+    <text x="952.1" y="100.0" fill="#d7deef" font-weight="700" textLength="27.1" lengthAdjust="spacingAndGlyphs">the</text>
+    <text x="988.2" y="100.0" fill="#d7deef" font-weight="700" textLength="45.1" lengthAdjust="spacingAndGlyphs">entry</text>
+    <text x="1042.4" y="100.0" fill="#d7deef" font-weight="700" textLength="45.1" lengthAdjust="spacingAndGlyphs">count</text>
+    <text x="40.1" y="121.0" fill="#89ddff" font-weight="700">│</text>
+    <text x="58.1" y="121.0" fill="#c3e88d">●</text>
+    <text x="94.2" y="121.0" fill="#ffcb6b" textLength="72.2" lengthAdjust="spacingAndGlyphs">208b6d5d</text>
+    <text x="175.5" y="121.0" fill="#6b7894" textLength="27.1" lengthAdjust="spacingAndGlyphs">16d</text>
+    <text x="211.6" y="121.0" fill="#6b7894" textLength="45.1" lengthAdjust="spacingAndGlyphs">Priya</text>
+    <text x="265.8" y="121.0" fill="#6b7894" textLength="45.1" lengthAdjust="spacingAndGlyphs">Raman</text>
+    <text x="320.0" y="121.0" fill="#6b7894" textLength="171.6" lengthAdjust="spacingAndGlyphs">origin/feature/sea…</text>
+    <text x="500.6" y="121.0" fill="#d7deef" textLength="45.1" lengthAdjust="spacingAndGlyphs">Match</text>
+    <text x="554.8" y="121.0" fill="#d7deef" textLength="63.2" lengthAdjust="spacingAndGlyphs">entries</text>
+    <text x="627.0" y="121.0" fill="#d7deef" textLength="18.1" lengthAdjust="spacingAndGlyphs">c…</text>
+    <text x="645.1" y="121.0" fill="#6b7894">│</text>
+    <text x="663.1" y="121.0" fill="#6b7894" textLength="36.1" lengthAdjust="spacingAndGlyphs">Maya</text>
+    <text x="708.3" y="121.0" fill="#6b7894" textLength="36.1" lengthAdjust="spacingAndGlyphs">Chen</text>
+    <text x="753.4" y="121.0" fill="#6b7894">·</text>
+    <text x="771.5" y="121.0" fill="#6b7894" textLength="18.1" lengthAdjust="spacingAndGlyphs">2h</text>
+    <text x="798.6" y="121.0" fill="#6b7894" textLength="27.1" lengthAdjust="spacingAndGlyphs">ago</text>
+    <text x="834.7" y="121.0" fill="#6b7894">·</text>
+    <text x="852.8" y="121.0" fill="#6b7894" textLength="90.3" lengthAdjust="spacingAndGlyphs">2026-09-26</text>
+    <text x="952.1" y="121.0" fill="#6b7894" textLength="45.1" lengthAdjust="spacingAndGlyphs">15:33</text>
+    <text x="1006.3" y="121.0" fill="#6b7894" textLength="54.2" lengthAdjust="spacingAndGlyphs">-04:00</text>
+    <text x="1069.5" y="121.0" fill="#6b7894">·</text>
+    <text x="1087.5" y="121.0" fill="#6b7894" textLength="90.3" lengthAdjust="spacingAndGlyphs">maya@exam…</text>
+    <text x="40.1" y="142.0" fill="#89ddff" font-weight="700">│</text>
+    <text x="58.1" y="142.0" fill="#c3e88d">●</text>
+    <text x="94.2" y="142.0" fill="#ffcb6b" textLength="72.2" lengthAdjust="spacingAndGlyphs">5f1a6522</text>
+    <text x="175.5" y="142.0" fill="#6b7894" textLength="27.1" lengthAdjust="spacingAndGlyphs">17d</text>
+    <text x="211.6" y="142.0" fill="#6b7894" textLength="45.1" lengthAdjust="spacingAndGlyphs">Priya</text>
+    <text x="265.8" y="142.0" fill="#6b7894" textLength="45.1" lengthAdjust="spacingAndGlyphs">Raman</text>
+    <text x="320.0" y="142.0" fill="#d7deef" textLength="54.2" lengthAdjust="spacingAndGlyphs">Sketch</text>
+    <text x="383.2" y="142.0" fill="#d7deef" textLength="27.1" lengthAdjust="spacingAndGlyphs">the</text>
+    <text x="419.3" y="142.0" fill="#d7deef" textLength="54.2" lengthAdjust="spacingAndGlyphs">search</text>
+    <text x="482.5" y="142.0" fill="#d7deef" textLength="45.1" lengthAdjust="spacingAndGlyphs">entry</text>
+    <text x="536.7" y="142.0" fill="#d7deef" textLength="45.1" lengthAdjust="spacingAndGlyphs">point</text>
+    <text x="645.1" y="142.0" fill="#6b7894">│</text>
+    <text x="663.1" y="142.0" fill="#6b7894" textLength="54.2" lengthAdjust="spacingAndGlyphs">parent</text>
+    <text x="726.3" y="142.0" fill="#ffcb6b" textLength="72.2" lengthAdjust="spacingAndGlyphs">7790e1b9</text>
+    <text x="807.6" y="142.0" fill="#6b7894">·</text>
+    <text x="825.7" y="142.0" fill="#6b7894">1</text>
+    <text x="843.7" y="142.0" fill="#6b7894" textLength="36.1" lengthAdjust="spacingAndGlyphs">file</text>
+    <text x="888.9" y="142.0" fill="#6b7894">·</text>
+    <text x="906.9" y="142.0" fill="#c3e88d" textLength="18.1" lengthAdjust="spacingAndGlyphs">+8</text>
+    <text x="934.0" y="142.0" fill="#f07178" textLength="18.1" lengthAdjust="spacingAndGlyphs">-1</text>
+    <text x="40.1" y="163.0" fill="#89ddff" font-weight="700">●</text>
+    <text x="58.1" y="163.0" fill="#c3e88d">│</text>
+    <text x="94.2" y="163.0" fill="#ffcb6b" textLength="72.2" lengthAdjust="spacingAndGlyphs">d58fc4c6</text>
+    <text x="175.5" y="163.0" fill="#6b7894" textLength="27.1" lengthAdjust="spacingAndGlyphs">10d</text>
+    <text x="211.6" y="163.0" fill="#6b7894" textLength="36.1" lengthAdjust="spacingAndGlyphs">Maya</text>
+    <text x="256.8" y="163.0" fill="#6b7894" textLength="36.1" lengthAdjust="spacingAndGlyphs">Chen</text>
+    <text x="320.0" y="163.0" fill="#d7deef" textLength="72.2" lengthAdjust="spacingAndGlyphs">Document</text>
+    <text x="401.3" y="163.0" fill="#d7deef" textLength="27.1" lengthAdjust="spacingAndGlyphs">how</text>
+    <text x="437.4" y="163.0" fill="#d7deef" textLength="18.1" lengthAdjust="spacingAndGlyphs">to</text>
+    <text x="464.5" y="163.0" fill="#d7deef" textLength="27.1" lengthAdjust="spacingAndGlyphs">run</text>
+    <text x="500.6" y="163.0" fill="#d7deef" textLength="27.1" lengthAdjust="spacingAndGlyphs">the</text>
+    <text x="536.7" y="163.0" fill="#d7deef" textLength="45.1" lengthAdjust="spacingAndGlyphs">tests</text>
+    <text x="645.1" y="163.0" fill="#6b7894">│</text>
+    <text x="40.1" y="184.0" fill="#89ddff" font-weight="700">◆</text>
+    <text x="49.1" y="184.0" fill="#ffcb6b">─</text>
+    <text x="58.1" y="184.0" fill="#c3e88d">┼</text>
+    <text x="67.2" y="184.0" fill="#ffcb6b" textLength="18.1" lengthAdjust="spacingAndGlyphs">─╮</text>
+    <text x="94.2" y="184.0" fill="#ffcb6b" textLength="72.2" lengthAdjust="spacingAndGlyphs">0cd41234</text>
+    <text x="175.5" y="184.0" fill="#6b7894" textLength="27.1" lengthAdjust="spacingAndGlyphs">12d</text>
+    <text x="211.6" y="184.0" fill="#6b7894" textLength="36.1" lengthAdjust="spacingAndGlyphs">Maya</text>
+    <text x="256.8" y="184.0" fill="#6b7894" textLength="36.1" lengthAdjust="spacingAndGlyphs">Chen</text>
+    <text x="320.0" y="184.0" fill="#d7deef" textLength="45.1" lengthAdjust="spacingAndGlyphs">Merge</text>
+    <text x="374.2" y="184.0" fill="#d7deef" textLength="54.2" lengthAdjust="spacingAndGlyphs">branch</text>
+    <text x="437.4" y="184.0" fill="#d7deef" textLength="153.5" lengthAdjust="spacingAndGlyphs">&#x27;fix/empty-query&#x27;</text>
+    <text x="645.1" y="184.0" fill="#6b7894">│</text>
+    <text x="663.1" y="184.0" fill="#d7deef">A</text>
+    <text x="681.2" y="184.0" fill="#d7deef" textLength="45.1" lengthAdjust="spacingAndGlyphs">query</text>
+    <text x="735.4" y="184.0" fill="#d7deef" textLength="18.1" lengthAdjust="spacingAndGlyphs">of</text>
+    <text x="762.5" y="184.0" fill="#d7deef" textLength="36.1" lengthAdjust="spacingAndGlyphs">only</text>
+    <text x="807.6" y="184.0" fill="#d7deef" textLength="90.3" lengthAdjust="spacingAndGlyphs">whitespace</text>
+    <text x="906.9" y="184.0" fill="#d7deef" textLength="63.2" lengthAdjust="spacingAndGlyphs">matched</text>
+    <text x="979.2" y="184.0" fill="#d7deef" textLength="45.1" lengthAdjust="spacingAndGlyphs">every</text>
+    <text x="1033.4" y="184.0" fill="#d7deef" textLength="54.2" lengthAdjust="spacingAndGlyphs">entry,</text>
+    <text x="1096.6" y="184.0" fill="#d7deef" textLength="45.1" lengthAdjust="spacingAndGlyphs">which</text>
+    <text x="40.1" y="205.0" fill="#89ddff" font-weight="700">│</text>
+    <text x="58.1" y="205.0" fill="#c3e88d">│</text>
+    <text x="76.2" y="205.0" fill="#ffcb6b">●</text>
+    <text x="94.2" y="205.0" fill="#ffcb6b" textLength="72.2" lengthAdjust="spacingAndGlyphs">20dc6657</text>
+    <text x="175.5" y="205.0" fill="#6b7894" textLength="27.1" lengthAdjust="spacingAndGlyphs">13d</text>
+    <text x="211.6" y="205.0" fill="#6b7894" textLength="45.1" lengthAdjust="spacingAndGlyphs">Jonas</text>
+    <text x="265.8" y="205.0" fill="#6b7894" textLength="45.1" lengthAdjust="spacingAndGlyphs">Weber</text>
+    <text x="320.0" y="205.0" fill="#ffcb6b" font-weight="700" textLength="135.4" lengthAdjust="spacingAndGlyphs">fix/empty-query</text>
+    <text x="464.5" y="205.0" fill="#d7deef" textLength="36.1" lengthAdjust="spacingAndGlyphs">Skip</text>
+    <text x="509.6" y="205.0" fill="#d7deef" textLength="45.1" lengthAdjust="spacingAndGlyphs">empty</text>
+    <text x="563.8" y="205.0" fill="#d7deef" textLength="54.2" lengthAdjust="spacingAndGlyphs">tokens</text>
+    <text x="645.1" y="205.0" fill="#6b7894">│</text>
+    <text x="663.1" y="205.0" fill="#d7deef" textLength="36.1" lengthAdjust="spacingAndGlyphs">made</text>
+    <text x="708.3" y="205.0" fill="#d7deef" textLength="27.1" lengthAdjust="spacingAndGlyphs">the</text>
+    <text x="744.4" y="205.0" fill="#d7deef" textLength="54.2" lengthAdjust="spacingAndGlyphs">search</text>
+    <text x="807.6" y="205.0" fill="#d7deef" textLength="27.1" lengthAdjust="spacingAndGlyphs">box</text>
+    <text x="843.7" y="205.0" fill="#d7deef" textLength="36.1" lengthAdjust="spacingAndGlyphs">feel</text>
+    <text x="888.9" y="205.0" fill="#d7deef" textLength="54.2" lengthAdjust="spacingAndGlyphs">broken</text>
+    <text x="952.1" y="205.0" fill="#d7deef" textLength="45.1" lengthAdjust="spacingAndGlyphs">while</text>
+    <text x="1006.3" y="205.0" fill="#d7deef" textLength="63.2" lengthAdjust="spacingAndGlyphs">typing.</text>
+    <text x="1078.5" y="205.0" fill="#d7deef" textLength="36.1" lengthAdjust="spacingAndGlyphs">Trim</text>
+    <text x="1123.7" y="205.0" fill="#d7deef" textLength="45.1" lengthAdjust="spacingAndGlyphs">first</text>
+    <text x="40.1" y="226.0" fill="#89ddff" font-weight="700">●</text>
+    <text x="49.1" y="226.0" fill="#ffcb6b">─</text>
+    <text x="58.1" y="226.0" fill="#c3e88d">┴</text>
+    <text x="67.2" y="226.0" fill="#ffcb6b" textLength="18.1" lengthAdjust="spacingAndGlyphs">─╯</text>
+    <text x="94.2" y="226.0" fill="#ffcb6b" textLength="72.2" lengthAdjust="spacingAndGlyphs">a74d32e5</text>
+    <text x="175.5" y="226.0" fill="#6b7894" textLength="27.1" lengthAdjust="spacingAndGlyphs">24d</text>
+    <text x="211.6" y="226.0" fill="#6b7894" textLength="45.1" lengthAdjust="spacingAndGlyphs">Jonas</text>
+    <text x="265.8" y="226.0" fill="#6b7894" textLength="45.1" lengthAdjust="spacingAndGlyphs">Weber</text>
+    <text x="320.0" y="226.0" fill="#d7deef" textLength="27.1" lengthAdjust="spacingAndGlyphs">Add</text>
+    <text x="356.1" y="226.0" fill="#d7deef" textLength="90.3" lengthAdjust="spacingAndGlyphs">whitespace</text>
+    <text x="455.4" y="226.0" fill="#d7deef" textLength="81.3" lengthAdjust="spacingAndGlyphs">tokenizer</text>
+    <text x="645.1" y="226.0" fill="#6b7894">│</text>
+    <text x="663.1" y="226.0" fill="#6b7894">…</text>
+    <text x="681.2" y="226.0" fill="#6b7894">3</text>
+    <text x="699.2" y="226.0" fill="#6b7894" textLength="36.1" lengthAdjust="spacingAndGlyphs">more</text>
+    <text x="744.4" y="226.0" fill="#6b7894" textLength="45.1" lengthAdjust="spacingAndGlyphs">lines</text>
+    <text x="40.1" y="247.0" fill="#89ddff" font-weight="700">◌</text>
+    <text x="94.2" y="247.0" fill="#ffcb6b" textLength="72.2" lengthAdjust="spacingAndGlyphs">41780df2</text>
+    <text x="175.5" y="247.0" fill="#6b7894" textLength="27.1" lengthAdjust="spacingAndGlyphs">1mo</text>
+    <text x="211.6" y="247.0" fill="#6b7894" textLength="36.1" lengthAdjust="spacingAndGlyphs">Maya</text>
+    <text x="256.8" y="247.0" fill="#6b7894" textLength="36.1" lengthAdjust="spacingAndGlyphs">Chen</text>
+    <text x="320.0" y="247.0" fill="#ffcb6b" textLength="90.3" lengthAdjust="spacingAndGlyphs">tag:v0.1.0</text>
+    <text x="419.3" y="247.0" fill="#d7deef" textLength="63.2" lengthAdjust="spacingAndGlyphs">Initial</text>
+    <text x="491.6" y="247.0" fill="#d7deef" textLength="45.1" lengthAdjust="spacingAndGlyphs">index</text>
+    <text x="545.7" y="247.0" fill="#d7deef" textLength="36.1" lengthAdjust="spacingAndGlyphs">with</text>
+    <text x="590.9" y="247.0" fill="#d7deef" textLength="54.2" lengthAdjust="spacingAndGlyphs">insert</text>
+    <text x="645.1" y="247.0" fill="#6b7894">│</text>
+    <text x="645.1" y="268.0" fill="#6b7894">│</text>
+    <text x="663.1" y="268.0" fill="#ffcb6b" font-weight="700">M</text>
+    <text x="681.2" y="268.0" fill="#d7deef" font-weight="700" textLength="90.3" lengthAdjust="spacingAndGlyphs">src/lib.rs</text>
+    <text x="780.5" y="268.0" fill="#6b7894" textLength="334.1" lengthAdjust="spacingAndGlyphs">─────────────────────────────────────</text>
+    <text x="1123.7" y="268.0" fill="#c3e88d" textLength="18.1" lengthAdjust="spacingAndGlyphs">+8</text>
+    <text x="1150.8" y="268.0" fill="#f07178" textLength="18.1" lengthAdjust="spacingAndGlyphs">-1</text>
+    <text x="645.1" y="289.0" fill="#6b7894">│</text>
+    <text x="735.4" y="289.0" fill="#6b7894">│</text>
+    <text x="753.4" y="289.0" fill="#89ddff" textLength="18.1" lengthAdjust="spacingAndGlyphs">@@</text>
+    <text x="780.5" y="289.0" fill="#89ddff" textLength="54.2" lengthAdjust="spacingAndGlyphs">-15,13</text>
+    <text x="843.7" y="289.0" fill="#89ddff" textLength="54.2" lengthAdjust="spacingAndGlyphs">+15,20</text>
+    <text x="906.9" y="289.0" fill="#89ddff" textLength="18.1" lengthAdjust="spacingAndGlyphs">@@</text>
+    <text x="934.0" y="289.0" fill="#d7deef" font-weight="700" textLength="36.1" lengthAdjust="spacingAndGlyphs">impl</text>
+    <text x="979.2" y="289.0" fill="#d7deef" font-weight="700" textLength="45.1" lengthAdjust="spacingAndGlyphs">Index</text>
+    <text x="1033.4" y="289.0" fill="#d7deef" font-weight="700">{</text>
+    <text x="645.1" y="310.0" fill="#6b7894">│</text>
+    <text x="672.2" y="310.0" fill="#6b7894" textLength="18.1" lengthAdjust="spacingAndGlyphs">15</text>
+    <text x="708.3" y="310.0" fill="#6b7894" textLength="18.1" lengthAdjust="spacingAndGlyphs">15</text>
+    <text x="735.4" y="310.0" fill="#6b7894">│</text>
+    <text x="645.1" y="331.0" fill="#6b7894">│</text>
+    <text x="672.2" y="331.0" fill="#6b7894" textLength="18.1" lengthAdjust="spacingAndGlyphs">16</text>
+    <text x="708.3" y="331.0" fill="#6b7894" textLength="18.1" lengthAdjust="spacingAndGlyphs">16</text>
+    <text x="735.4" y="331.0" fill="#6b7894">│</text>
+    <text x="798.6" y="331.0" fill="#d7deef" textLength="27.1" lengthAdjust="spacingAndGlyphs">///</text>
+    <text x="834.7" y="331.0" fill="#d7deef" textLength="63.2" lengthAdjust="spacingAndGlyphs">Entries</text>
+    <text x="906.9" y="331.0" fill="#d7deef" textLength="90.3" lengthAdjust="spacingAndGlyphs">containing</text>
+    <text x="1006.3" y="331.0" fill="#d7deef" textLength="72.2" lengthAdjust="spacingAndGlyphs">`query`,</text>
+    <text x="1087.5" y="331.0" fill="#d7deef" textLength="72.2" lengthAdjust="spacingAndGlyphs">ignoring</text>
+    <text x="1168.8" y="331.0" fill="#d7deef">c</text>
+    <text x="645.1" y="352.0" fill="#6b7894">│</text>
+    <text x="672.2" y="352.0" fill="#6b7894" textLength="18.1" lengthAdjust="spacingAndGlyphs">17</text>
+    <text x="708.3" y="352.0" fill="#6b7894" textLength="18.1" lengthAdjust="spacingAndGlyphs">17</text>
+    <text x="735.4" y="352.0" fill="#6b7894">│</text>
+    <text x="798.6" y="352.0" fill="#d7deef" textLength="27.1" lengthAdjust="spacingAndGlyphs">pub</text>
+    <text x="834.7" y="352.0" fill="#d7deef" textLength="18.1" lengthAdjust="spacingAndGlyphs">fn</text>
+    <text x="861.8" y="352.0" fill="#d7deef" textLength="135.4" lengthAdjust="spacingAndGlyphs">matching(&amp;self,</text>
+    <text x="1006.3" y="352.0" fill="#d7deef" textLength="54.2" lengthAdjust="spacingAndGlyphs">query:</text>
+    <text x="1069.5" y="352.0" fill="#d7deef" textLength="45.1" lengthAdjust="spacingAndGlyphs">&amp;str)</text>
+    <text x="1123.7" y="352.0" fill="#d7deef" textLength="18.1" lengthAdjust="spacingAndGlyphs">-&gt;</text>
+    <text x="1150.8" y="352.0" fill="#d7deef" textLength="27.1" lengthAdjust="spacingAndGlyphs">Vec</text>
+    <text x="645.1" y="373.0" fill="#6b7894">│</text>
+    <text x="672.2" y="373.0" fill="#f07178b3" textLength="18.1" lengthAdjust="spacingAndGlyphs">18</text>
+    <text x="735.4" y="373.0" fill="#f07178b3">│</text>
+    <text x="753.4" y="373.0" fill="#f07178">-</text>
+    <text x="834.7" y="373.0" fill="#f07178" textLength="27.1" lengthAdjust="spacingAndGlyphs">let</text>
+    <text x="870.8" y="373.0" fill="#f07178" textLength="54.2" lengthAdjust="spacingAndGlyphs">needle</text>
+    <text x="934.0" y="373.0" fill="#f07178">=</text>
+    <text x="952.1" y="373.0" fill="#f07178" textLength="189.6" lengthAdjust="spacingAndGlyphs">query.to_lowercase();</text>
+    <text x="645.1" y="394.0" fill="#6b7894">│</text>
+    <text x="708.3" y="394.0" fill="#c3e88db3" textLength="18.1" lengthAdjust="spacingAndGlyphs">18</text>
+    <text x="735.4" y="394.0" fill="#c3e88db3">│</text>
+    <text x="753.4" y="394.0" fill="#c3e88d">+</text>
+    <text x="834.7" y="394.0" fill="#c3e88d" textLength="27.1" lengthAdjust="spacingAndGlyphs">let</text>
+    <text x="870.8" y="394.0" fill="#c3e88d" textLength="54.2" lengthAdjust="spacingAndGlyphs">needle</text>
+    <text x="934.0" y="394.0" fill="#c3e88d">=</text>
+    <text x="952.1" y="394.0" fill="#c3e88d" textLength="225.7" lengthAdjust="spacingAndGlyphs">query.trim().to_lowercase</text>
+    <text x="645.1" y="415.0" fill="#6b7894">│</text>
+    <text x="708.3" y="415.0" fill="#c3e88db3" textLength="18.1" lengthAdjust="spacingAndGlyphs">19</text>
+    <text x="735.4" y="415.0" fill="#c3e88db3">│</text>
+    <text x="753.4" y="415.0" fill="#c3e88d">+</text>
+    <text x="834.7" y="415.0" fill="#c3e88d" textLength="18.1" lengthAdjust="spacingAndGlyphs">if</text>
+    <text x="861.8" y="415.0" fill="#c3e88d" textLength="153.5" lengthAdjust="spacingAndGlyphs">needle.is_empty()</text>
+    <text x="1024.3" y="415.0" fill="#c3e88d">{</text>
+    <text x="645.1" y="436.0" fill="#6b7894">│</text>
+    <text x="708.3" y="436.0" fill="#c3e88db3" textLength="18.1" lengthAdjust="spacingAndGlyphs">20</text>
+    <text x="735.4" y="436.0" fill="#c3e88db3">│</text>
+    <text x="753.4" y="436.0" fill="#c3e88d">+</text>
+    <text x="870.8" y="436.0" fill="#c3e88d" textLength="54.2" lengthAdjust="spacingAndGlyphs">return</text>
+    <text x="934.0" y="436.0" fill="#c3e88d" textLength="99.3" lengthAdjust="spacingAndGlyphs">Vec::new();</text>
+    <text x="645.1" y="457.0" fill="#6b7894">│</text>
+    <text x="708.3" y="457.0" fill="#c3e88db3" textLength="18.1" lengthAdjust="spacingAndGlyphs">21</text>
+    <text x="735.4" y="457.0" fill="#c3e88db3">│</text>
+    <text x="753.4" y="457.0" fill="#c3e88d">+</text>
+    <text x="834.7" y="457.0" fill="#c3e88d">}</text>
+    <text x="645.1" y="478.0" fill="#6b7894">│</text>
+    <text x="672.2" y="478.0" fill="#6b7894" textLength="18.1" lengthAdjust="spacingAndGlyphs">19</text>
+    <text x="708.3" y="478.0" fill="#6b7894" textLength="18.1" lengthAdjust="spacingAndGlyphs">22</text>
+    <text x="735.4" y="478.0" fill="#6b7894">│</text>
+    <text x="834.7" y="478.0" fill="#d7deef" textLength="108.4" lengthAdjust="spacingAndGlyphs">self.entries</text>
+    <text x="645.1" y="499.0" fill="#6b7894">│</text>
+    <text x="672.2" y="499.0" fill="#6b7894" textLength="18.1" lengthAdjust="spacingAndGlyphs">20</text>
+    <text x="708.3" y="499.0" fill="#6b7894" textLength="18.1" lengthAdjust="spacingAndGlyphs">23</text>
+    <text x="735.4" y="499.0" fill="#6b7894">│</text>
+    <text x="870.8" y="499.0" fill="#d7deef" textLength="63.2" lengthAdjust="spacingAndGlyphs">.iter()</text>
+    <text x="645.1" y="520.0" fill="#6b7894">│</text>
+    <text x="672.2" y="520.0" fill="#6b7894" textLength="18.1" lengthAdjust="spacingAndGlyphs">21</text>
+    <text x="708.3" y="520.0" fill="#6b7894" textLength="18.1" lengthAdjust="spacingAndGlyphs">24</text>
+    <text x="735.4" y="520.0" fill="#6b7894">│</text>
+    <text x="870.8" y="520.0" fill="#d7deef" textLength="135.4" lengthAdjust="spacingAndGlyphs">.filter(|entry|</text>
+    <text x="1015.3" y="520.0" fill="#d7deef" textLength="162.5" lengthAdjust="spacingAndGlyphs">entry.to_lowercase</text>
+    <text x="645.1" y="541.0" fill="#6b7894">│</text>
+    <text x="672.2" y="541.0" fill="#6b7894" textLength="18.1" lengthAdjust="spacingAndGlyphs">22</text>
+    <text x="708.3" y="541.0" fill="#6b7894" textLength="18.1" lengthAdjust="spacingAndGlyphs">25</text>
+    <text x="735.4" y="541.0" fill="#6b7894">│</text>
+    <text x="870.8" y="541.0" fill="#d7deef" textLength="180.6" lengthAdjust="spacingAndGlyphs">.map(String::as_str)</text>
+    <text x="645.1" y="562.0" fill="#6b7894">│</text>
+    <text x="672.2" y="562.0" fill="#6b7894" textLength="18.1" lengthAdjust="spacingAndGlyphs">23</text>
+    <text x="708.3" y="562.0" fill="#6b7894" textLength="18.1" lengthAdjust="spacingAndGlyphs">26</text>
+    <text x="735.4" y="562.0" fill="#6b7894">│</text>
+    <text x="870.8" y="562.0" fill="#d7deef" textLength="90.3" lengthAdjust="spacingAndGlyphs">.collect()</text>
+    <text x="645.1" y="583.0" fill="#6b7894">│</text>
+    <text x="672.2" y="583.0" fill="#6b7894" textLength="18.1" lengthAdjust="spacingAndGlyphs">24</text>
+    <text x="708.3" y="583.0" fill="#6b7894" textLength="18.1" lengthAdjust="spacingAndGlyphs">27</text>
+    <text x="735.4" y="583.0" fill="#6b7894">│</text>
+    <text x="798.6" y="583.0" fill="#d7deef">}</text>
+    <text x="645.1" y="604.0" fill="#6b7894">│</text>
+    <text x="708.3" y="604.0" fill="#c3e88db3" textLength="18.1" lengthAdjust="spacingAndGlyphs">28</text>
+    <text x="735.4" y="604.0" fill="#c3e88db3">│</text>
+    <text x="753.4" y="604.0" fill="#c3e88d">+</text>
+    <text x="645.1" y="625.0" fill="#6b7894">│</text>
+    <text x="708.3" y="625.0" fill="#c3e88db3" textLength="18.1" lengthAdjust="spacingAndGlyphs">29</text>
+    <text x="735.4" y="625.0" fill="#c3e88db3">│</text>
+    <text x="753.4" y="625.0" fill="#c3e88d">+</text>
+    <text x="798.6" y="625.0" fill="#c3e88d" textLength="27.1" lengthAdjust="spacingAndGlyphs">pub</text>
+    <text x="834.7" y="625.0" fill="#c3e88d" textLength="18.1" lengthAdjust="spacingAndGlyphs">fn</text>
+    <text x="861.8" y="625.0" fill="#c3e88d" textLength="90.3" lengthAdjust="spacingAndGlyphs">len(&amp;self)</text>
+    <text x="961.1" y="625.0" fill="#c3e88d" textLength="18.1" lengthAdjust="spacingAndGlyphs">-&gt;</text>
+    <text x="988.2" y="625.0" fill="#c3e88d" textLength="45.1" lengthAdjust="spacingAndGlyphs">usize</text>
+    <text x="1042.4" y="625.0" fill="#c3e88d">{</text>
+    <text x="645.1" y="646.0" fill="#6b7894">│</text>
+    <text x="708.3" y="646.0" fill="#c3e88db3" textLength="18.1" lengthAdjust="spacingAndGlyphs">30</text>
+    <text x="735.4" y="646.0" fill="#c3e88db3">│</text>
+    <text x="753.4" y="646.0" fill="#c3e88d">+</text>
+    <text x="834.7" y="646.0" fill="#c3e88d" textLength="162.5" lengthAdjust="spacingAndGlyphs">self.entries.len()</text>
+    <text x="31.0" y="667.0" fill="#d7deef" font-weight="700" textLength="27.1" lengthAdjust="spacingAndGlyphs">j/k</text>
+    <text x="67.2" y="667.0" fill="#6b7894" textLength="36.1" lengthAdjust="spacingAndGlyphs">move</text>
+    <text x="112.3" y="667.0" fill="#6b7894">·</text>
+    <text x="130.4" y="667.0" fill="#d7deef" font-weight="700" textLength="45.1" lengthAdjust="spacingAndGlyphs">Enter</text>
+    <text x="184.5" y="667.0" fill="#6b7894" textLength="36.1" lengthAdjust="spacingAndGlyphs">open</text>
+    <text x="229.7" y="667.0" fill="#6b7894">·</text>
+    <text x="247.7" y="667.0" fill="#d7deef" font-weight="700">/</text>
+    <text x="265.8" y="667.0" fill="#6b7894" textLength="54.2" lengthAdjust="spacingAndGlyphs">search</text>
+    <text x="329.0" y="667.0" fill="#6b7894">·</text>
+    <text x="347.1" y="667.0" fill="#d7deef" font-weight="700">v</text>
+    <text x="365.1" y="667.0" fill="#6b7894" textLength="36.1" lengthAdjust="spacingAndGlyphs">mark</text>
+    <text x="410.3" y="667.0" fill="#6b7894">·</text>
+    <text x="428.3" y="667.0" fill="#d7deef" font-weight="700">?</text>
+    <text x="446.4" y="667.0" fill="#6b7894" textLength="36.1" lengthAdjust="spacingAndGlyphs">help</text>
+    <text x="1141.7" y="667.0" fill="#6b7894" textLength="27.1" lengthAdjust="spacingAndGlyphs">1/9</text>
   </g>
 </svg>

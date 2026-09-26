@@ -21,16 +21,16 @@ unicode 100x14
 
 narrow 58x14
  LOG  phig-demo · main · all refs                 loading…
-› ◆─╮     01010101 2y HEAD→main origin/main merge other
-  │ ●     03030303 2y other-a
-  ● │     02020202 2y main-b
-  ◆─┼─╮   04040404 2y merge feature
-  │ │ ●   05050505 2y origin/feature feat-b
-  │ │ │ ● 09090909 2y topic topic-a
-  │ │ ●─╯ 08080808 2y feat-a
-  ● │ │   07070707 2y main-a
-  ●─┴─╯   06060606 2y tag:v1 one
-  ◌       0a0a0a0a 2y base
+› ◆─╮     01010101 2y Pat HEAD→main merge other
+  │ ●     03030303 2y Pat other-a
+  ● │     02020202 2y Pat main-b
+  ◆─┼─╮   04040404 2y Pat merge feature
+  │ │ ●   05050505 2y Pat origin/feature feat-b
+  │ │ │ ● 09090909 2y Pat topic topic-a
+  │ │ ●─╯ 08080808 2y Pat feat-a
+  ● │ │   07070707 2y Pat main-a
+  ●─┴─╯   06060606 2y Pat tag:v1 one
+  ◌       0a0a0a0a 2y Pat base
 
 
  j/k move · Enter open · / search · ? help           1/10
