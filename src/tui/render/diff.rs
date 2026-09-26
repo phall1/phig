@@ -15,7 +15,7 @@ use crate::{
 };
 
 use super::{
-    format::{display_width, truncate_with},
+    format::{display_width, highlight_matches, truncate_with},
     history::render_preview,
     layout::diff_content_rows,
     theme::RenderContext,
@@ -103,7 +103,11 @@ fn render_unified(
                 ),
                 gutter_style(line.kind, context),
             )];
-            spans.extend(content_spans(line, pair, line_style(line, context)));
+            spans.extend(highlight_matches(
+                content_spans(line, pair, line_style(line, context)),
+                &app.search_query,
+                context.search_hit(),
+            ));
             Line::from(spans)
         })
         .collect();
@@ -331,18 +335,34 @@ fn render_split(frame: &mut Frame<'_>, app: &App, area: Rect, context: &RenderCo
         .enumerate()
     {
         let row = Rect::new(area.x, area.y + y as u16, area.width, 1);
-        render_split_row(frame, diff, &index, *raw, row, context);
+        let source = SplitSource {
+            diff,
+            index: &index,
+            search: &app.search_query,
+        };
+        render_split_row(frame, &source, *raw, row, context);
     }
+}
+
+/// Everything a split row needs besides its geometry.
+struct SplitSource<'a> {
+    diff: &'a Diff,
+    index: &'a PatchIndex,
+    search: &'a str,
 }
 
 fn render_split_row(
     frame: &mut Frame<'_>,
-    diff: &Diff,
-    index: &PatchIndex,
+    source: &SplitSource<'_>,
     raw: usize,
     row: Rect,
     context: &RenderContext,
 ) {
+    let SplitSource {
+        diff,
+        index,
+        search,
+    } = *source;
     let Some(line) = diff.lines.get(raw) else {
         return;
     };
@@ -364,10 +384,9 @@ fn render_split_row(
     if source.old.is_some() {
         render_side(
             frame,
-            line,
-            pair,
+            (line, pair),
             source.old,
-            index.number_width,
+            (index.number_width, search),
             left,
             context,
         );
@@ -385,10 +404,9 @@ fn render_split_row(
             .or(source.new);
         render_side(
             frame,
-            new_line,
-            Some(line),
+            (new_line, Some(line)),
             new_number,
-            index.number_width,
+            (index.number_width, search),
             right,
             context,
         );
@@ -397,10 +415,9 @@ fn render_split_row(
 
 fn render_side(
     frame: &mut Frame<'_>,
-    line: &DiffLine,
-    pair: Option<&DiffLine>,
+    (line, pair): (&DiffLine, Option<&DiffLine>),
     n: Option<usize>,
-    number_width: usize,
+    (number_width, search): (usize, &str),
     area: Rect,
     context: &RenderContext,
 ) {
@@ -412,7 +429,11 @@ fn render_side(
         ),
         gutter_style(line.kind, context),
     )];
-    spans.extend(content_spans(line, pair, line_style(line, context)));
+    spans.extend(highlight_matches(
+        content_spans(line, pair, line_style(line, context)),
+        search,
+        context.search_hit(),
+    ));
     frame.render_widget(Paragraph::new(Line::from(spans)), area);
 }
 

@@ -601,23 +601,44 @@ pub(super) fn render_help(frame: &mut Frame<'_>, app: &App, area: Rect, context:
 
 pub(super) fn render_search(
     frame: &mut Frame<'_>,
+    app: &App,
     draft: &str,
     body: Rect,
     context: &RenderContext,
 ) {
     let area = Rect::new(body.x, body.bottom().saturating_sub(1), body.width, 1);
     frame.render_widget(Clear, area);
+    let muted = context.style(context.muted());
+    let separator = context.glyphs().separator;
+    // A miss is stated in words, not just color, and the hint says what
+    // still works.
+    let status = if app.search_miss && !draft.is_empty() {
+        Span::styled(
+            format!("  no match {separator} "),
+            context.strong(context.warning()),
+        )
+    } else {
+        Span::styled("  ".to_owned(), muted)
+    };
+    let draft = sanitize_str(draft);
+    let prompt_width = 1 + display_width(&draft);
     frame.render_widget(
         Paragraph::new(Line::from(vec![
             Span::styled("/", context.strong(context.accent())),
-            Span::raw(draft.to_owned()),
+            Span::raw(draft),
+            status,
             Span::styled(
-                format!("  Enter accept {} Esc cancel", context.glyphs().separator),
-                context.style(context.muted()),
+                format!("Enter accept {separator} Esc cancel {separator} Ctrl-u clear"),
+                muted,
             ),
         ])),
         area,
     );
+    if let Ok(x) = u16::try_from(prompt_width)
+        && x < area.width
+    {
+        frame.set_cursor_position((area.x + x, area.y));
+    }
 }
 
 pub(super) fn render_palette(

@@ -84,6 +84,91 @@ pub(super) fn pad_right(value: &str, width: usize) -> String {
     )
 }
 
+/// Byte ranges of case-insensitive occurrences of `needle` in `text`,
+/// compared character by character so ranges always fall on char boundaries.
+pub(super) fn find_ignore_case(text: &str, needle: &str) -> Vec<std::ops::Range<usize>> {
+    let needle: Vec<char> = needle.chars().flat_map(char::to_lowercase).collect();
+    if needle.is_empty() {
+        return Vec::new();
+    }
+    let mut ranges = Vec::new();
+    let mut resume = 0;
+    for (start, _) in text.char_indices() {
+        if start < resume {
+            continue;
+        }
+        let mut wanted = needle.iter();
+        let mut end = start;
+        let mut chars = text[start..].char_indices();
+        let matched = loop {
+            let Some(expected) = wanted.next() else {
+                break true;
+            };
+            let Some((offset, character)) = chars.next() else {
+                break false;
+            };
+            let mut lower = character.to_lowercase();
+            if lower.next() != Some(*expected) || lower.next().is_some() {
+                break false;
+            }
+            end = start + offset + character.len_utf8();
+        };
+        if matched {
+            ranges.push(start..end);
+            resume = end;
+        }
+    }
+    ranges
+}
+
+/// Restyle every case-insensitive occurrence of `needle` across `spans`,
+/// splitting spans at match edges. Matches may cross span boundaries.
+pub(super) fn highlight_matches<'a>(
+    spans: Vec<ratatui::text::Span<'a>>,
+    needle: &str,
+    patch: ratatui::style::Style,
+) -> Vec<ratatui::text::Span<'a>> {
+    use ratatui::text::Span;
+    if needle.is_empty() {
+        return spans;
+    }
+    let text: String = spans.iter().map(|span| span.content.as_ref()).collect();
+    let ranges = find_ignore_case(&text, needle);
+    if ranges.is_empty() {
+        return spans;
+    }
+    let mut output = Vec::with_capacity(spans.len() + ranges.len() * 2);
+    let mut offset = 0;
+    for span in spans {
+        let content = span.content.as_ref();
+        let (start, end) = (offset, offset + content.len());
+        offset = end;
+        let mut cuts = vec![start, end];
+        for range in &ranges {
+            cuts.extend(
+                [range.start, range.end]
+                    .into_iter()
+                    .filter(|cut| (start..end).contains(cut)),
+            );
+        }
+        cuts.sort_unstable();
+        cuts.dedup();
+        for pair in cuts.windows(2) {
+            let piece = &content[pair[0] - start..pair[1] - start];
+            let inside = ranges
+                .iter()
+                .any(|range| range.start <= pair[0] && pair[1] <= range.end);
+            let style = if inside {
+                span.style.patch(patch)
+            } else {
+                span.style
+            };
+            output.push(Span::styled(piece.to_owned(), style));
+        }
+    }
+    output
+}
+
 /// Greedy word wrap by terminal cells. Words wider than a row are split.
 pub(super) fn wrap_words(value: &str, width: usize) -> Vec<String> {
     let width = width.max(1);
@@ -185,6 +270,22 @@ mod tests {
         assert_eq!(truncate_with("界界abc", 5, "…"), "界界…");
         assert_eq!(display_width(&pad_right("界", 4)), 4);
         assert_eq!(pad_left("7d", 4), "  7d");
+    }
+
+    #[test]
+    fn search_highlight_is_case_insensitive_and_crosses_spans() {
+        use ratatui::{style::Style, text::Span};
+        assert_eq!(find_ignore_case("Foo foo FOO", "foo"), [0..3, 4..7, 8..11]);
+        assert_eq!(find_ignore_case("café CAFÉ", "café"), [0..5, 6..11]);
+        assert!(find_ignore_case("abc", "").is_empty());
+        let spans = vec![Span::raw("ab"), Span::raw("cd")];
+        let marked = Style::default().underlined();
+        let out = highlight_matches(spans, "BC", marked);
+        let text: Vec<_> = out
+            .iter()
+            .map(|span| (span.content.as_ref(), span.style == marked))
+            .collect();
+        assert_eq!(text, [("a", false), ("b", true), ("c", true), ("d", false)]);
     }
 
     #[test]

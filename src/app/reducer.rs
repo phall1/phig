@@ -398,6 +398,7 @@ impl App {
     }
 
     pub fn apply_blob(&mut self, blob: Blob) {
+        self.blob_text = (blob.binary != Some(true)).then(|| super::inspect::BlobText::new(&blob));
         self.inspect.blob = Some(blob);
         self.inspect.loading = false;
         self.inspect_error = None;

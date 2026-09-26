@@ -137,7 +137,7 @@ pub(crate) fn render_with_state(
     }
     match &app.overlay {
         Overlay::Help => chrome::render_help(frame, app, area, context),
-        Overlay::Search { draft, .. } => chrome::render_search(frame, draft, rows[1], context),
+        Overlay::Search { draft, .. } => chrome::render_search(frame, app, draft, rows[1], context),
         Overlay::Palette { draft, selected } => {
             chrome::render_palette(frame, draft, *selected, area, context)
         }

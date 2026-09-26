@@ -63,6 +63,47 @@ impl InspectState {
     }
 }
 
+/// A text blob split into sanitized display lines once, instead of decoding
+/// base64 on every frame and keystroke.
+#[derive(Debug, Clone)]
+pub(crate) struct BlobText {
+    id: crate::domain::Oid,
+    encoded_len: usize,
+    lines: Vec<String>,
+}
+
+impl BlobText {
+    pub(crate) fn new(blob: &Blob) -> Self {
+        Self {
+            id: blob.id.clone(),
+            encoded_len: blob.bytes_base64.len(),
+            lines: blob
+                .bytes()
+                .split(|byte| *byte == b'\n')
+                .map(crate::sanitize::sanitize_bytes)
+                .collect(),
+        }
+    }
+
+    fn matches(&self, blob: &Blob) -> bool {
+        self.id == blob.id && self.encoded_len == blob.bytes_base64.len()
+    }
+}
+
+impl super::App {
+    /// Display lines of the open blob, cached when it arrived. A blob
+    /// replaced directly on the public field is decoded fresh.
+    pub(crate) fn blob_lines(&self) -> std::borrow::Cow<'_, [String]> {
+        let Some(blob) = &self.inspect.blob else {
+            return std::borrow::Cow::Borrowed(&[]);
+        };
+        match &self.blob_text {
+            Some(text) if text.matches(blob) => std::borrow::Cow::Borrowed(&text.lines),
+            _ => std::borrow::Cow::Owned(BlobText::new(blob).lines),
+        }
+    }
+}
+
 impl Default for ComparisonMode {
     fn default() -> Self {
         Self::MergeBase

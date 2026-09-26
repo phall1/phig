@@ -16,7 +16,7 @@ use crate::{
 
 use super::{
     diff::render_diff_value,
-    format::{display_width, pad_left, pad_right, relative_age, truncate_with},
+    format::{display_width, highlight_matches, pad_left, pad_right, relative_age, truncate_with},
     history::render_preview,
     layout::{COMPARE_HEADER_ROWS, STATUS_DIFF_HEADER_ROWS, list_preview_layout},
     render_divider, render_notice,
@@ -572,21 +572,26 @@ pub(super) fn render_blob(frame: &mut Frame<'_>, app: &App, area: Rect, context:
     }
     // Source reads with a line-number gutter; long lines are clipped rather
     // than wrapped so one scroll step is always one source line.
-    let bytes = blob.bytes();
-    let total = bytes.split(|byte| *byte == b'\n').count();
-    let number_width = total.to_string().len().max(3);
+    let text = app.blob_lines();
+    let number_width = text.len().to_string().len().max(3);
     let gutter = context.style(context.muted());
     let vertical = context.glyphs().vertical;
-    let lines = bytes
-        .split(|byte| *byte == b'\n')
+    let lines = text
+        .iter()
         .enumerate()
         .skip(app.diff_scroll)
         .take(usize::from(area.height))
         .map(|(index, line)| {
-            Line::from(vec![
-                Span::styled(format!("{:>number_width$} {vertical} ", index + 1), gutter),
-                Span::raw(crate::sanitize::sanitize_bytes(line)),
-            ])
+            let mut spans = vec![Span::styled(
+                format!("{:>number_width$} {vertical} ", index + 1),
+                gutter,
+            )];
+            spans.extend(highlight_matches(
+                vec![Span::raw(line.clone())],
+                &app.search_query,
+                context.search_hit(),
+            ));
+            Line::from(spans)
         })
         .collect::<Vec<_>>();
     frame.render_widget(Paragraph::new(lines), area);

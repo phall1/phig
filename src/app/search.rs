@@ -4,10 +4,14 @@ use super::{App, Effect, Focus, View};
 
 impl App {
     pub(super) fn seek_match(&mut self, forward: bool, include_current: bool) -> Vec<Effect> {
+        self.search_miss = false;
         if self.search_query.is_empty() {
             return Vec::new();
         }
         let needle = self.search_query.to_lowercase();
+        if self.view == View::Blob {
+            return self.seek_blob_match(&needle, forward, include_current);
+        }
         if self.diff_fullscreen {
             return self.seek_diff_match(&needle, forward, include_current);
         }
@@ -44,6 +48,24 @@ impl App {
         if let Some(index) = index {
             self.inspect.selected = index;
             return self.inspect_selection_effects();
+        }
+        self.search_miss = true;
+        Vec::new()
+    }
+
+    fn seek_blob_match(
+        &mut self,
+        needle: &str,
+        forward: bool,
+        include_current: bool,
+    ) -> Vec<Effect> {
+        let lines = self.blob_lines();
+        let index = search_indices(self.diff_scroll, lines.len(), forward, include_current)
+            .find(|index| lines[*index].to_lowercase().contains(needle));
+        drop(lines);
+        match index {
+            Some(index) => self.diff_scroll = index,
+            None => self.search_miss = true,
         }
         Vec::new()
     }
@@ -106,6 +128,7 @@ impl App {
             return self.select_index(index);
         }
         if !self.has_more {
+            self.search_miss = true;
             return Vec::new();
         }
         self.search_pending = Some(forward);
@@ -131,8 +154,9 @@ impl App {
         };
         let index = search_indices(self.diff_scroll, diff.lines.len(), forward, include_current)
             .find(|index| diff.lines[*index].text.to_lowercase().contains(needle));
-        if let Some(index) = index {
-            self.diff_scroll = index;
+        match index {
+            Some(index) => self.diff_scroll = index,
+            None => self.search_miss = true,
         }
         Vec::new()
     }
