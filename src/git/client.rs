@@ -16,6 +16,8 @@ use crate::{
     },
 };
 
+/// Full refnames keep kinds unambiguous: `feat/x` may be a local branch or a
+/// remote, but `refs/heads/feat/x` cannot.
 const DECORATIONS: &str = "%(decorate:prefix=,suffix=,separator=%x1f)";
 const LOG_FORMAT: &str = "%H%x00%P%x00%an%x00%ae%x00%at%x00%aI%x00%cn%x00%ce%x00%ct%x00%cI%x00";
 const DETAIL_FORMAT: &str = "%H%x00%P%x00%an%x00%ae%x00%at%x00%aI%x00%cn%x00%ce%x00%ct%x00%cI%x00";
@@ -232,7 +234,7 @@ impl GitClient {
         let mut args = vec![
             OsString::from("log"),
             OsString::from("-z"),
-            OsString::from("--decorate=short"),
+            OsString::from("--decorate=full"),
             OsString::from(format!("--format={LOG_FORMAT}{DECORATIONS}%x00%s%x00")),
             OsString::from(format!("--max-count={}", limit + 1)),
             OsString::from(format!("--skip={offset}")),
@@ -271,6 +273,7 @@ impl GitClient {
             OsString::from("show"),
             OsString::from("-s"),
             OsString::from("-z"),
+            OsString::from("--decorate=full"),
             OsString::from(format!(
                 "--format={DETAIL_FORMAT}{DECORATIONS}%x00%s%x00%b%x00"
             )),

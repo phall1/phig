@@ -19,6 +19,8 @@ pub struct RenderTheme {
     pub error: Color,
     pub selection_fg: Color,
     pub selection_bg: Color,
+    /// Colors cycled across graph branches. Empty falls back to `accent`.
+    pub graph_lanes: Vec<Color>,
 }
 
 impl Default for RenderTheme {
@@ -32,6 +34,14 @@ impl Default for RenderTheme {
             error: Color::Red,
             selection_fg: Color::Cyan,
             selection_bg: Color::Reset,
+            graph_lanes: vec![
+                Color::Cyan,
+                Color::Green,
+                Color::Yellow,
+                Color::Magenta,
+                Color::Blue,
+                Color::Red,
+            ],
         }
     }
 }
@@ -353,20 +363,16 @@ impl RenderContext {
         self.color(self.config.theme.error)
     }
 
-    /// Color for graph lane `lane`, cycling the configured theme so branches
-    /// stay visually separable without inventing colors outside the theme.
+    /// Color for graph branch `lane`, cycling the configured lane palette so
+    /// adjacent branches stay visually separable.
     pub fn lane_color(&self, lane: usize) -> Color {
         if self.monochrome {
             return Color::Reset;
         }
-        let theme = &self.config.theme;
-        let palette = [
-            theme.accent,
-            theme.added,
-            theme.warning,
-            theme.removed,
-            theme.muted,
-        ];
+        let palette = &self.config.theme.graph_lanes;
+        if palette.is_empty() {
+            return self.config.theme.accent;
+        }
         palette[lane % palette.len()]
     }
 
@@ -383,6 +389,16 @@ impl RenderContext {
             Style::reset()
         } else {
             Style::default().fg(color).bold()
+        }
+    }
+
+    /// Add a text modifier unless output is monochrome, where every cell
+    /// stays plain and meaning is carried by text alone.
+    pub fn emphasize(&self, style: Style, modifier: ratatui::style::Modifier) -> Style {
+        if self.monochrome {
+            style
+        } else {
+            style.add_modifier(modifier)
         }
     }
 

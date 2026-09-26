@@ -143,8 +143,31 @@ impl Action {
     }
 }
 
+/// Commands everyone already knows by key. With no query the palette lists
+/// what people come to discover first and these last.
+fn is_basic(action: &Action) -> bool {
+    matches!(
+        action,
+        Action::Move(_)
+            | Action::Page(_)
+            | Action::First
+            | Action::Last
+            | Action::Back
+            | Action::Quit
+            | Action::Redraw
+            | Action::TreeCollapse
+            | Action::TreeExpand
+            | Action::TreeCollapseAll
+            | Action::TreeExpandAll
+    )
+}
+
 pub fn palette_commands(query: &str) -> Vec<PaletteCommand> {
-    crate::fuzzy::ranked(COMMANDS, query, |command| command.palette_label)
+    let mut ranked = crate::fuzzy::ranked(COMMANDS, query, |command| command.palette_label);
+    if query.trim().is_empty() {
+        ranked.sort_by_key(|command| is_basic(&command.action));
+    }
+    ranked
         .into_iter()
         .map(|command| PaletteCommand {
             name: command.palette_label,
@@ -157,7 +180,7 @@ pub fn palette_commands(query: &str) -> Vec<PaletteCommand> {
 mod tests {
     use std::collections::HashSet;
 
-    use super::{Action, COMMANDS, palette_commands};
+    use super::{Action, COMMANDS, is_basic, palette_commands};
 
     #[test]
     fn semantic_catalog_has_unique_round_tripping_names() {
@@ -179,6 +202,9 @@ mod tests {
     #[test]
     fn palette_is_derived_from_the_same_catalog() {
         assert_eq!(palette_commands("").len(), COMMANDS.len());
+        let browse = palette_commands("");
+        assert!(!is_basic(&browse[0].action));
+        assert!(is_basic(&browse.last().unwrap().action));
         assert_eq!(palette_commands("retry")[0].action, Action::RetryFailed);
     }
 }

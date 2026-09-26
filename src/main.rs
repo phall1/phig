@@ -445,6 +445,11 @@ fn tui_options(loaded: &LoadedConfig, no_alt_screen: bool) -> TuiOptions {
                 error: config::parse_color(&theme.error).unwrap(),
                 selection_fg: config::parse_color(&theme.selection_fg).unwrap(),
                 selection_bg: config::parse_color(&theme.selection_bg).unwrap(),
+                graph_lanes: theme
+                    .graph_lanes
+                    .iter()
+                    .map(|color| config::parse_color(color).unwrap())
+                    .collect(),
             },
             date_mode: DateMode::parse(&loaded.config.ui.date).expect("validated date mode"),
             color_mode: ColorMode::parse(&loaded.config.ui.color).expect("validated color mode"),

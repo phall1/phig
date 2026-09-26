@@ -14,7 +14,7 @@ pub enum TreeStatus {
 }
 
 impl TreeStatus {
-    fn of(file: &DiffFile) -> Option<Self> {
+    pub(crate) fn of(file: &DiffFile) -> Option<Self> {
         match (file.old_path.as_ref(), file.new_path.as_ref()) {
             (None, Some(_)) => Some(Self::Added),
             (Some(_), None) => Some(Self::Deleted),

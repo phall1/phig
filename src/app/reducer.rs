@@ -13,6 +13,7 @@ impl App {
     pub fn update(&mut self, action: Action, page_rows: usize) -> Vec<Effect> {
         self.notice = None;
         self.dirty = true;
+        self.diff_viewport = page_rows;
         if matches!(self.overlay, Overlay::DiffTree(_)) {
             self.update_diff_tree(action, page_rows);
             return Vec::new();

@@ -12,7 +12,7 @@ use crate::domain::{
 
 use super::{
     graph::{graph_rows, lane_limit},
-    history::{HistoryLineOpts, history_line},
+    history::{HistoryLineOpts, LogColumns, history_line},
     layout::{diff_content_rows, list_preview_layout},
     *,
 };
@@ -108,13 +108,13 @@ fn golden_ref_scope_graph_100x14() {
 #[test]
 fn ref_scope_graph_connects_merges_to_their_parents() {
     let rendered = screen(100, 14, &branchy_app());
-    // Columns four onward hold the lane cells, after the highlight symbol and
-    // the mark gutter. Slice by characters: box drawing is multi-byte.
+    // Columns two onward hold the lane cells, after the two-cell selection
+    // and mark gutter. Slice by characters: box drawing is multi-byte.
     let lanes: Vec<String> = rendered
         .lines()
         .map(|line| {
             line.chars()
-                .skip(4)
+                .skip(2)
                 .take(8)
                 .collect::<String>()
                 .trim_end()
@@ -871,7 +871,7 @@ fn narrow_layout_keeps_one_dominant_surface() {
     let output = screen(60, 16, &sample_app());
     assert!(output.contains("phig"));
     assert!(output.contains("make history"));
-    assert!(!output.contains("diff --git"));
+    assert!(!output.contains("M src/main.rs"));
     assert!(output.contains("j/k move"));
 }
 
@@ -921,7 +921,10 @@ fn log_footer_keeps_core_actions_visible_at_eighty_columns() {
             "missing footer hint {hint:?}: {footer}"
         );
     }
-    assert_eq!(footer.matches('·').count(), 2);
+    assert!(
+        footer.contains("? help"),
+        "help must stay discoverable: {footer}"
+    );
     assert!(!footer.contains("compare"));
     assert!(!footer.contains("quit"));
 }
@@ -930,8 +933,8 @@ fn log_footer_keeps_core_actions_visible_at_eighty_columns() {
 fn normal_and_wide_layouts_show_contextual_preview() {
     let normal = screen(100, 28, &sample_app());
     let wide = screen(140, 40, &sample_app());
-    assert!(normal.contains("diff --git"));
-    assert!(wide.contains("diff --git"));
+    assert!(normal.contains("M src/main.rs"));
+    assert!(wide.contains("M src/main.rs"));
     assert!(wide.contains("Pat Example"));
 }
 
@@ -940,8 +943,9 @@ fn commit_detail_uses_available_height_for_metadata_and_body() {
     let mut app = sample_app();
     app.view = View::Detail;
     let output = screen(100, 30, &app);
-    assert!(output.contains("Date: 2023-11-14 18:13:20 -04:00"));
-    assert!(output.contains("Parents: root · Files: 1 (+1 -1)"));
+    assert!(output.contains("Pat Example"));
+    assert!(output.contains("2023-11-14 18:13 -04:00"));
+    assert!(output.contains("root commit · 1 file · +1 -1"));
     assert!(output.contains("Explain the change safely."));
     assert!(output.contains("Second body paragraph."));
 }
@@ -1037,7 +1041,7 @@ fn comparison_and_inspection_views_keep_one_dominant_surface() {
     app.view = View::Refs;
     let refs = screen(60, 16, &app);
     assert!(refs.contains("REFS"));
-    assert!(!refs.contains("diff --git"));
+    assert!(!refs.contains("M src/main.rs"));
 }
 
 #[test]
@@ -1056,11 +1060,11 @@ fn status_at_60x16_opens_a_dominant_diff_and_uses_porcelain_codes() {
     let list = screen(60, 16, &app);
     assert!(list.contains("mixed"));
     assert!(list.contains("MM"));
-    assert!(!list.contains("diff --git"));
+    assert!(!list.contains("M src/main.rs"));
     let _ = app.update(crate::app::Action::Open, 14);
     let detail = screen(60, 16, &app);
     assert!(detail.contains("STATUS DIFF"));
-    assert!(detail.contains("diff --git"));
+    assert!(detail.contains("M src/main.rs"));
 }
 
 #[test]
@@ -1111,7 +1115,7 @@ fn refs_mark_tree_breadcrumb_and_blame_groups_are_visible() {
         .collect();
     let blame = screen(100, 28, &app);
     assert_eq!(blame.matches("aaaaaaaa").count(), 1);
-    assert_eq!(blame.matches("2023-11-14").count(), 1);
+    assert_eq!(blame.matches("Pat Examp").count(), 1);
 }
 
 #[test]
@@ -1156,7 +1160,7 @@ fn inspection_preview_layout_and_page_size_follow_width_class() {
 fn page_steps_match_visible_compare_and_status_diff_rows() {
     let mut app = sample_app();
     let mut diff = app.preview.as_ref().unwrap().diff.clone();
-    diff.lines = (0..40)
+    diff.lines = (0..80)
         .map(|index| DiffLine {
             kind: DiffLineKind::Context,
             text: format!(" line {index}"),
@@ -1199,6 +1203,12 @@ fn page_steps_match_visible_compare_and_status_diff_rows() {
     assert_eq!(truncated_status_rows, 24);
     let _ = app.update(crate::app::Action::Page(1), truncated_status_rows);
     assert_eq!(app.diff_scroll, 24);
+    // Paging stops once the final page is full rather than scrolling the
+    // patch off screen.
+    for _ in 0..10 {
+        let _ = app.update(crate::app::Action::Page(1), truncated_status_rows);
+    }
+    assert_eq!(app.diff_scroll, 80 - truncated_status_rows);
 }
 
 #[test]
@@ -1269,25 +1279,43 @@ fn multiline_blob_renders_and_scrolls_by_raw_lines() {
     });
 
     let output = screen(60, 16, &app);
-    assert!(output.lines().any(|line| line.starts_with("first line")));
     assert!(
         output
             .lines()
-            .any(|line| line.starts_with("second \\e line"))
+            .any(|line| line.trim_end() == "  1 │ first line")
     );
-    assert!(output.lines().any(|line| line.starts_with("third line")));
+    assert!(
+        output
+            .lines()
+            .any(|line| line.trim_end() == "  2 │ second \\e line")
+    );
+    assert!(
+        output
+            .lines()
+            .any(|line| line.trim_end() == "  3 │ third line")
+    );
     assert!(!output.contains("first line\\nsecond"));
 
+    // A pager stops once the last line is on screen; a two-row viewport
+    // leaves exactly one line to scroll.
     let _ = app.update(crate::app::Action::Move(1), 14);
+    assert_eq!(app.diff_scroll, 0);
+    let _ = app.update(crate::app::Action::Move(1), 2);
+    assert_eq!(app.diff_scroll, 1);
+    let _ = app.update(crate::app::Action::Move(1), 2);
     assert_eq!(app.diff_scroll, 1);
     let scrolled = screen(60, 16, &app);
     assert!(!scrolled.contains("first line"));
     assert!(
         scrolled
             .lines()
-            .any(|line| line.starts_with("second \\e line"))
+            .any(|line| line.trim_end() == "  2 │ second \\e line")
     );
-    assert!(scrolled.lines().any(|line| line.starts_with("third line")));
+    assert!(
+        scrolled
+            .lines()
+            .any(|line| line.trim_end() == "  3 │ third line")
+    );
 }
 
 #[test]
@@ -1303,7 +1331,7 @@ fn binary_blob_is_summarized_without_rendering_bytes() {
         truncated: false,
     });
     let output = screen(60, 16, &app);
-    assert!(output.contains("Binary blob · 3 bytes"));
+    assert!(output.contains("Binary blob · 3 B"));
     assert!(!output.contains('\0'));
 }
 
@@ -1330,10 +1358,21 @@ fn no_color_renders_reset_styles_without_a_post_pass() {
         .draw(|frame| render_with_context(frame, &sample_app(), &context))
         .unwrap();
     let buffer = terminal.backend().buffer();
-    assert!((0..28).all(|y| (0..100).all(|x| {
-        let cell = &buffer[(x, y)];
-        cell.fg == Color::Reset && cell.bg == Color::Reset && cell.modifier.is_empty()
-    })));
+    for y in 0..28 {
+        for x in 0..100 {
+            let cell = &buffer[(x, y)];
+            // Changed-word emphasis is the one deliberate monochrome
+            // modifier: it carries meaning that color would otherwise hold.
+            let word_emphasis =
+                ratatui::style::Modifier::BOLD | ratatui::style::Modifier::UNDERLINED;
+            assert!(
+                cell.fg == Color::Reset
+                    && cell.bg == Color::Reset
+                    && (cell.modifier.is_empty() || cell.modifier == word_emphasis),
+                "styled cell at {x},{y}: {cell:?}"
+            );
+        }
+    }
 }
 
 #[test]
@@ -1355,7 +1394,7 @@ fn visual_policy_supports_ascii_dividers_calm_selection_and_critical_header() {
             .lines()
             .skip(1)
             .take(26)
-            .all(|line| line.chars().nth(45) == Some('|'))
+            .all(|line| line.chars().nth(51) == Some('|'))
     );
     let mut ascii_help = sample_app();
     ascii_help.show_help();
@@ -1370,10 +1409,10 @@ fn visual_policy_supports_ascii_dividers_calm_selection_and_critical_header() {
             .lines()
             .skip(1)
             .take(26)
-            .all(|line| line.chars().nth(45) == Some('│'))
+            .all(|line| line.chars().nth(51) == Some('│'))
     );
     let stacked = screen(100, 28, &app);
-    assert_eq!(stacked.matches('─').count(), 100);
+    assert!(stacked.lines().any(|line| line == "─".repeat(100)));
 
     let backend = TestBackend::new(60, 16);
     let mut terminal = Terminal::new(backend).unwrap();
@@ -1425,7 +1464,7 @@ fn history_preserves_subjects_and_cell_width_across_date_modes() {
                 &rows[0],
                 HistoryLineOpts {
                     width,
-                    graph_width: rows[0].width(),
+                    columns: LogColumns::plan(&app.commits[..1], rows[0].width(), width, &context),
                     marked: false,
                     selected: false,
                     selected_branch: None,
@@ -1471,12 +1510,12 @@ fn empty_inspection_views_report_zero_of_zero_without_stale_previews() {
         let output = screen(100, 28, &app);
         let footer = output.lines().nth(27).unwrap().to_owned();
         assert!(
-            footer.ends_with("0/0"),
+            footer.trim_end().ends_with("0/0"),
             "{view:?} had an impossible position: {footer:?}"
         );
         if matches!(view, View::Refs | View::Blame | View::Stash) {
             assert!(
-                !output.contains("diff --git"),
+                !output.contains("M src/main.rs"),
                 "{view:?} rendered an unrelated commit preview"
             );
         }
@@ -1545,10 +1584,9 @@ fn footer_and_help_use_effective_remapped_keys() {
     );
     let mut displaced_help = sample_app();
     displaced_help.show_help();
-    let overlay = screen_with_context(60, 16, &displaced_help, &displaced_context);
-    assert!(overlay.contains("r"));
-    assert!(overlay.contains("unbound refs"));
-    assert!(!overlay.contains("r refs"));
+    let overlay = screen_with_context(100, 28, &displaced_help, &displaced_context);
+    assert!(overlay.contains("unbound   refs"), "{overlay}");
+    assert!(!overlay.contains("r         refs"), "{overlay}");
 
     let mut wide_override = std::collections::BTreeMap::new();
     wide_override.insert("open".into(), "界".into());
@@ -1565,7 +1603,7 @@ fn footer_and_help_use_effective_remapped_keys() {
         footer.contains('界') && footer.contains("open"),
         "wide key hint was clipped: {footer:?}"
     );
-    assert!(footer.ends_with("1/1"));
+    assert!(footer.trim_end().ends_with("1/1"));
 }
 
 #[test]
@@ -1573,7 +1611,8 @@ fn help_overlay_is_contextual() {
     let mut app = sample_app();
     app.show_help();
     let output = screen(100, 28, &app);
-    assert!(output.contains("Help"));
+    assert!(output.contains("Keys"));
     assert!(output.contains("Enter"));
     assert!(output.contains("log view"));
+    assert!(output.contains(": all commands"));
 }

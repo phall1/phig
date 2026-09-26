@@ -338,7 +338,7 @@ fn narrow_status_enter_opens_full_working_diff_and_returns() {
     let output = output_text(&output);
     assert!(status.success());
     assert!(
-        output.contains("staged working"),
+        output.contains("staged diff"),
         "Enter did not open dominant status diff: {output}"
     );
     assert!(
@@ -486,7 +486,7 @@ fn real_pty_exercises_navigation_overlays_resize_and_cleanup() {
     writer.write_all(b"/\x1b[200~first\x1b[201~\r").unwrap(); // pasted diff search
     writer.write_all(b":help\r").unwrap(); // palette -> contextual help
     writer.flush().unwrap();
-    wait_for_marker(&output, "Help", Duration::from_secs(5));
+    wait_for_marker(&output, "Keys", Duration::from_secs(5));
     writer.write_all(b"\x1b").unwrap(); // close help
     writer.flush().unwrap();
     pair.master
@@ -504,7 +504,7 @@ fn real_pty_exercises_navigation_overlays_resize_and_cleanup() {
     let screen = output_text(&output);
 
     assert!(status.success(), "phig exited unsuccessfully: {status:?}");
-    assert!(screen.contains("phig"));
+    assert!(screen.contains("LOG"));
     assert!(screen.contains(merge_oid.trim()));
     assert!(
         screen.contains('◆'),
@@ -515,7 +515,7 @@ fn real_pty_exercises_navigation_overlays_resize_and_cleanup() {
         "Enter did not render commit detail"
     );
     assert!(screen.contains("+side"), "commit diff was not rendered");
-    assert!(screen.contains("Help"), "help overlay was not rendered");
+    assert!(screen.contains("Keys"), "help overlay was not rendered");
     assert!(
         screen.contains("\u{1b}[?2004h"),
         "bracketed paste was not enabled"
@@ -569,7 +569,7 @@ fn remapped_printable_key_still_types_in_every_text_overlay() {
     let (output, reader_thread) = read_live(reader);
     let mut writer = pair.master.take_writer().unwrap();
 
-    wait_for_marker(&output, "a/file.txt", Duration::from_secs(5));
+    wait_for_marker(&output, "file.txt", Duration::from_secs(5));
     writer.write_all(b"/").unwrap();
     writer.flush().unwrap();
     wait_for_marker(&output, "cancel", Duration::from_secs(3));
@@ -624,7 +624,7 @@ fn remapped_printable_key_still_types_in_every_text_overlay() {
 
     writer.write_all(b"h").unwrap();
     writer.flush().unwrap();
-    wait_for_marker(&output, "Help", Duration::from_secs(3));
+    wait_for_marker(&output, "Keys", Duration::from_secs(3));
     writer.write_all(b"h").unwrap(); // configured help key closes the overlay
     writer.flush().unwrap();
     thread::sleep(Duration::from_millis(100));
@@ -698,7 +698,7 @@ fn no_alt_screen_mode_leaves_scrollback_and_restores_cursor() {
     let screen = output_text(&output);
 
     assert!(status.success());
-    assert!(screen.contains("phig"));
+    assert!(screen.contains("LOG"));
     assert!(
         screen.contains("exact") && screen.contains("target"),
         "show REV -- PATH selected an ancestor instead of REV: {screen}"

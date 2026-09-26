@@ -1,142 +1,184 @@
 ---
 source: src/tui/render/tests.rs
+assertion_line: 858
 expression: "format!(\"PALETTE\\n{}\\nFILES\\n{}\\nERROR\\n{}\", styled_screen(60, 16, &palette),\nstyled_screen(60, 16, &files), styled_screen(60, 16, &error),)"
 ---
 PALETTE
 TEXT
- phig LOG phig-demo / main  HEAD
+ LOG  phig-demo · main · HEAD
  ╭ Commands ──────────────────────────────────────────────╮
- │: type to fuzzy-find                          45 results│
- │› Move down                                            j│
- │  Move up                                              k│
- │  Page down                                       Ctrl+d│
- │  Page up                                         Ctrl+u│
- │  First item                                           g│
- │  Last item                                            G│
- │  Inspect commit                                   Enter│
- │  Back                                               Esc│
- │  Quit                                                 q│
- │↑/↓ move · Enter run · Esc close                        │
+ │ : type to fuzzy-find                        45 results │
+ │ › Inspect commit                                 Enter │
+ │   Toggle preview                                     p │
+ │   Toggle full-screen diff                            F │
+ │   Toggle focus                                     Tab │
+ │   Browse changed-file tree                           T │
+ │   Toggle split/unified diff                          S │
+ │   Search                                             / │
+ │   Open command palette                               : │
+ │   Open changed-file picker                           f │
+ │ ↑/↓ move · Enter run · Esc close                       │
  ╰────────────────────────────────────────────────────────╯
 
- j/k move · Enter open · / search                        1/1
+ j/k move · Enter open · / search · v mark · ? help     1/1
 STYLES
-0:0-9 fg=Cyan bg=Reset mod=BOLD text=" phig LOG "
-0:19-31 fg=DarkGray bg=Reset mod=NONE text=" / main  HEAD"
+0:0-4 fg=Cyan bg=Reset mod=BOLD | REVERSED text=" LOG "
+0:6-14 fg=Reset bg=Reset mod=BOLD text="phig-demo"
+0:15-17 fg=DarkGray bg=Reset mod=NONE text=" · "
+0:18-21 fg=Green bg=Reset mod=NONE text="main"
+0:22-28 fg=DarkGray bg=Reset mod=NONE text=" · HEAD"
 1:1-1 fg=DarkGray bg=Reset mod=NONE text="╭"
 1:2-11 fg=Cyan bg=Reset mod=BOLD text=" Commands "
 1:12-58 fg=DarkGray bg=Reset mod=NONE text="──────────────────────────────────────────────╮"
 2:1-1 fg=DarkGray bg=Reset mod=NONE text="│"
-2:2-3 fg=Cyan bg=Reset mod=BOLD text=": "
-2:4-21 fg=DarkGray bg=Reset mod=NONE text="type to fuzzy-find"
-2:48-58 fg=DarkGray bg=Reset mod=NONE text="45 results│"
+2:3-4 fg=Cyan bg=Reset mod=BOLD text=": "
+2:5-22 fg=DarkGray bg=Reset mod=NONE text="type to fuzzy-find"
+2:47-56 fg=DarkGray bg=Reset mod=NONE text="45 results"
+2:58-58 fg=DarkGray bg=Reset mod=NONE text="│"
 3:1-1 fg=DarkGray bg=Reset mod=NONE text="│"
-3:2-57 fg=Cyan bg=Reset mod=BOLD text="› Move down                                            j"
+3:3-56 fg=Cyan bg=Reset mod=BOLD text="› Inspect commit                                 Enter"
 3:58-58 fg=DarkGray bg=Reset mod=NONE text="│"
 4:1-1 fg=DarkGray bg=Reset mod=NONE text="│"
-4:57-58 fg=DarkGray bg=Reset mod=NONE text="k│"
+4:56-56 fg=DarkGray bg=Reset mod=NONE text="p"
+4:58-58 fg=DarkGray bg=Reset mod=NONE text="│"
 5:1-1 fg=DarkGray bg=Reset mod=NONE text="│"
-5:52-58 fg=DarkGray bg=Reset mod=NONE text="Ctrl+d│"
+5:56-56 fg=DarkGray bg=Reset mod=NONE text="F"
+5:58-58 fg=DarkGray bg=Reset mod=NONE text="│"
 6:1-1 fg=DarkGray bg=Reset mod=NONE text="│"
-6:52-58 fg=DarkGray bg=Reset mod=NONE text="Ctrl+u│"
+6:54-56 fg=DarkGray bg=Reset mod=NONE text="Tab"
+6:58-58 fg=DarkGray bg=Reset mod=NONE text="│"
 7:1-1 fg=DarkGray bg=Reset mod=NONE text="│"
-7:57-58 fg=DarkGray bg=Reset mod=NONE text="g│"
+7:56-56 fg=DarkGray bg=Reset mod=NONE text="T"
+7:58-58 fg=DarkGray bg=Reset mod=NONE text="│"
 8:1-1 fg=DarkGray bg=Reset mod=NONE text="│"
-8:57-58 fg=DarkGray bg=Reset mod=NONE text="G│"
+8:56-56 fg=DarkGray bg=Reset mod=NONE text="S"
+8:58-58 fg=DarkGray bg=Reset mod=NONE text="│"
 9:1-1 fg=DarkGray bg=Reset mod=NONE text="│"
-9:53-58 fg=DarkGray bg=Reset mod=NONE text="Enter│"
+9:56-56 fg=DarkGray bg=Reset mod=NONE text="/"
+9:58-58 fg=DarkGray bg=Reset mod=NONE text="│"
 10:1-1 fg=DarkGray bg=Reset mod=NONE text="│"
-10:55-58 fg=DarkGray bg=Reset mod=NONE text="Esc│"
+10:56-56 fg=DarkGray bg=Reset mod=NONE text=":"
+10:58-58 fg=DarkGray bg=Reset mod=NONE text="│"
 11:1-1 fg=DarkGray bg=Reset mod=NONE text="│"
-11:57-58 fg=DarkGray bg=Reset mod=NONE text="q│"
-12:1-58 fg=DarkGray bg=Reset mod=NONE text="│↑/↓ move · Enter run · Esc close                        │"
+11:56-56 fg=DarkGray bg=Reset mod=NONE text="f"
+11:58-58 fg=DarkGray bg=Reset mod=NONE text="│"
+12:1-1 fg=DarkGray bg=Reset mod=NONE text="│"
+12:3-56 fg=DarkGray bg=Reset mod=NONE text="↑/↓ move · Enter run · Esc close                      "
+12:58-58 fg=DarkGray bg=Reset mod=NONE text="│"
 13:1-58 fg=DarkGray bg=Reset mod=NONE text="╰────────────────────────────────────────────────────────╯"
-15:0-59 fg=DarkGray bg=Reset mod=NONE text=" j/k move · Enter open · / search                        1/1"
+15:1-4 fg=Reset bg=Reset mod=BOLD text="j/k "
+15:5-11 fg=DarkGray bg=Reset mod=NONE text="move · "
+15:12-17 fg=Reset bg=Reset mod=BOLD text="Enter "
+15:18-24 fg=DarkGray bg=Reset mod=NONE text="open · "
+15:25-26 fg=Reset bg=Reset mod=BOLD text="/ "
+15:27-35 fg=DarkGray bg=Reset mod=NONE text="search · "
+15:36-37 fg=Reset bg=Reset mod=BOLD text="v "
+15:38-44 fg=DarkGray bg=Reset mod=NONE text="mark · "
+15:45-46 fg=Reset bg=Reset mod=BOLD text="? "
+15:47-50 fg=DarkGray bg=Reset mod=NONE text="help"
+15:56-59 fg=DarkGray bg=Reset mod=NONE text="1/1 "
 
 FILES
 TEXT
- phig LOG phig-demo / main  HEAD
-›   ◌ aaaaaaaa HEAD→main 1700000000 Pat Examp… make history…
+ LOG  phig-demo · main · HEAD
+› ◌ aaaaaaaa 1700000000 HEAD→main make history pleasant
 
 
  ╭ Changed files ─────────────────────────────────────────╮
- │file: type to fuzzy-find                        1 result│
- │› src/main.rs                                           │
+ │ file: type to fuzzy-find                      1 result │
+ │ › src/main.rs                                          │
  │                                                        │
  │                                                        │
- │↑/↓ move · Enter jump · Esc close                       │
+ │ ↑/↓ move · Enter jump · Esc close                      │
  ╰────────────────────────────────────────────────────────╯
 
 
 
 
- j/k move · Enter open · / search                        1/1
+ j/k move · Enter open · / search · v mark · ? help     1/1
 STYLES
-0:0-9 fg=Cyan bg=Reset mod=BOLD text=" phig LOG "
-0:19-31 fg=DarkGray bg=Reset mod=NONE text=" / main  HEAD"
-1:0-5 fg=Cyan bg=Reset mod=BOLD text="›   ◌ "
-1:6-13 fg=Yellow bg=Reset mod=BOLD text="aaaaaaaa"
-1:14-14 fg=Reset bg=Reset mod=BOLD text=" "
-1:15-18 fg=Cyan bg=Reset mod=BOLD text="HEAD"
-1:19-19 fg=DarkGray bg=Reset mod=BOLD text="→"
-1:20-23 fg=Cyan bg=Reset mod=BOLD text="main"
-1:24-24 fg=Reset bg=Reset mod=BOLD text=" "
-1:25-46 fg=DarkGray bg=Reset mod=BOLD text="1700000000 Pat Examp… "
-1:47-59 fg=Reset bg=Reset mod=BOLD text="make history…"
+0:0-4 fg=Cyan bg=Reset mod=BOLD | REVERSED text=" LOG "
+0:6-14 fg=Reset bg=Reset mod=BOLD text="phig-demo"
+0:15-17 fg=DarkGray bg=Reset mod=NONE text=" · "
+0:18-21 fg=Green bg=Reset mod=NONE text="main"
+0:22-28 fg=DarkGray bg=Reset mod=NONE text=" · HEAD"
+1:0-3 fg=Cyan bg=Reset mod=BOLD text="› ◌ "
+1:4-11 fg=Yellow bg=Reset mod=BOLD text="aaaaaaaa"
+1:12-12 fg=Reset bg=Reset mod=BOLD text=" "
+1:13-23 fg=DarkGray bg=Reset mod=BOLD text="1700000000 "
+1:24-27 fg=Cyan bg=Reset mod=BOLD text="HEAD"
+1:28-28 fg=DarkGray bg=Reset mod=BOLD text="→"
+1:29-32 fg=Cyan bg=Reset mod=BOLD text="main"
+1:33-59 fg=Reset bg=Reset mod=BOLD text=" make history pleasant     "
 4:1-1 fg=DarkGray bg=Reset mod=NONE text="╭"
 4:2-16 fg=Cyan bg=Reset mod=BOLD text=" Changed files "
 4:17-58 fg=DarkGray bg=Reset mod=NONE text="─────────────────────────────────────────╮"
 5:1-1 fg=DarkGray bg=Reset mod=NONE text="│"
-5:2-7 fg=Cyan bg=Reset mod=BOLD text="file: "
-5:8-25 fg=DarkGray bg=Reset mod=NONE text="type to fuzzy-find"
-5:50-58 fg=DarkGray bg=Reset mod=NONE text="1 result│"
+5:3-8 fg=Cyan bg=Reset mod=BOLD text="file: "
+5:9-26 fg=DarkGray bg=Reset mod=NONE text="type to fuzzy-find"
+5:49-56 fg=DarkGray bg=Reset mod=NONE text="1 result"
+5:58-58 fg=DarkGray bg=Reset mod=NONE text="│"
 6:1-1 fg=DarkGray bg=Reset mod=NONE text="│"
-6:2-57 fg=Cyan bg=Reset mod=BOLD text="› src/main.rs                                           "
+6:3-56 fg=Cyan bg=Reset mod=BOLD text="› src/main.rs                                         "
 6:58-58 fg=DarkGray bg=Reset mod=NONE text="│"
 7:1-1 fg=DarkGray bg=Reset mod=NONE text="│"
 7:58-58 fg=DarkGray bg=Reset mod=NONE text="│"
 8:1-1 fg=DarkGray bg=Reset mod=NONE text="│"
 8:58-58 fg=DarkGray bg=Reset mod=NONE text="│"
-9:1-58 fg=DarkGray bg=Reset mod=NONE text="│↑/↓ move · Enter jump · Esc close                       │"
+9:1-1 fg=DarkGray bg=Reset mod=NONE text="│"
+9:3-56 fg=DarkGray bg=Reset mod=NONE text="↑/↓ move · Enter jump · Esc close                     "
+9:58-58 fg=DarkGray bg=Reset mod=NONE text="│"
 10:1-58 fg=DarkGray bg=Reset mod=NONE text="╰────────────────────────────────────────────────────────╯"
-15:0-59 fg=DarkGray bg=Reset mod=NONE text=" j/k move · Enter open · / search                        1/1"
+15:1-4 fg=Reset bg=Reset mod=BOLD text="j/k "
+15:5-11 fg=DarkGray bg=Reset mod=NONE text="move · "
+15:12-17 fg=Reset bg=Reset mod=BOLD text="Enter "
+15:18-24 fg=DarkGray bg=Reset mod=NONE text="open · "
+15:25-26 fg=Reset bg=Reset mod=BOLD text="/ "
+15:27-35 fg=DarkGray bg=Reset mod=NONE text="search · "
+15:36-37 fg=Reset bg=Reset mod=BOLD text="v "
+15:38-44 fg=DarkGray bg=Reset mod=NONE text="mark · "
+15:45-46 fg=Reset bg=Reset mod=BOLD text="? "
+15:47-50 fg=DarkGray bg=Reset mod=NONE text="help"
+15:56-59 fg=DarkGray bg=Reset mod=NONE text="1/1 "
 
 ERROR
 TEXT
- phig LOG phig-demo / main  HEAD              request failed
-›   ◌ aaaaaaaa HEAD→main 1700000000 Pat Examp… make history…
+ LOG  phig-demo · main · HEAD                 request failed
+› ◌ aaaaaaaa 1700000000 HEAD→main make history pleasant
 
 
  ╭ Request failed ────────────────────────────────────────╮
- │Failed to load commit detail                            │
- │Git operation commit-detail timed out                   │
+ │ Failed to load commit detail                           │
+ │ Git operation commit-detail timed out                  │
  │                                                        │
  │                                                        │
  │                                                        │
- │r retry · Esc dismiss                                   │
+ │ r retry · Esc dismiss                                  │
  ╰────────────────────────────────────────────────────────╯
 
 
 
- j/k move · Enter open · / search                        1/1
+ j/k move · Enter open · / search · v mark · ? help     1/1
 STYLES
-0:0-9 fg=Cyan bg=Reset mod=BOLD text=" phig LOG "
-0:19-31 fg=DarkGray bg=Reset mod=NONE text=" / main  HEAD"
+0:0-4 fg=Cyan bg=Reset mod=BOLD | REVERSED text=" LOG "
+0:6-14 fg=Reset bg=Reset mod=BOLD text="phig-demo"
+0:15-17 fg=DarkGray bg=Reset mod=NONE text=" · "
+0:18-21 fg=Green bg=Reset mod=NONE text="main"
+0:22-28 fg=DarkGray bg=Reset mod=NONE text=" · HEAD"
 0:45-59 fg=Red bg=Reset mod=BOLD text=" request failed"
-1:0-5 fg=Cyan bg=Reset mod=BOLD text="›   ◌ "
-1:6-13 fg=Yellow bg=Reset mod=BOLD text="aaaaaaaa"
-1:14-14 fg=Reset bg=Reset mod=BOLD text=" "
-1:15-18 fg=Cyan bg=Reset mod=BOLD text="HEAD"
-1:19-19 fg=DarkGray bg=Reset mod=BOLD text="→"
-1:20-23 fg=Cyan bg=Reset mod=BOLD text="main"
-1:24-24 fg=Reset bg=Reset mod=BOLD text=" "
-1:25-46 fg=DarkGray bg=Reset mod=BOLD text="1700000000 Pat Examp… "
-1:47-59 fg=Reset bg=Reset mod=BOLD text="make history…"
+1:0-3 fg=Cyan bg=Reset mod=BOLD text="› ◌ "
+1:4-11 fg=Yellow bg=Reset mod=BOLD text="aaaaaaaa"
+1:12-12 fg=Reset bg=Reset mod=BOLD text=" "
+1:13-23 fg=DarkGray bg=Reset mod=BOLD text="1700000000 "
+1:24-27 fg=Cyan bg=Reset mod=BOLD text="HEAD"
+1:28-28 fg=DarkGray bg=Reset mod=BOLD text="→"
+1:29-32 fg=Cyan bg=Reset mod=BOLD text="main"
+1:33-59 fg=Reset bg=Reset mod=BOLD text=" make history pleasant     "
 4:1-1 fg=DarkGray bg=Reset mod=NONE text="╭"
 4:2-17 fg=Red bg=Reset mod=BOLD text=" Request failed "
 4:18-58 fg=DarkGray bg=Reset mod=NONE text="────────────────────────────────────────╮"
 5:1-1 fg=DarkGray bg=Reset mod=NONE text="│"
-5:2-29 fg=Red bg=Reset mod=BOLD text="Failed to load commit detail"
+5:3-30 fg=Red bg=Reset mod=BOLD text="Failed to load commit detail"
 5:58-58 fg=DarkGray bg=Reset mod=NONE text="│"
 6:1-1 fg=DarkGray bg=Reset mod=NONE text="│"
 6:58-58 fg=DarkGray bg=Reset mod=NONE text="│"
@@ -147,7 +189,17 @@ STYLES
 9:1-1 fg=DarkGray bg=Reset mod=NONE text="│"
 9:58-58 fg=DarkGray bg=Reset mod=NONE text="│"
 10:1-1 fg=DarkGray bg=Reset mod=NONE text="│"
-10:2-57 fg=Yellow bg=Reset mod=NONE text="r retry · Esc dismiss                                   "
+10:3-56 fg=Yellow bg=Reset mod=NONE text="r retry · Esc dismiss                                 "
 10:58-58 fg=DarkGray bg=Reset mod=NONE text="│"
 11:1-58 fg=DarkGray bg=Reset mod=NONE text="╰────────────────────────────────────────────────────────╯"
-15:0-59 fg=DarkGray bg=Reset mod=NONE text=" j/k move · Enter open · / search                        1/1"
+15:1-4 fg=Reset bg=Reset mod=BOLD text="j/k "
+15:5-11 fg=DarkGray bg=Reset mod=NONE text="move · "
+15:12-17 fg=Reset bg=Reset mod=BOLD text="Enter "
+15:18-24 fg=DarkGray bg=Reset mod=NONE text="open · "
+15:25-26 fg=Reset bg=Reset mod=BOLD text="/ "
+15:27-35 fg=DarkGray bg=Reset mod=NONE text="search · "
+15:36-37 fg=Reset bg=Reset mod=BOLD text="v "
+15:38-44 fg=DarkGray bg=Reset mod=NONE text="mark · "
+15:45-46 fg=Reset bg=Reset mod=BOLD text="? "
+15:47-50 fg=DarkGray bg=Reset mod=NONE text="help"
+15:56-59 fg=DarkGray bg=Reset mod=NONE text="1/1 "

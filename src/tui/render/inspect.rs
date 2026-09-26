@@ -2,25 +2,50 @@
 
 use ratatui::{
     Frame,
-    layout::{Alignment, Constraint, Layout, Rect},
+    layout::{Constraint, Layout, Rect},
     style::Style,
     text::{Line, Span},
-    widgets::{List, ListItem, ListState, Paragraph, Wrap},
+    widgets::{List, ListItem, ListState, Paragraph},
 };
 
 use crate::{
     app::App,
-    domain::{RefKind, StatusCode, TreeEntryKind},
+    domain::{RefInfo, RefKind, StatusCode, TreeEntryKind},
+    sanitize::sanitize_str,
 };
 
 use super::{
     diff::render_diff_value,
-    format::{compact_date, pad_right, truncate_with},
+    format::{display_width, pad_left, pad_right, relative_age, truncate_with},
     history::render_preview,
     layout::{COMPARE_HEADER_ROWS, STATUS_DIFF_HEADER_ROWS, list_preview_layout},
-    render_divider,
+    render_divider, render_notice,
     theme::RenderContext,
 };
+
+/// A whole-body empty state: no divider or preview for a list with nothing
+/// in it. Returns false when the list has rows to draw instead.
+fn render_empty(
+    frame: &mut Frame<'_>,
+    app: &App,
+    empty: bool,
+    message: &str,
+    area: Rect,
+    context: &RenderContext,
+) -> bool {
+    if !empty {
+        return false;
+    }
+    let text = if app.inspect.loading {
+        format!("Loading{}", context.glyphs().ellipsis)
+    } else if app.inspect_error.is_some() {
+        format!("Unavailable {} retry or dismiss", context.glyphs().dash)
+    } else {
+        message.to_owned()
+    };
+    render_notice(frame, area, &text, context);
+    true
+}
 
 fn render_string_list(
     frame: &mut Frame<'_>,
@@ -30,12 +55,7 @@ fn render_string_list(
     context: &RenderContext,
 ) {
     if rows.is_empty() {
-        frame.render_widget(
-            Paragraph::new("Nothing to show")
-                .alignment(Alignment::Center)
-                .style(context.style(context.muted())),
-            area,
-        );
+        render_notice(frame, area, "Nothing here", context);
         return;
     }
     let visible = usize::from(area.height.max(1));
@@ -66,16 +86,12 @@ pub(super) fn render_compare(
     context: &RenderContext,
 ) {
     let Some(comparison) = &app.inspect.comparison else {
-        frame.render_widget(
-            Paragraph::new(if app.inspect.loading {
-                format!("Resolving comparison{}", context.glyphs().ellipsis)
-            } else {
-                "Comparison unavailable".into()
-            })
-            .alignment(Alignment::Center)
-            .style(context.style(context.muted())),
-            area,
-        );
+        let message = if app.inspect.loading {
+            format!("Resolving comparison{}", context.glyphs().ellipsis)
+        } else {
+            "Comparison unavailable".into()
+        };
+        render_notice(frame, area, &message, context);
         return;
     };
     let parts =
@@ -90,93 +106,113 @@ pub(super) fn render_compare(
         .compare_head_label
         .as_deref()
         .unwrap_or(&comparison.requested_head);
-    let semantics = match comparison.mode {
-        crate::domain::ComparisonMode::Exact => format!(
-            "exact {base_label}@{} {arrow} {head_label}@{}",
-            comparison.resolved_base.short(10),
-            comparison.resolved_head.short(10),
-            arrow = context.glyphs().arrow,
-        ),
-        crate::domain::ComparisonMode::MergeBase => format!(
-            "merge-base({base_label}, {head_label})={} {arrow} {}",
-            comparison
-                .merge_base
-                .as_ref()
-                .map_or("?", |oid| oid.short(10)),
-            comparison.resolved_head.short(10),
-            arrow = context.glyphs().arrow,
-        ),
-    };
     frame.render_widget(
-        Paragraph::new(vec![
-            Line::styled(semantics, context.strong(context.accent())),
-            Line::raw(format!(
-                "resolved inputs: {} {} {}",
-                comparison.requested_base,
-                context.glyphs().arrow,
-                comparison.requested_head
-            )),
-            Line::styled(
-                format!(
-                    "ahead {} {separator} behind {} {separator} files {}",
-                    comparison.ahead,
-                    comparison.behind,
-                    comparison.diff.files.len(),
-                    separator = context.glyphs().separator,
-                ),
-                context.style(context.muted()),
-            ),
-        ]),
+        Paragraph::new(compare_header(comparison, base_label, head_label, context)),
         parts[0],
     );
     render_diff_value(frame, app, parts[1], true, context);
 }
 
+/// Endpoints and semantics first, then the counts that size the change.
+/// A trailing blank row separates the header from the patch.
+fn compare_header(
+    comparison: &crate::domain::Comparison,
+    base_label: &str,
+    head_label: &str,
+    context: &RenderContext,
+) -> Vec<Line<'static>> {
+    let glyphs = context.glyphs();
+    let muted = context.style(context.muted());
+    let label = context.strong(context.accent());
+    let oid = context.style(context.warning());
+    let arrow = Span::styled(format!(" {} ", glyphs.arrow), muted);
+    let semantics = match comparison.mode {
+        crate::domain::ComparisonMode::Exact => vec![
+            Span::styled("exact ".to_owned(), muted),
+            Span::styled(sanitize_str(base_label), label),
+            Span::styled(format!("@{}", comparison.resolved_base.short(10)), oid),
+            arrow,
+            Span::styled(sanitize_str(head_label), label),
+            Span::styled(format!("@{}", comparison.resolved_head.short(10)), oid),
+        ],
+        crate::domain::ComparisonMode::MergeBase => vec![
+            Span::styled("merge-base(".to_owned(), muted),
+            Span::styled(sanitize_str(base_label), label),
+            Span::styled(", ".to_owned(), muted),
+            Span::styled(sanitize_str(head_label), label),
+            Span::styled(")=".to_owned(), muted),
+            Span::styled(
+                comparison
+                    .merge_base
+                    .as_ref()
+                    .map_or("?", |oid| oid.short(10))
+                    .to_owned(),
+                oid,
+            ),
+            arrow,
+            Span::styled(comparison.resolved_head.short(10).to_owned(), oid),
+        ],
+    };
+    let (added, removed) = comparison
+        .diff
+        .lines
+        .iter()
+        .fold((0, 0), |(added, removed), line| match line.kind {
+            crate::domain::DiffLineKind::Added => (added + 1, removed),
+            crate::domain::DiffLineKind::Removed => (added, removed + 1),
+            _ => (added, removed),
+        });
+    let separator = format!(" {} ", glyphs.separator);
+    let files = comparison.diff.files.len();
+    let mut counts = vec![
+        Span::styled(
+            format!("ahead {}", comparison.ahead),
+            context.style(context.added()),
+        ),
+        Span::styled(separator.clone(), muted),
+        Span::styled(
+            format!("behind {}", comparison.behind),
+            context.style(context.removed()),
+        ),
+        Span::styled(
+            format!(
+                "{separator}{files} file{}{separator}",
+                if files == 1 { "" } else { "s" }
+            ),
+            muted,
+        ),
+        Span::styled(format!("+{added}"), context.style(context.added())),
+        Span::raw(" "),
+        Span::styled(format!("-{removed}"), context.style(context.removed())),
+    ];
+    if comparison.requested_base != base_label || comparison.requested_head != head_label {
+        counts.push(Span::styled(
+            format!(
+                "{separator}from {} {} {}",
+                sanitize_str(&comparison.requested_base),
+                glyphs.arrow,
+                sanitize_str(&comparison.requested_head)
+            ),
+            muted,
+        ));
+    }
+    vec![Line::from(semantics), Line::from(counts), Line::raw("")]
+}
+
 pub(super) fn render_refs(frame: &mut Frame<'_>, app: &App, area: Rect, context: &RenderContext) {
+    if render_empty(
+        frame,
+        app,
+        app.inspect.refs.is_empty(),
+        "No refs",
+        area,
+        context,
+    ) {
+        return;
+    }
     let layout = list_preview_layout(app, area);
     let list = layout.primary;
-    let rows = app
-        .inspect
-        .refs
-        .iter()
-        .map(|reference| {
-            let kind = match reference.kind {
-                RefKind::LocalBranch => "branch",
-                RefKind::RemoteBranch => "remote",
-                RefKind::Tag => "tag",
-                RefKind::Stash => "stash",
-                RefKind::Other => "ref",
-            };
-            let head = if reference.is_head { "*" } else { " " };
-            let upstream = if list.width >= 84 {
-                reference.upstream.as_ref().map_or(String::new(), |name| {
-                    format!(" {}{}", context.glyphs().arrow, name.display())
-                })
-            } else {
-                String::new()
-            };
-            let oid = if list.width >= 54 {
-                format!(" {}", reference.target.short(8))
-            } else {
-                String::new()
-            };
-            let subject = if list.width >= 70 {
-                format!("  {}", reference.subject)
-            } else {
-                String::new()
-            };
-            Line::from(vec![
-                Span::styled(format!("{head} {kind:<7} "), context.style(context.muted())),
-                Span::styled(
-                    reference.short_name.display().to_owned(),
-                    context.style(context.accent()),
-                ),
-                Span::styled(oid, context.style(context.muted())),
-                Span::styled(upstream, context.style(context.muted())),
-                Span::raw(subject),
-            ])
-        })
-        .collect();
+    let rows = ref_rows(&app.inspect.refs, list.width, context);
     render_string_list(frame, rows, app.inspect.selected, list, context);
     render_divider(frame, layout, context);
     if !app.inspect.refs.is_empty()
@@ -184,6 +220,97 @@ pub(super) fn render_refs(frame: &mut Frame<'_>, app: &App, area: Rect, context:
     {
         render_preview(frame, app, preview, context);
     }
+}
+
+/// `kind name oid age subject → upstream`, with the name column sized to the
+/// longest name that fits so every later column starts on the same cell.
+fn ref_rows(refs: &[RefInfo], width: u16, context: &RenderContext) -> Vec<Line<'static>> {
+    let glyphs = context.glyphs();
+    let muted = context.style(context.muted());
+    // Highlight symbol, kind, and gaps.
+    let available = usize::from(width).saturating_sub(display_width(glyphs.selected) + 7);
+    let name_width = refs
+        .iter()
+        .map(|reference| display_width(reference.short_name.display()) + 2)
+        .max()
+        .unwrap_or(0)
+        .min((available * 2 / 5).clamp(12, 36));
+    let show_oid = available >= name_width + 9 + 12;
+    let show_age = show_oid && available >= name_width + 9 + 5 + 16;
+    let age_width = if show_age {
+        refs.iter()
+            .filter_map(|reference| reference.timestamp)
+            .map(|timestamp| display_width(&relative_age(timestamp)))
+            .max()
+            .unwrap_or(0)
+    } else {
+        0
+    };
+    refs.iter()
+        .map(|reference| {
+            let (kind, name_style) = match reference.kind {
+                RefKind::LocalBranch => ("branch", context.style(context.added())),
+                RefKind::RemoteBranch => ("remote", context.style(context.removed())),
+                RefKind::Tag => ("tag", context.style(context.warning())),
+                RefKind::Stash => ("stash", context.style(context.accent())),
+                RefKind::Other => ("ref", Style::reset()),
+            };
+            let (head, name_style) = if reference.is_head {
+                (
+                    "* ",
+                    context.emphasize(name_style, ratatui::style::Modifier::BOLD),
+                )
+            } else {
+                ("  ", name_style)
+            };
+            let name = format!("{head}{}", sanitize_str(reference.short_name.display()));
+            let mut spans = vec![
+                Span::styled(format!("{kind:<6} "), muted),
+                Span::styled(
+                    pad_right(
+                        &truncate_with(&name, name_width, glyphs.ellipsis),
+                        name_width,
+                    ),
+                    name_style,
+                ),
+            ];
+            let mut used = 7 + name_width;
+            if show_oid {
+                spans.push(Span::styled(
+                    format!(" {} ", reference.target.short(8)),
+                    context.style(context.warning()),
+                ));
+                used += 10;
+            }
+            if age_width > 0 {
+                let age = reference.timestamp.map(relative_age).unwrap_or_default();
+                spans.push(Span::styled(
+                    format!("{} ", pad_left(&age, age_width)),
+                    muted,
+                ));
+                used += age_width + 1;
+            }
+            let upstream = reference
+                .upstream
+                .as_ref()
+                .map(|name| format!(" {} {}", glyphs.arrow, sanitize_str(name.display())))
+                .unwrap_or_default();
+            let rest = usize::from(width).saturating_sub(display_width(glyphs.selected) + used);
+            let subject = sanitize_str(&reference.subject);
+            let upstream_width = display_width(&upstream);
+            if show_oid && rest > upstream_width + 12 {
+                spans.push(Span::raw(truncate_with(
+                    &subject,
+                    rest - upstream_width,
+                    glyphs.ellipsis,
+                )));
+                spans.push(Span::styled(upstream, muted));
+            } else if show_oid {
+                spans.push(Span::raw(truncate_with(&subject, rest, glyphs.ellipsis)));
+            }
+            Line::from(spans)
+        })
+        .collect()
 }
 
 fn status_group(entry: &crate::domain::StatusEntry) -> &'static str {
@@ -200,45 +327,86 @@ fn status_group(entry: &crate::domain::StatusEntry) -> &'static str {
     }
 }
 
-pub(super) fn render_status(frame: &mut Frame<'_>, app: &App, area: Rect, context: &RenderContext) {
-    let layout = list_preview_layout(app, area);
-    let rows = app
-        .inspect
-        .status_entries()
+/// `group XY path`, naming each group once at its first row. The index
+/// column is colored as staged and the worktree column as unstaged, the way
+/// `git status` reads, while the letters carry the meaning without color.
+fn status_rows(
+    entries: &[crate::domain::StatusEntry],
+    context: &RenderContext,
+) -> Vec<Line<'static>> {
+    let muted = context.style(context.muted());
+    let mut previous = None;
+    entries
         .iter()
         .map(|entry| {
-            Line::from(vec![
+            let group = status_group(entry);
+            let label = if previous == Some(group) { "" } else { group };
+            previous = Some(group);
+            let code = |status: StatusCode, style: Style| {
                 Span::styled(
-                    format!("{:<9} ", status_group(entry)),
-                    context.style(context.muted()),
-                ),
-                Span::styled(
-                    format!(
-                        "{}{} ",
-                        entry.index.porcelain_char(),
-                        entry.worktree.porcelain_char()
-                    ),
-                    context.style(context.warning()),
-                ),
-                Span::raw(entry.path.display.clone()),
-            ])
+                    status.porcelain_char().to_string(),
+                    if status == StatusCode::Unmodified {
+                        muted
+                    } else {
+                        style
+                    },
+                )
+            };
+            let (index_style, worktree_style) = if entry.conflict.is_some() {
+                let conflict = context.strong(context.error());
+                (conflict, conflict)
+            } else if entry.index == StatusCode::Untracked {
+                let untracked = context.style(context.warning());
+                (untracked, untracked)
+            } else {
+                (
+                    context.style(context.added()),
+                    context.style(context.removed()),
+                )
+            };
+            let mut spans = vec![
+                Span::styled(format!("{label:<9} "), context.style(context.accent())),
+                code(entry.index, index_style),
+                code(entry.worktree, worktree_style),
+                Span::raw(" "),
+            ];
+            if let Some(original) = &entry.original_path {
+                spans.push(Span::styled(
+                    format!("{} {} ", original.display, context.glyphs().arrow),
+                    muted,
+                ));
+            }
+            spans.extend(path_spans(&entry.path.display, Style::reset(), context));
+            Line::from(spans)
         })
-        .collect();
+        .collect()
+}
+
+/// A path with its directory quiet and its file name in `style`.
+fn path_spans(path: &str, style: Style, context: &RenderContext) -> Vec<Span<'static>> {
+    match path.rfind('/') {
+        Some(split) => vec![
+            Span::styled(path[..=split].to_owned(), context.style(context.muted())),
+            Span::styled(path[split + 1..].to_owned(), style),
+        ],
+        None => vec![Span::styled(path.to_owned(), style)],
+    }
+}
+
+pub(super) fn render_status(frame: &mut Frame<'_>, app: &App, area: Rect, context: &RenderContext) {
+    let empty = app.inspect.status_entries().is_empty();
+    if render_empty(frame, app, empty, "Working tree clean", area, context) {
+        return;
+    }
+    let layout = list_preview_layout(app, area);
+    let rows = status_rows(app.inspect.status_entries(), context);
     render_string_list(frame, rows, app.inspect.selected, layout.primary, context);
     render_divider(frame, layout, context);
     if let Some(preview) = layout.secondary {
         if app.inspect.working_diff.is_some() {
             let parts =
                 Layout::vertical([Constraint::Length(1), Constraint::Min(1)]).split(preview);
-            frame.render_widget(
-                Paragraph::new(if app.inspect.status_diff_staged {
-                    "staged diff"
-                } else {
-                    "unstaged diff"
-                })
-                .style(context.strong(context.accent())),
-                parts[0],
-            );
+            frame.render_widget(Paragraph::new(status_diff_label(app, context)), parts[0]);
             render_diff_value(frame, app, parts[1], true, context);
         } else {
             let message = if app.inspect.loading {
@@ -259,12 +427,29 @@ pub(super) fn render_status(frame: &mut Frame<'_>, app: &App, area: Rect, contex
             } else {
                 "Select a tracked change to preview".into()
             };
-            frame.render_widget(
-                Paragraph::new(message).style(context.style(context.muted())),
-                preview,
-            );
+            render_notice(frame, preview, &message, context);
         }
     }
+}
+
+/// Which side of a working change is shown, with the other side and the key
+/// that switches to it: `staged diff · d unstaged`.
+fn status_diff_label(app: &App, context: &RenderContext) -> Line<'static> {
+    let (shown, other) = if app.inspect.status_diff_staged {
+        ("staged", "unstaged")
+    } else {
+        ("unstaged", "staged")
+    };
+    let muted = context.style(context.muted());
+    Line::from(vec![
+        Span::styled(format!("{shown} diff"), context.strong(context.accent())),
+        Span::styled(format!(" {} ", context.glyphs().separator), muted),
+        Span::styled(
+            context.key(&crate::app::Action::ToggleStatusDiff),
+            context.strong(ratatui::style::Color::Reset),
+        ),
+        Span::styled(format!(" {other}"), muted),
+    ])
 }
 
 pub(super) fn render_status_diff(
@@ -274,12 +459,7 @@ pub(super) fn render_status_diff(
     context: &RenderContext,
 ) {
     if app.inspect.working_diff.is_none() {
-        frame.render_widget(
-            Paragraph::new("Working diff unavailable")
-                .alignment(Alignment::Center)
-                .style(context.style(context.muted())),
-            area,
-        );
+        render_notice(frame, area, "Working diff unavailable", context);
         return;
     }
     let parts = Layout::vertical([
@@ -287,126 +467,202 @@ pub(super) fn render_status_diff(
         Constraint::Min(1),
     ])
     .split(area);
-    frame.render_widget(
-        Paragraph::new(if app.inspect.status_diff_staged {
-            "staged working diff"
-        } else {
-            "unstaged working diff"
-        })
-        .style(context.strong(context.accent())),
-        parts[0],
-    );
+    frame.render_widget(Paragraph::new(status_diff_label(app, context)), parts[0]);
     render_diff_value(frame, app, parts[1], true, context);
 }
 
 pub(super) fn render_tree(frame: &mut Frame<'_>, app: &App, area: Rect, context: &RenderContext) {
-    let rows = app
-        .inspect
-        .tree
+    if render_empty(
+        frame,
+        app,
+        app.inspect.tree.is_empty(),
+        "Empty tree",
+        area,
+        context,
+    ) {
+        return;
+    }
+    let entries = &app.inspect.tree;
+    let muted = context.style(context.muted());
+    let sizes: Vec<String> = entries
         .iter()
-        .map(|entry| {
-            let icon = match entry.kind {
-                TreeEntryKind::Tree => "dir ",
-                TreeEntryKind::Blob => "file",
-                TreeEntryKind::Commit => "subm",
-                TreeEntryKind::Unknown => "obj ",
+        .map(|entry| entry.size.map(human_size).unwrap_or_default())
+        .collect();
+    let size_width = sizes
+        .iter()
+        .map(|size| display_width(size))
+        .max()
+        .unwrap_or(0);
+    let name_room = usize::from(area.width)
+        .saturating_sub(display_width(context.glyphs().selected) + 5 + size_width + 2);
+    let rows = entries
+        .iter()
+        .zip(&sizes)
+        .map(|(entry, size)| {
+            // A trailing slash marks directories without relying on color;
+            // unusual modes get a word, ordinary ones stay silent.
+            let (kind, suffix, style) = match entry.kind {
+                TreeEntryKind::Tree => ("dir", "/", context.strong(context.accent())),
+                TreeEntryKind::Commit => ("sub", "@", context.style(context.warning())),
+                TreeEntryKind::Blob if entry.mode == "120000" => {
+                    ("link", "", context.style(context.accent()))
+                }
+                TreeEntryKind::Blob if entry.mode == "100755" => {
+                    ("exec", "", context.style(context.added()))
+                }
+                TreeEntryKind::Blob => ("", "", Style::reset()),
+                TreeEntryKind::Unknown => ("obj", "", muted),
             };
+            let name = format!("{}{suffix}", entry.path.display);
+            let name = truncate_with(&name, name_room, context.glyphs().ellipsis);
+            let gap = name_room.saturating_sub(display_width(&name));
             Line::from(vec![
-                Span::styled(
-                    format!("{icon} {} ", entry.mode),
-                    context.style(context.muted()),
-                ),
-                Span::styled(
-                    entry.path.display.clone(),
-                    if entry.kind == TreeEntryKind::Tree {
-                        context.style(context.accent())
-                    } else {
-                        Style::reset()
-                    },
-                ),
-                Span::styled(
-                    entry
-                        .size
-                        .map_or(String::new(), |size| format!("  {size} B")),
-                    context.style(context.muted()),
-                ),
+                Span::styled(format!("{kind:<4} "), muted),
+                Span::styled(name, style),
+                Span::raw(" ".repeat(gap + 2)),
+                Span::styled(pad_left(size, size_width), muted),
             ])
         })
         .collect();
     render_string_list(frame, rows, app.inspect.selected, area, context);
 }
 
+/// Binary-prefixed size with one decimal below ten units: `912 B`, `4.2 KiB`.
+fn human_size(bytes: u64) -> String {
+    const UNITS: [&str; 5] = ["B", "KiB", "MiB", "GiB", "TiB"];
+    let mut value = bytes as f64;
+    let mut unit = 0;
+    while value >= 1024.0 && unit + 1 < UNITS.len() {
+        value /= 1024.0;
+        unit += 1;
+    }
+    if unit == 0 {
+        format!("{bytes} B")
+    } else if value < 10.0 {
+        format!("{value:.1} {}", UNITS[unit])
+    } else {
+        format!("{value:.0} {}", UNITS[unit])
+    }
+}
+
 pub(super) fn render_blob(frame: &mut Frame<'_>, app: &App, area: Rect, context: &RenderContext) {
     let Some(blob) = &app.inspect.blob else {
-        frame.render_widget(
-            Paragraph::new(format!("Loading blob{}", context.glyphs().ellipsis)),
+        render_notice(
+            frame,
             area,
+            &format!("Loading blob{}", context.glyphs().ellipsis),
+            context,
         );
         return;
     };
     if blob.binary == Some(true) {
         let separator = context.glyphs().separator;
-        frame.render_widget(
-            Paragraph::new(format!(
-                "Binary blob {separator} {} bytes {separator} {}{}",
-                blob.size,
-                blob.id.short(12),
-                if blob.truncated {
-                    format!(" {separator} preview truncated")
-                } else {
-                    String::new()
-                },
-            ))
-            .alignment(Alignment::Center)
-            .style(context.style(context.muted())),
-            area,
+        let message = format!(
+            "Binary blob {separator} {} {separator} {}{}",
+            human_size(blob.size as u64),
+            blob.id.short(12),
+            if blob.truncated {
+                format!(" {separator} preview truncated")
+            } else {
+                String::new()
+            },
         );
-    } else {
-        let bytes = blob.bytes();
-        let lines = bytes
-            .split(|byte| *byte == b'\n')
-            .skip(app.diff_scroll)
-            .take(usize::from(area.height))
-            .map(crate::sanitize::sanitize_bytes)
-            .map(Line::raw)
-            .collect::<Vec<_>>();
-        frame.render_widget(Paragraph::new(lines).wrap(Wrap { trim: false }), area);
+        render_notice(frame, area, &message, context);
+        return;
     }
+    // Source reads with a line-number gutter; long lines are clipped rather
+    // than wrapped so one scroll step is always one source line.
+    let bytes = blob.bytes();
+    let total = bytes.split(|byte| *byte == b'\n').count();
+    let number_width = total.to_string().len().max(3);
+    let gutter = context.style(context.muted());
+    let vertical = context.glyphs().vertical;
+    let lines = bytes
+        .split(|byte| *byte == b'\n')
+        .enumerate()
+        .skip(app.diff_scroll)
+        .take(usize::from(area.height))
+        .map(|(index, line)| {
+            Line::from(vec![
+                Span::styled(format!("{:>number_width$} {vertical} ", index + 1), gutter),
+                Span::raw(crate::sanitize::sanitize_bytes(line)),
+            ])
+        })
+        .collect::<Vec<_>>();
+    frame.render_widget(Paragraph::new(lines), area);
 }
 
+const BLAME_AUTHOR: usize = 10;
+
 pub(super) fn render_blame(frame: &mut Frame<'_>, app: &App, area: Rect, context: &RenderContext) {
+    if render_empty(
+        frame,
+        app,
+        app.inspect.blame.is_empty(),
+        "No blame lines",
+        area,
+        context,
+    ) {
+        return;
+    }
     let layout = list_preview_layout(app, area);
-    let rows = app
-        .inspect
-        .blame
+    let blame = &app.inspect.blame;
+    let number_width = blame
+        .iter()
+        .map(|line| line.final_line.to_string().len())
+        .max()
+        .unwrap_or(1);
+    let age_width = blame
+        .iter()
+        .filter_map(|line| line.author_time)
+        .map(|time| display_width(&relative_age(time)))
+        .max()
+        .unwrap_or(0);
+    let muted = context.style(context.muted());
+    let vertical = context.glyphs().vertical;
+    let rows = blame
         .iter()
         .enumerate()
         .map(|(index, line)| {
-            let repeated = index > 0 && app.inspect.blame[index - 1].id == line.id;
-            let attribution = if repeated {
-                format!("{:>5} {:8} {:10} {:12} ", line.final_line, "", "", "")
+            // Attribution prints once per run of lines from the same commit.
+            let repeated = index > 0 && blame[index - 1].id == line.id;
+            let mut spans = if repeated {
+                vec![Span::raw(" ".repeat(9 + age_width + 1 + BLAME_AUTHOR + 1))]
             } else {
-                format!(
-                    "{:>5} {:8} {:10} {} ",
-                    line.final_line,
-                    line.id.short(8),
-                    line.author_time
-                        .map_or_else(|| "----------".into(), compact_date),
-                    pad_right(
-                        &truncate_with(&line.author, 12, context.glyphs().ellipsis),
-                        12,
-                    )
-                )
+                let age = line.author_time.map(relative_age).unwrap_or_default();
+                vec![
+                    Span::styled(
+                        format!("{} ", line.id.short(8)),
+                        context.style(context.warning()),
+                    ),
+                    Span::styled(format!("{} ", pad_left(&age, age_width)), muted),
+                    Span::styled(
+                        format!(
+                            "{} ",
+                            pad_right(
+                                &truncate_with(
+                                    &sanitize_str(&line.author),
+                                    BLAME_AUTHOR,
+                                    context.glyphs().ellipsis
+                                ),
+                                BLAME_AUTHOR,
+                            )
+                        ),
+                        context.style(context.accent()),
+                    ),
+                ]
             };
-            Line::from(vec![
-                Span::styled(attribution, context.style(context.muted())),
-                Span::raw(line.content.clone()),
-            ])
+            spans.push(Span::styled(
+                format!("{:>number_width$} {vertical} ", line.final_line),
+                muted,
+            ));
+            spans.push(Span::raw(line.content.clone()));
+            Line::from(spans)
         })
         .collect();
     render_string_list(frame, rows, app.inspect.selected, layout.primary, context);
     render_divider(frame, layout, context);
-    if !app.inspect.blame.is_empty()
+    if !blame.is_empty()
         && let Some(preview) = layout.secondary
     {
         render_preview(frame, app, preview, context);
@@ -419,6 +675,16 @@ pub(super) fn render_stashes(
     area: Rect,
     context: &RenderContext,
 ) {
+    if render_empty(
+        frame,
+        app,
+        app.inspect.stashes.is_empty(),
+        "No stashes",
+        area,
+        context,
+    ) {
+        return;
+    }
     let layout = list_preview_layout(app, area);
     let rows = app
         .inspect
@@ -427,10 +693,20 @@ pub(super) fn render_stashes(
         .map(|stash| {
             Line::from(vec![
                 Span::styled(
-                    format!("{} {} ", stash.selector, stash.id.short(8)),
+                    format!("{} ", stash.selector),
+                    context.style(context.accent()),
+                ),
+                Span::styled(
+                    format!("{} ", stash.id.short(8)),
                     context.style(context.warning()),
                 ),
-                Span::raw(stash.subject.clone()),
+                Span::styled(
+                    stash
+                        .timestamp
+                        .map_or_else(String::new, |time| format!("{:>3} ", relative_age(time))),
+                    context.style(context.muted()),
+                ),
+                Span::raw(sanitize_str(&stash.subject)),
             ])
         })
         .collect();

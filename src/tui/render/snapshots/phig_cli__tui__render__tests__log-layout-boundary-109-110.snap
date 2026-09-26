@@ -1,11 +1,12 @@
 ---
 source: src/tui/render/tests.rs
+assertion_line: 795
 expression: "format!(\"109x28\\n{}\\n110x28\\n{}\", styled_screen(109, 28, &app),\nstyled_screen(110, 28, &app))"
 ---
 109x28
 TEXT
- phig LOG phig-demo / main  HEAD
-›   ◌ aaaaaaaa HEAD→main 1700000000 Pat Example        make history pleasant
+ LOG  phig-demo · main · HEAD
+› ◌ aaaaaaaa 1700000000 Pat Example HEAD→main make history pleasant
 
 
 
@@ -19,130 +20,190 @@ TEXT
 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────
 aaaaaaaaaaaa  HEAD→main
 make history pleasant
-Author: Pat Example <pat@example.invalid>
-Date: 2023-11-14 18:13:20 -04:00
-Parents: root · Files: 1 (+1 -1)
+Pat Example · 2y ago · 2023-11-14 18:13 -04:00 · pat@example.invalid
+root commit · 1 file · +1 -1
+
 Explain the change safely.
+
 Second body paragraph.
-diff --git a/src/main.rs b/src/main.rs
-@@ -1 +1 @@
--old
-+new
 
+M src/main.rs ──────────────────────────────────────────────────────────────────────────────────────── +1 -1
+        │ @@ -1 +1 @@
+        │ -old
+        │ +new
 
-
- j/k move · Enter open · / search                                                                         1/1
+ j/k move · Enter open · / search · v mark · ? help                                                      1/1
 STYLES
-0:0-9 fg=Cyan bg=Reset mod=BOLD text=" phig LOG "
-0:19-31 fg=DarkGray bg=Reset mod=NONE text=" / main  HEAD"
-1:0-5 fg=Cyan bg=Reset mod=BOLD text="›   ◌ "
-1:6-13 fg=Yellow bg=Reset mod=BOLD text="aaaaaaaa"
-1:14-14 fg=Reset bg=Reset mod=BOLD text=" "
-1:15-18 fg=Cyan bg=Reset mod=BOLD text="HEAD"
-1:19-19 fg=DarkGray bg=Reset mod=BOLD text="→"
-1:20-23 fg=Cyan bg=Reset mod=BOLD text="main"
-1:24-24 fg=Reset bg=Reset mod=BOLD text=" "
-1:25-54 fg=DarkGray bg=Reset mod=BOLD text="1700000000 Pat Example        "
-1:55-108 fg=Reset bg=Reset mod=BOLD text="make history pleasant                                 "
+0:0-4 fg=Cyan bg=Reset mod=BOLD | REVERSED text=" LOG "
+0:6-14 fg=Reset bg=Reset mod=BOLD text="phig-demo"
+0:15-17 fg=DarkGray bg=Reset mod=NONE text=" · "
+0:18-21 fg=Green bg=Reset mod=NONE text="main"
+0:22-28 fg=DarkGray bg=Reset mod=NONE text=" · HEAD"
+1:0-3 fg=Cyan bg=Reset mod=BOLD text="› ◌ "
+1:4-11 fg=Yellow bg=Reset mod=BOLD text="aaaaaaaa"
+1:12-12 fg=Reset bg=Reset mod=BOLD text=" "
+1:13-35 fg=DarkGray bg=Reset mod=BOLD text="1700000000 Pat Example "
+1:36-39 fg=Cyan bg=Reset mod=BOLD text="HEAD"
+1:40-40 fg=DarkGray bg=Reset mod=BOLD text="→"
+1:41-44 fg=Cyan bg=Reset mod=BOLD text="main"
+1:45-108 fg=Reset bg=Reset mod=BOLD text=" make history pleasant                                          "
 12:0-108 fg=DarkGray bg=Reset mod=NONE text="─────────────────────────────────────────────────────────────────────────────────────────────────────────────"
-13:0-11 fg=Yellow bg=Reset mod=NONE text="aaaaaaaaaaaa"
+13:0-11 fg=Yellow bg=Reset mod=BOLD text="aaaaaaaaaaaa"
 13:14-17 fg=Cyan bg=Reset mod=BOLD text="HEAD"
 13:18-18 fg=DarkGray bg=Reset mod=NONE text="→"
 13:19-22 fg=Green bg=Reset mod=BOLD text="main"
 14:0-20 fg=Reset bg=Reset mod=BOLD text="make history pleasant"
-15:0-40 fg=DarkGray bg=Reset mod=NONE text="Author: Pat Example <pat@example.invalid>"
-16:0-31 fg=DarkGray bg=Reset mod=NONE text="Date: 2023-11-14 18:13:20 -04:00"
-17:0-31 fg=DarkGray bg=Reset mod=NONE text="Parents: root · Files: 1 (+1 -1)"
-20:0-37 fg=Yellow bg=Reset mod=BOLD text="diff --git a/src/main.rs b/src/main.rs"
-20:38-108 fg=DarkGray bg=Reset mod=NONE text="                                                                       "
-21:0-10 fg=Cyan bg=Reset mod=BOLD text="@@ -1 +1 @@"
-21:11-108 fg=DarkGray bg=Reset mod=NONE text="                                                                                                  "
-22:0-3 fg=Red bg=Reset mod=NONE text="-old"
-22:4-108 fg=DarkGray bg=Reset mod=NONE text="                                                                                                         "
-23:0-3 fg=Green bg=Reset mod=NONE text="+new"
-23:4-108 fg=DarkGray bg=Reset mod=NONE text="                                                                                                         "
-24:0-108 fg=DarkGray bg=Reset mod=NONE text="                                                                                                             "
-25:0-108 fg=DarkGray bg=Reset mod=NONE text="                                                                                                             "
+15:0-67 fg=DarkGray bg=Reset mod=NONE text="Pat Example · 2y ago · 2023-11-14 18:13 -04:00 · pat@example.invalid"
+16:0-22 fg=DarkGray bg=Reset mod=NONE text="root commit · 1 file · "
+16:23-24 fg=Green bg=Reset mod=NONE text="+1"
+16:26-27 fg=Red bg=Reset mod=NONE text="-1"
+22:0-1 fg=Yellow bg=Reset mod=BOLD text="M "
+22:2-12 fg=Reset bg=Reset mod=BOLD text="src/main.rs"
+22:13-101 fg=DarkGray bg=Reset mod=NONE text=" ────────────────────────────────────────────────────────────────────────────────────────"
+22:102-104 fg=Green bg=Reset mod=NONE text=" +1"
+22:105-107 fg=Red bg=Reset mod=NONE text=" -1"
+22:108-108 fg=DarkGray bg=Reset mod=NONE text=" "
+23:0-9 fg=DarkGray bg=Reset mod=NONE text="        │ "
+23:10-20 fg=Cyan bg=Reset mod=NONE text="@@ -1 +1 @@"
+23:21-108 fg=DarkGray bg=Reset mod=NONE text="                                                                                        "
+24:0-9 fg=Red bg=Reset mod=DIM text="        │ "
+24:10-10 fg=Red bg=Reset mod=NONE text="-"
+24:11-13 fg=Red bg=Reset mod=BOLD | UNDERLINED text="old"
+24:14-108 fg=DarkGray bg=Reset mod=NONE text="                                                                                               "
+25:0-9 fg=Green bg=Reset mod=DIM text="        │ "
+25:10-10 fg=Green bg=Reset mod=NONE text="+"
+25:11-13 fg=Green bg=Reset mod=BOLD | UNDERLINED text="new"
+25:14-108 fg=DarkGray bg=Reset mod=NONE text="                                                                                               "
 26:0-108 fg=DarkGray bg=Reset mod=NONE text="                                                                                                             "
-27:0-108 fg=DarkGray bg=Reset mod=NONE text=" j/k move · Enter open · / search                                                                         1/1"
+27:1-4 fg=Reset bg=Reset mod=BOLD text="j/k "
+27:5-11 fg=DarkGray bg=Reset mod=NONE text="move · "
+27:12-17 fg=Reset bg=Reset mod=BOLD text="Enter "
+27:18-24 fg=DarkGray bg=Reset mod=NONE text="open · "
+27:25-26 fg=Reset bg=Reset mod=BOLD text="/ "
+27:27-35 fg=DarkGray bg=Reset mod=NONE text="search · "
+27:36-37 fg=Reset bg=Reset mod=BOLD text="v "
+27:38-44 fg=DarkGray bg=Reset mod=NONE text="mark · "
+27:45-46 fg=Reset bg=Reset mod=BOLD text="? "
+27:47-50 fg=DarkGray bg=Reset mod=NONE text="help"
+27:105-108 fg=DarkGray bg=Reset mod=NONE text="1/1 "
 
 110x28
 TEXT
- phig LOG phig-demo / main  HEAD
-›   ◌ aaaaaaaa HEAD→main make history pleasa…│aaaaaaaaaaaa  HEAD→main
-                                             │make history pleasant
-                                             │Author: Pat Example <pat@example.invalid>
-                                             │Date: 2023-11-14 18:13:20 -04:00
-                                             │Parents: root · Files: 1 (+1 -1)
-                                             │Explain the change safely.
-                                             │Second body paragraph.
-                                             │diff --git a/src/main.rs b/src/main.rs
-                                             │@@ -1 +1 @@
-                                             │-old
-                                             │+new
-                                             │
-                                             │
-                                             │
-                                             │
-                                             │
-                                             │
-                                             │
-                                             │
-                                             │
-                                             │
-                                             │
-                                             │
-                                             │
-                                             │
-                                             │
- j/k move · Enter open · / search                                                                          1/1
+ LOG  phig-demo · main · HEAD
+› ◌ aaaaaaaa 1700000000 HEAD→main make history ple…│ aaaaaaaaaaaa  HEAD→main
+                                                   │ make history pleasant
+                                                   │ Pat Example · 2y ago · 2023-11-14 18:13 -04:00 · pat@exa…
+                                                   │ root commit · 1 file · +1 -1
+                                                   │
+                                                   │ Explain the change safely.
+                                                   │
+                                                   │ Second body paragraph.
+                                                   │
+                                                   │ M src/main.rs ──────────────────────────────────── +1 -1
+                                                   │         │ @@ -1 +1 @@
+                                                   │         │ -old
+                                                   │         │ +new
+                                                   │
+                                                   │
+                                                   │
+                                                   │
+                                                   │
+                                                   │
+                                                   │
+                                                   │
+                                                   │
+                                                   │
+                                                   │
+                                                   │
+                                                   │
+ j/k move · Enter open · / search · v mark · ? help                                                       1/1
 STYLES
-0:0-9 fg=Cyan bg=Reset mod=BOLD text=" phig LOG "
-0:19-31 fg=DarkGray bg=Reset mod=NONE text=" / main  HEAD"
-1:0-5 fg=Cyan bg=Reset mod=BOLD text="›   ◌ "
-1:6-13 fg=Yellow bg=Reset mod=BOLD text="aaaaaaaa"
-1:14-14 fg=Reset bg=Reset mod=BOLD text=" "
-1:15-18 fg=Cyan bg=Reset mod=BOLD text="HEAD"
-1:19-19 fg=DarkGray bg=Reset mod=BOLD text="→"
-1:20-23 fg=Cyan bg=Reset mod=BOLD text="main"
-1:24-44 fg=Reset bg=Reset mod=BOLD text=" make history pleasa…"
-1:45-45 fg=DarkGray bg=Reset mod=NONE text="│"
-1:46-57 fg=Yellow bg=Reset mod=NONE text="aaaaaaaaaaaa"
-1:60-63 fg=Cyan bg=Reset mod=BOLD text="HEAD"
-1:64-64 fg=DarkGray bg=Reset mod=NONE text="→"
-1:65-68 fg=Green bg=Reset mod=BOLD text="main"
-2:45-45 fg=DarkGray bg=Reset mod=NONE text="│"
-2:46-66 fg=Reset bg=Reset mod=BOLD text="make history pleasant"
-3:45-86 fg=DarkGray bg=Reset mod=NONE text="│Author: Pat Example <pat@example.invalid>"
-4:45-77 fg=DarkGray bg=Reset mod=NONE text="│Date: 2023-11-14 18:13:20 -04:00"
-5:45-77 fg=DarkGray bg=Reset mod=NONE text="│Parents: root · Files: 1 (+1 -1)"
-6:45-45 fg=DarkGray bg=Reset mod=NONE text="│"
-7:45-45 fg=DarkGray bg=Reset mod=NONE text="│"
-8:45-45 fg=DarkGray bg=Reset mod=NONE text="│"
-8:46-83 fg=Yellow bg=Reset mod=BOLD text="diff --git a/src/main.rs b/src/main.rs"
-8:84-109 fg=DarkGray bg=Reset mod=NONE text="                          "
-9:45-45 fg=DarkGray bg=Reset mod=NONE text="│"
-9:46-56 fg=Cyan bg=Reset mod=BOLD text="@@ -1 +1 @@"
-9:57-109 fg=DarkGray bg=Reset mod=NONE text="                                                     "
-10:45-45 fg=DarkGray bg=Reset mod=NONE text="│"
-10:46-49 fg=Red bg=Reset mod=NONE text="-old"
-10:50-109 fg=DarkGray bg=Reset mod=NONE text="                                                            "
-11:45-45 fg=DarkGray bg=Reset mod=NONE text="│"
-11:46-49 fg=Green bg=Reset mod=NONE text="+new"
-11:50-109 fg=DarkGray bg=Reset mod=NONE text="                                                            "
-12:45-109 fg=DarkGray bg=Reset mod=NONE text="│                                                                "
-13:45-109 fg=DarkGray bg=Reset mod=NONE text="│                                                                "
-14:45-109 fg=DarkGray bg=Reset mod=NONE text="│                                                                "
-15:45-109 fg=DarkGray bg=Reset mod=NONE text="│                                                                "
-16:45-109 fg=DarkGray bg=Reset mod=NONE text="│                                                                "
-17:45-109 fg=DarkGray bg=Reset mod=NONE text="│                                                                "
-18:45-109 fg=DarkGray bg=Reset mod=NONE text="│                                                                "
-19:45-109 fg=DarkGray bg=Reset mod=NONE text="│                                                                "
-20:45-109 fg=DarkGray bg=Reset mod=NONE text="│                                                                "
-21:45-109 fg=DarkGray bg=Reset mod=NONE text="│                                                                "
-22:45-109 fg=DarkGray bg=Reset mod=NONE text="│                                                                "
-23:45-109 fg=DarkGray bg=Reset mod=NONE text="│                                                                "
-24:45-109 fg=DarkGray bg=Reset mod=NONE text="│                                                                "
-25:45-109 fg=DarkGray bg=Reset mod=NONE text="│                                                                "
-26:45-109 fg=DarkGray bg=Reset mod=NONE text="│                                                                "
-27:0-109 fg=DarkGray bg=Reset mod=NONE text=" j/k move · Enter open · / search                                                                          1/1"
+0:0-4 fg=Cyan bg=Reset mod=BOLD | REVERSED text=" LOG "
+0:6-14 fg=Reset bg=Reset mod=BOLD text="phig-demo"
+0:15-17 fg=DarkGray bg=Reset mod=NONE text=" · "
+0:18-21 fg=Green bg=Reset mod=NONE text="main"
+0:22-28 fg=DarkGray bg=Reset mod=NONE text=" · HEAD"
+1:0-3 fg=Cyan bg=Reset mod=BOLD text="› ◌ "
+1:4-11 fg=Yellow bg=Reset mod=BOLD text="aaaaaaaa"
+1:12-12 fg=Reset bg=Reset mod=BOLD text=" "
+1:13-23 fg=DarkGray bg=Reset mod=BOLD text="1700000000 "
+1:24-27 fg=Cyan bg=Reset mod=BOLD text="HEAD"
+1:28-28 fg=DarkGray bg=Reset mod=BOLD text="→"
+1:29-32 fg=Cyan bg=Reset mod=BOLD text="main"
+1:33-50 fg=Reset bg=Reset mod=BOLD text=" make history ple…"
+1:51-51 fg=DarkGray bg=Reset mod=NONE text="│"
+1:53-64 fg=Yellow bg=Reset mod=BOLD text="aaaaaaaaaaaa"
+1:67-70 fg=Cyan bg=Reset mod=BOLD text="HEAD"
+1:71-71 fg=DarkGray bg=Reset mod=NONE text="→"
+1:72-75 fg=Green bg=Reset mod=BOLD text="main"
+2:51-51 fg=DarkGray bg=Reset mod=NONE text="│"
+2:53-73 fg=Reset bg=Reset mod=BOLD text="make history pleasant"
+3:51-51 fg=DarkGray bg=Reset mod=NONE text="│"
+3:53-109 fg=DarkGray bg=Reset mod=NONE text="Pat Example · 2y ago · 2023-11-14 18:13 -04:00 · pat@exa…"
+4:51-51 fg=DarkGray bg=Reset mod=NONE text="│"
+4:53-75 fg=DarkGray bg=Reset mod=NONE text="root commit · 1 file · "
+4:76-77 fg=Green bg=Reset mod=NONE text="+1"
+4:79-80 fg=Red bg=Reset mod=NONE text="-1"
+5:51-51 fg=DarkGray bg=Reset mod=NONE text="│"
+6:51-51 fg=DarkGray bg=Reset mod=NONE text="│"
+7:51-51 fg=DarkGray bg=Reset mod=NONE text="│"
+8:51-51 fg=DarkGray bg=Reset mod=NONE text="│"
+9:51-51 fg=DarkGray bg=Reset mod=NONE text="│"
+10:51-51 fg=DarkGray bg=Reset mod=NONE text="│"
+10:53-54 fg=Yellow bg=Reset mod=BOLD text="M "
+10:55-65 fg=Reset bg=Reset mod=BOLD text="src/main.rs"
+10:66-102 fg=DarkGray bg=Reset mod=NONE text=" ────────────────────────────────────"
+10:103-105 fg=Green bg=Reset mod=NONE text=" +1"
+10:106-108 fg=Red bg=Reset mod=NONE text=" -1"
+10:109-109 fg=DarkGray bg=Reset mod=NONE text=" "
+11:51-51 fg=DarkGray bg=Reset mod=NONE text="│"
+11:53-62 fg=DarkGray bg=Reset mod=NONE text="        │ "
+11:63-73 fg=Cyan bg=Reset mod=NONE text="@@ -1 +1 @@"
+11:74-109 fg=DarkGray bg=Reset mod=NONE text="                                    "
+12:51-51 fg=DarkGray bg=Reset mod=NONE text="│"
+12:53-62 fg=Red bg=Reset mod=DIM text="        │ "
+12:63-63 fg=Red bg=Reset mod=NONE text="-"
+12:64-66 fg=Red bg=Reset mod=BOLD | UNDERLINED text="old"
+12:67-109 fg=DarkGray bg=Reset mod=NONE text="                                           "
+13:51-51 fg=DarkGray bg=Reset mod=NONE text="│"
+13:53-62 fg=Green bg=Reset mod=DIM text="        │ "
+13:63-63 fg=Green bg=Reset mod=NONE text="+"
+13:64-66 fg=Green bg=Reset mod=BOLD | UNDERLINED text="new"
+13:67-109 fg=DarkGray bg=Reset mod=NONE text="                                           "
+14:51-51 fg=DarkGray bg=Reset mod=NONE text="│"
+14:53-109 fg=DarkGray bg=Reset mod=NONE text="                                                         "
+15:51-51 fg=DarkGray bg=Reset mod=NONE text="│"
+15:53-109 fg=DarkGray bg=Reset mod=NONE text="                                                         "
+16:51-51 fg=DarkGray bg=Reset mod=NONE text="│"
+16:53-109 fg=DarkGray bg=Reset mod=NONE text="                                                         "
+17:51-51 fg=DarkGray bg=Reset mod=NONE text="│"
+17:53-109 fg=DarkGray bg=Reset mod=NONE text="                                                         "
+18:51-51 fg=DarkGray bg=Reset mod=NONE text="│"
+18:53-109 fg=DarkGray bg=Reset mod=NONE text="                                                         "
+19:51-51 fg=DarkGray bg=Reset mod=NONE text="│"
+19:53-109 fg=DarkGray bg=Reset mod=NONE text="                                                         "
+20:51-51 fg=DarkGray bg=Reset mod=NONE text="│"
+20:53-109 fg=DarkGray bg=Reset mod=NONE text="                                                         "
+21:51-51 fg=DarkGray bg=Reset mod=NONE text="│"
+21:53-109 fg=DarkGray bg=Reset mod=NONE text="                                                         "
+22:51-51 fg=DarkGray bg=Reset mod=NONE text="│"
+22:53-109 fg=DarkGray bg=Reset mod=NONE text="                                                         "
+23:51-51 fg=DarkGray bg=Reset mod=NONE text="│"
+23:53-109 fg=DarkGray bg=Reset mod=NONE text="                                                         "
+24:51-51 fg=DarkGray bg=Reset mod=NONE text="│"
+24:53-109 fg=DarkGray bg=Reset mod=NONE text="                                                         "
+25:51-51 fg=DarkGray bg=Reset mod=NONE text="│"
+25:53-109 fg=DarkGray bg=Reset mod=NONE text="                                                         "
+26:51-51 fg=DarkGray bg=Reset mod=NONE text="│"
+26:53-109 fg=DarkGray bg=Reset mod=NONE text="                                                         "
+27:1-4 fg=Reset bg=Reset mod=BOLD text="j/k "
+27:5-11 fg=DarkGray bg=Reset mod=NONE text="move · "
+27:12-17 fg=Reset bg=Reset mod=BOLD text="Enter "
+27:18-24 fg=DarkGray bg=Reset mod=NONE text="open · "
+27:25-26 fg=Reset bg=Reset mod=BOLD text="/ "
+27:27-35 fg=DarkGray bg=Reset mod=NONE text="search · "
+27:36-37 fg=Reset bg=Reset mod=BOLD text="v "
+27:38-44 fg=DarkGray bg=Reset mod=NONE text="mark · "
+27:45-46 fg=Reset bg=Reset mod=BOLD text="? "
+27:47-50 fg=DarkGray bg=Reset mod=NONE text="help"
+27:106-109 fg=DarkGray bg=Reset mod=NONE text="1/1 "

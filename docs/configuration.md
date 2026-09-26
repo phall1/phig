@@ -55,7 +55,9 @@ is the canonical complete example. Main sections are:
 - `[theme]`: named ANSI colors for accent, muted text, additions, removals,
   warnings, errors, and selection foreground/background. The calm default is
   accent-on-`reset`, preserving the terminal's native background; set a
-  non-reset `selection_bg` to opt into block selection.
+  non-reset `selection_bg` to opt into block selection. `graph_lanes` lists
+  one to sixteen colors that commit-graph branches cycle through; a branch
+  keeps its color as it moves between columns.
 - `[keys]`: semantic action to key mappings such as `open = "enter"` and
   `view-refs = "ctrl+r"`.
 

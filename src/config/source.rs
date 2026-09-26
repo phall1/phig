@@ -159,6 +159,18 @@ pub fn validate(config: &Config, path: &Path) -> Result<(), ConfigError> {
             return Err(bad(format!("theme.{name} has invalid color `{value}`")));
         }
     }
+    if config.theme.graph_lanes.is_empty() || config.theme.graph_lanes.len() > 16 {
+        return Err(bad(
+            "theme.graph_lanes must list between 1 and 16 colors".into()
+        ));
+    }
+    for value in &config.theme.graph_lanes {
+        if parse_color(value).is_none() {
+            return Err(bad(format!(
+                "theme.graph_lanes has invalid color `{value}`"
+            )));
+        }
+    }
     KeyBindings::from_config(&config.keys).map_err(bad)?;
     Ok(())
 }

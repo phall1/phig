@@ -2,24 +2,7 @@
 
 use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
-use crate::sanitize::sanitize_str;
-
 use super::theme::DateMode;
-
-pub(super) fn format_commit_date(timestamp: i64, timezone: &str) -> String {
-    let offset = parse_timezone_offset(timezone);
-    let local = timestamp.saturating_add(offset);
-    let days = local.div_euclid(86_400);
-    let seconds = local.rem_euclid(86_400);
-    let (year, month, day) = civil_from_days(days);
-    format!(
-        "{year:04}-{month:02}-{day:02} {:02}:{:02}:{:02} {}",
-        seconds / 3_600,
-        (seconds % 3_600) / 60,
-        seconds % 60,
-        sanitize_str(timezone)
-    )
-}
 
 pub(super) fn compact_date(timestamp: i64) -> String {
     let (year, month, day) = civil_from_days(timestamp.div_euclid(86_400));
@@ -85,12 +68,54 @@ pub(super) fn truncate_with(value: &str, width: usize, ellipsis: &str) -> String
     output
 }
 
+pub(super) fn pad_left(value: &str, width: usize) -> String {
+    let value = truncate_with(value, width, "");
+    format!(
+        "{}{value}",
+        " ".repeat(width.saturating_sub(display_width(&value)))
+    )
+}
+
 pub(super) fn pad_right(value: &str, width: usize) -> String {
     let value = truncate_with(value, width, "");
     format!(
         "{value}{}",
         " ".repeat(width.saturating_sub(display_width(&value)))
     )
+}
+
+/// Greedy word wrap by terminal cells. Words wider than a row are split.
+pub(super) fn wrap_words(value: &str, width: usize) -> Vec<String> {
+    let width = width.max(1);
+    let mut rows = Vec::new();
+    let mut row = String::new();
+    for word in value.split(' ') {
+        let mut word = word.to_owned();
+        let gap = usize::from(!row.is_empty());
+        if display_width(&row) + gap + display_width(&word) <= width {
+            if gap == 1 {
+                row.push(' ');
+            }
+            row.push_str(&word);
+            continue;
+        }
+        if !row.is_empty() {
+            rows.push(std::mem::take(&mut row));
+        }
+        while display_width(&word) > width {
+            let head = take_width(&word, width);
+            if head.is_empty() {
+                break;
+            }
+            word = word[head.len()..].to_owned();
+            rows.push(head);
+        }
+        row = word;
+    }
+    if !row.is_empty() || rows.is_empty() {
+        rows.push(row);
+    }
+    rows
 }
 
 fn take_width(value: &str, width: usize) -> String {
@@ -109,11 +134,23 @@ fn take_width(value: &str, width: usize) -> String {
         .collect()
 }
 
-pub(super) fn display_date(timestamp: i64, timezone: &str, mode: DateMode) -> String {
+/// Compact date for list columns: minutes, not seconds, and no offset suffix,
+/// so a whole page of rows shares one narrow aligned column.
+pub(super) fn list_date(timestamp: i64, timezone: &str, mode: DateMode) -> String {
+    let minutes = |offset: i64| {
+        let local = timestamp.saturating_add(offset);
+        let seconds = local.rem_euclid(86_400);
+        format!(
+            "{} {:02}:{:02}",
+            compact_date(local),
+            seconds / 3_600,
+            (seconds % 3_600) / 60
+        )
+    };
     match mode {
         DateMode::Unix => timestamp.to_string(),
-        DateMode::Iso => format_commit_date(timestamp, "+00:00"),
-        DateMode::Local => format_commit_date(timestamp, timezone),
+        DateMode::Iso => minutes(0),
+        DateMode::Local => minutes(parse_timezone_offset(timezone)),
         DateMode::Relative => relative_age(timestamp),
     }
 }
@@ -147,5 +184,29 @@ mod tests {
         assert_eq!(display_width("界e\u{301}"), 3);
         assert_eq!(truncate_with("界界abc", 5, "…"), "界界…");
         assert_eq!(display_width(&pad_right("界", 4)), 4);
+        assert_eq!(pad_left("7d", 4), "  7d");
+    }
+
+    #[test]
+    fn word_wrap_respects_cells_and_splits_long_words() {
+        assert_eq!(wrap_words("one two three", 7), ["one two", "three"]);
+        assert_eq!(wrap_words("abcdefghij", 4), ["abcd", "efgh", "ij"]);
+        assert_eq!(wrap_words("界界界", 4), ["界界", "界"]);
+        assert_eq!(wrap_words("", 4), [""]);
+    }
+
+    #[test]
+    fn list_dates_stay_compact_in_every_mode() {
+        // 2023-11-14 22:13:20 UTC
+        let timestamp = 1_700_000_000;
+        assert_eq!(
+            list_date(timestamp, "-04:00", DateMode::Local),
+            "2023-11-14 18:13"
+        );
+        assert_eq!(
+            list_date(timestamp, "-04:00", DateMode::Iso),
+            "2023-11-14 22:13"
+        );
+        assert_eq!(list_date(timestamp, "-04:00", DateMode::Unix), "1700000000");
     }
 }

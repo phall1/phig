@@ -3,18 +3,23 @@
 use ratatui::{
     Frame,
     layout::Rect,
-    style::Style,
+    style::{Color, Modifier, Style},
     text::{Line, Span},
     widgets::Paragraph,
 };
 
 use crate::{
-    app::patch::{PatchIndex, PatchLine},
-    app::{App, Focus, View},
+    app::patch::{PatchIndex, RowMap},
+    app::{App, Focus, TreeStatus, View},
     domain::{Diff, DiffLine, DiffLineKind},
 };
 
-use super::{history::render_preview, layout::diff_content_rows, theme::RenderContext};
+use super::{
+    format::{display_width, truncate_with},
+    history::render_preview,
+    layout::diff_content_rows,
+    theme::RenderContext,
+};
 
 pub(super) fn render_detail(frame: &mut Frame<'_>, app: &App, area: Rect, context: &RenderContext) {
     render_preview(frame, app, area, context);
@@ -75,18 +80,31 @@ fn render_unified(
         return;
     };
     let index = app.patch_index();
-    let lines: Vec<Line<'_>> = diff
-        .lines
+    let map = index.rows(false);
+    let lines: Vec<Line<'_>> = map
+        .rows
         .iter()
-        .enumerate()
-        .skip(app.diff_scroll)
+        .skip(first_row(map, app.diff_scroll, area.height))
         .take(usize::from(area.height))
-        .map(|(i, line)| {
-            let source = index.lines.get(i);
-            let pair = source
-                .and_then(|source| source.pair)
-                .and_then(|pair| diff.lines.get(pair));
-            diff_line(line, source, pair, context)
+        .map(|&raw| {
+            let line = &diff.lines[raw];
+            if let Some(line) = anchor_line(diff, &index, raw, area.width, context) {
+                return line;
+            }
+            let source = &index.lines[raw];
+            let pair = source.pair.and_then(|pair| diff.lines.get(pair));
+            let mut spans = vec![Span::styled(
+                format!(
+                    "{:>width$} {:>width$} {} ",
+                    number(source.old),
+                    number(source.new),
+                    context.glyphs().vertical,
+                    width = index.number_width,
+                ),
+                gutter_style(line.kind, context),
+            )];
+            spans.extend(content_spans(line, pair, line_style(line, context)));
+            Line::from(spans)
         })
         .collect();
     let style = if active || context.is_monochrome() {
@@ -97,31 +115,176 @@ fn render_unified(
     frame.render_widget(Paragraph::new(lines).style(style), area);
 }
 
-fn diff_line<'a>(
-    line: &'a DiffLine,
-    source: Option<&PatchLine>,
-    pair: Option<&DiffLine>,
+/// Jumps may target a row near the end; keep the final page full.
+fn first_row(map: &RowMap, scroll: usize, height: u16) -> usize {
+    map.position(scroll)
+        .min(map.rows.len().saturating_sub(usize::from(height)))
+}
+
+/// Rows that are not source lines: file banners, hunk headers, and Git's
+/// notes such as mode changes or a missing final newline.
+fn anchor_line(
+    diff: &Diff,
+    index: &PatchIndex,
+    raw: usize,
+    width: u16,
     context: &RenderContext,
-) -> Line<'a> {
-    let style = line_style(line, context);
-    let Some(source) = source.filter(|source| source.old.is_some() || source.new.is_some()) else {
-        return Line::styled(line.text.as_str(), style);
+) -> Option<Line<'static>> {
+    let line = &diff.lines[raw];
+    match line.kind {
+        DiffLineKind::FileHeader => Some(file_banner(diff, index, raw, width, context)),
+        DiffLineKind::HunkHeader => Some(hunk_header(line, index, context)),
+        DiffLineKind::Metadata => Some(Line::from(vec![
+            Span::raw(gutter_blank(index)),
+            Span::styled(
+                format!("{} {}", context.glyphs().vertical, line.text),
+                context.style(context.muted()),
+            ),
+        ])),
+        _ => None,
+    }
+}
+
+fn gutter_blank(index: &PatchIndex) -> String {
+    " ".repeat(index.number_width * 2 + 2)
+}
+
+/// `M path/to/file ──────────── +3 -1`: change kind, path (with the source
+/// of a rename), a quiet rule, and the file's line counts.
+fn file_banner(
+    diff: &Diff,
+    index: &PatchIndex,
+    raw: usize,
+    width: u16,
+    context: &RenderContext,
+) -> Line<'static> {
+    let line = &diff.lines[raw];
+    let Some(ordinal) = diff.files.iter().position(|file| file.header_line == raw) else {
+        return Line::styled(line.text.clone(), context.style(context.muted()));
     };
+    let file = &diff.files[ordinal];
+    let stats = index.file_stats.get(ordinal).copied().unwrap_or_default();
+    let status = TreeStatus::of(file);
+    let glyphs = context.glyphs();
+    let mut path_spans = Vec::new();
+    match (&file.old_path, &file.new_path) {
+        (Some(old), Some(new)) if old != new => {
+            path_spans.push(Span::styled(
+                format!("{} {} ", old.display, glyphs.arrow),
+                context.style(context.muted()),
+            ));
+            path_spans.push(Span::styled(
+                new.display.clone(),
+                context.strong(Color::Reset),
+            ));
+        }
+        (old, new) => {
+            let path = new
+                .as_ref()
+                .or(old.as_ref())
+                .map_or("", |path| path.display.as_str());
+            path_spans.push(Span::styled(path.to_owned(), context.strong(Color::Reset)));
+        }
+    }
+    let counts = format!(" +{} -{}", stats.added, stats.removed);
+    let letter = status.map_or(' ', TreeStatus::letter);
+    let width = usize::from(width);
+    let fixed = 2 + display_width(&counts) + 1;
+    let path_width = super::decorate::spans_width(&path_spans);
+    let path_budget = width.saturating_sub(fixed + 2);
+    if path_width > path_budget {
+        // Keep the tail of a long path: the file name matters most.
+        let full: String = path_spans
+            .iter()
+            .map(|span| span.content.as_ref())
+            .collect();
+        path_spans = vec![Span::styled(
+            truncate_start(&full, path_budget, glyphs.ellipsis),
+            context.strong(Color::Reset),
+        )];
+    }
+    let rule = width.saturating_sub(fixed + super::decorate::spans_width(&path_spans) + 1);
     let mut spans = vec![Span::styled(
-        format!(
-            "{:>4} {:>4} {} ",
-            number(source.old),
-            number(source.new),
-            context.glyphs().vertical
-        ),
-        context.style(context.muted()),
+        format!("{letter} "),
+        status.map_or_else(Style::reset, |status| {
+            context.emphasize(status_style(status, context), Modifier::BOLD)
+        }),
     )];
-    spans.extend(content_spans(line, pair, style));
+    spans.extend(path_spans);
+    spans.push(Span::styled(
+        format!(" {}", glyphs.horizontal.repeat(rule)),
+        context.style(context.muted()),
+    ));
+    spans.push(Span::styled(
+        format!(" +{}", stats.added),
+        context.style(context.added()),
+    ));
+    spans.push(Span::styled(
+        format!(" -{}", stats.removed),
+        context.style(context.removed()),
+    ));
     Line::from(spans)
+}
+
+pub(super) fn status_style(status: TreeStatus, context: &RenderContext) -> Style {
+    let color = match status {
+        TreeStatus::Added => context.added(),
+        TreeStatus::Deleted => context.removed(),
+        TreeStatus::Renamed => context.accent(),
+        TreeStatus::Modified => context.warning(),
+    };
+    context.style(color)
+}
+
+/// `@@ -21,6 +21,7 @@ fn name` with the range quiet and the enclosing
+/// function name, when Git found one, kept readable.
+fn hunk_header(line: &DiffLine, index: &PatchIndex, context: &RenderContext) -> Line<'static> {
+    let text = line.text.as_str();
+    let (range, scope) = text
+        .strip_prefix("@@")
+        .and_then(|rest| rest.find("@@").map(|end| end + 4))
+        .and_then(|end| text.get(..end).zip(text.get(end..)))
+        .unwrap_or((text, ""));
+    Line::from(vec![
+        Span::styled(
+            format!("{}{} ", gutter_blank(index), context.glyphs().vertical),
+            context.style(context.muted()),
+        ),
+        Span::styled(range.to_owned(), context.style(context.accent())),
+        Span::styled(scope.to_owned(), context.strong(Color::Reset)),
+    ])
+}
+
+fn truncate_start(value: &str, width: usize, ellipsis: &str) -> String {
+    if display_width(value) <= width {
+        return value.to_owned();
+    }
+    let reversed: String = value.chars().rev().collect();
+    let tail = truncate_with(&reversed, width, "");
+    let keep = width.saturating_sub(display_width(ellipsis));
+    let tail: String = tail
+        .chars()
+        .take_while({
+            let mut used = 0;
+            move |c| {
+                used += unicode_width::UnicodeWidthChar::width(*c).unwrap_or(0);
+                used <= keep
+            }
+        })
+        .collect();
+    format!("{ellipsis}{}", tail.chars().rev().collect::<String>())
 }
 
 fn number(value: Option<usize>) -> String {
     value.map_or_else(String::new, |n| n.to_string())
+}
+
+fn gutter_style(kind: DiffLineKind, context: &RenderContext) -> Style {
+    match kind {
+        DiffLineKind::Added => context.emphasize(context.style(context.added()), Modifier::DIM),
+        DiffLineKind::Removed => context.emphasize(context.style(context.removed()), Modifier::DIM),
+        _ => context.style(context.muted()),
+    }
 }
 
 fn line_style(line: &DiffLine, context: &RenderContext) -> Style {
@@ -155,15 +318,11 @@ fn render_split(frame: &mut Frame<'_>, app: &App, area: Rect, context: &RenderCo
         return;
     };
     let index = app.patch_index();
-    let start = index
-        .split_positions
-        .get(app.diff_scroll)
-        .copied()
-        .unwrap_or(0);
-    for (y, raw) in index
-        .split_rows
+    let map = index.rows(true);
+    for (y, raw) in map
+        .rows
         .iter()
-        .skip(start)
+        .skip(first_row(map, app.diff_scroll, area.height))
         .take(usize::from(area.height))
         .enumerate()
     {
@@ -186,10 +345,9 @@ fn render_split_row(
     let source = &index.lines[raw];
     let pair = source.pair.and_then(|i| diff.lines.get(i));
     if source.old.is_none() && source.new.is_none() {
-        frame.render_widget(
-            Paragraph::new(Line::styled(&line.text, line_style(line, context))),
-            row,
-        );
+        let line = anchor_line(diff, index, raw, row.width, context)
+            .unwrap_or_else(|| Line::styled(line.text.clone(), line_style(line, context)));
+        frame.render_widget(Paragraph::new(line), row);
         return;
     }
     let left_width = (row.width - 1) / 2;
@@ -200,7 +358,15 @@ fn render_split_row(
         Rect::new(left.right(), row.y, 1, 1),
     );
     if source.old.is_some() {
-        render_side(frame, line, pair, source.old, left, context);
+        render_side(
+            frame,
+            line,
+            pair,
+            source.old,
+            index.number_width,
+            left,
+            context,
+        );
     }
     let new_line = if line.kind == DiffLineKind::Removed {
         pair
@@ -213,7 +379,15 @@ fn render_split_row(
             .and_then(|i| index.lines.get(i))
             .and_then(|source| source.new)
             .or(source.new);
-        render_side(frame, new_line, Some(line), new_number, right, context);
+        render_side(
+            frame,
+            new_line,
+            Some(line),
+            new_number,
+            index.number_width,
+            right,
+            context,
+        );
     }
 }
 
@@ -222,30 +396,39 @@ fn render_side(
     line: &DiffLine,
     pair: Option<&DiffLine>,
     n: Option<usize>,
+    number_width: usize,
     area: Rect,
     context: &RenderContext,
 ) {
     let mut spans = vec![Span::styled(
-        format!("{:>4} {} ", number(n), context.glyphs().vertical),
-        context.style(context.muted()),
+        format!(
+            "{:>number_width$} {} ",
+            number(n),
+            context.glyphs().vertical
+        ),
+        gutter_style(line.kind, context),
     )];
     spans.extend(content_spans(line, pair, line_style(line, context)));
     frame.render_widget(Paragraph::new(Line::from(spans)), area);
 }
 
+/// Longest line, in bytes, that gets changed-word emphasis.
+const MAX_REFINED_LINE: usize = 400;
+
 fn changed_words(line: &DiffLine, pair: Option<&DiffLine>) -> Vec<std::ops::Range<usize>> {
     let Some(pair) = pair else {
         return Vec::new();
     };
-    if line.text.len().max(pair.text.len()) > 1000 {
+    // Bounded by length rather than a wall-clock deadline, so emphasis is
+    // identical on every frame and machine; long or minified lines fall back
+    // to whole-line color.
+    if line.text.len().max(pair.text.len()) > MAX_REFINED_LINE {
         return Vec::new();
     }
     let (Some(text), Some(other)) = (line.text.get(1..), pair.text.get(1..)) else {
         return Vec::new();
     };
-    let diff = similar::TextDiff::configure()
-        .timeout(std::time::Duration::from_millis(2))
-        .diff_unicode_words(text, other);
+    let diff = similar::TextDiff::configure().diff_unicode_words(text, other);
     let mut offset = 1;
     let mut ranges = Vec::new();
     for change in diff.iter_all_changes() {
@@ -299,7 +482,7 @@ mod tests {
     fn minified_lines_use_whole_line_fallback() {
         let line = DiffLine {
             kind: DiffLineKind::Removed,
-            text: format!("-{}", "a".repeat(1000)),
+            text: format!("-{}", "a".repeat(MAX_REFINED_LINE)),
         };
         let pair = DiffLine {
             kind: DiffLineKind::Added,

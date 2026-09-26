@@ -498,11 +498,23 @@ impl App {
     }
 
     pub(super) fn scroll_diff(&mut self, delta: i32) {
-        if self.diff_split && self.diff_split_available && self.active_diff().is_some() {
-            self.diff_scroll = self.patch_index().move_split(self.diff_scroll, delta);
+        if self.active_diff().is_some() {
+            let split = self.diff_split && self.diff_split_available;
+            let index = self.patch_index();
+            let map = index.rows(split);
+            let current = map.position(self.diff_scroll);
+            let mut next = map.position(map.move_by(self.diff_scroll, delta));
+            if delta > 0 && self.diff_viewport > 0 {
+                // Stop once the last row is on screen instead of scrolling
+                // the patch away into blank space.
+                let last_page = map.rows.len().saturating_sub(self.diff_viewport);
+                next = next.min(last_page.max(current));
+            }
+            self.diff_scroll = map.rows.get(next).copied().unwrap_or(0);
             return;
         }
-        let maximum = self.diff_len().saturating_sub(1) as i64;
+        // Blob lines scroll like a pager: stop once the last line is shown.
+        let maximum = self.diff_len().saturating_sub(self.diff_viewport.max(1)) as i64;
         self.diff_scroll = (self.diff_scroll as i64 + i64::from(delta)).clamp(0, maximum) as usize;
     }
 

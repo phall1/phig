@@ -286,7 +286,7 @@ fn configured_keys_are_remaps_not_additive_aliases() {
     let reader = pair.master.try_clone_reader().unwrap();
     let (output, read) = read_live(reader);
     let mut writer = pair.master.take_writer().unwrap();
-    wait_for_output(&output, "phig", Duration::from_secs(5));
+    wait_for_output(&output, "LOG", Duration::from_secs(5));
     writer.write_all(b"q").unwrap();
     writer.flush().unwrap();
     assert_running_for(
@@ -296,7 +296,7 @@ fn configured_keys_are_remaps_not_additive_aliases() {
     );
     writer.write_all(b"h").unwrap();
     writer.flush().unwrap();
-    wait_for_output(&output, "Help", Duration::from_secs(3));
+    wait_for_output(&output, "Keys", Duration::from_secs(3));
     writer.write_all(b"\x1b").unwrap();
     writer.flush().unwrap();
     let status = retry_key_until_exit(&mut child, &mut writer, b"x", Duration::from_secs(5));
@@ -306,7 +306,7 @@ fn configured_keys_are_remaps_not_additive_aliases() {
     read.join().unwrap();
     let output = String::from_utf8_lossy(&output.lock().unwrap()).into_owned();
     assert!(
-        output.contains("Help"),
+        output.contains("Keys"),
         "remapped help key did not open help"
     );
 }

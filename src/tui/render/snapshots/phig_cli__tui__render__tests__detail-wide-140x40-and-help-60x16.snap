@@ -1,21 +1,24 @@
 ---
 source: src/tui/render/tests.rs
+assertion_line: 811
 expression: "format!(\"DETAIL 140x40\\n{}\\nHELP 60x16\\n{}\", styled_screen(140, 40, &detail),\nstyled_screen(60, 16, &help))"
 ---
 DETAIL 140x40
 TEXT
- phig SHOW phig-demo / main  HEAD
+ SHOW  phig-demo · main · HEAD
 aaaaaaaaaaaa  HEAD→main
 make history pleasant
-Author: Pat Example <pat@example.invalid>
-Date: 2023-11-14 18:13:20 -04:00
-Parents: root · Files: 1 (+1 -1)
+Pat Example · 2y ago · 2023-11-14 18:13 -04:00 · pat@example.invalid
+root commit · 1 file · +1 -1
+
 Explain the change safely.
+
 Second body paragraph.
-diff --git a/src/main.rs b/src/main.rs
-@@ -1 +1 @@
--old
-+new
+
+M src/main.rs ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── +1 -1
+        │ @@ -1 +1 @@
+        │ -old
+        │ +new
 
 
 
@@ -41,73 +44,141 @@ diff --git a/src/main.rs b/src/main.rs
 
 
 
-
-
- j/k scroll · f files · [/] hunk                                                                                                      line 1
+ j/k scroll · [/] hunk · f files · ? help                                                                                            line 1
 STYLES
-0:0-10 fg=Cyan bg=Reset mod=BOLD text=" phig SHOW "
-0:20-32 fg=DarkGray bg=Reset mod=NONE text=" / main  HEAD"
-1:0-11 fg=Yellow bg=Reset mod=NONE text="aaaaaaaaaaaa"
+0:0-5 fg=Cyan bg=Reset mod=BOLD | REVERSED text=" SHOW "
+0:7-15 fg=Reset bg=Reset mod=BOLD text="phig-demo"
+0:16-18 fg=DarkGray bg=Reset mod=NONE text=" · "
+0:19-22 fg=Green bg=Reset mod=NONE text="main"
+0:23-29 fg=DarkGray bg=Reset mod=NONE text=" · HEAD"
+1:0-11 fg=Yellow bg=Reset mod=BOLD text="aaaaaaaaaaaa"
 1:14-17 fg=Cyan bg=Reset mod=BOLD text="HEAD"
 1:18-18 fg=DarkGray bg=Reset mod=NONE text="→"
 1:19-22 fg=Green bg=Reset mod=BOLD text="main"
 2:0-20 fg=Reset bg=Reset mod=BOLD text="make history pleasant"
-3:0-40 fg=DarkGray bg=Reset mod=NONE text="Author: Pat Example <pat@example.invalid>"
-4:0-31 fg=DarkGray bg=Reset mod=NONE text="Date: 2023-11-14 18:13:20 -04:00"
-5:0-31 fg=DarkGray bg=Reset mod=NONE text="Parents: root · Files: 1 (+1 -1)"
-8:0-37 fg=Yellow bg=Reset mod=BOLD text="diff --git a/src/main.rs b/src/main.rs"
-9:0-10 fg=Cyan bg=Reset mod=BOLD text="@@ -1 +1 @@"
-10:0-3 fg=Red bg=Reset mod=NONE text="-old"
-11:0-3 fg=Green bg=Reset mod=NONE text="+new"
-39:0-139 fg=DarkGray bg=Reset mod=NONE text=" j/k scroll · f files · [/] hunk                                                                                                      line 1"
+3:0-67 fg=DarkGray bg=Reset mod=NONE text="Pat Example · 2y ago · 2023-11-14 18:13 -04:00 · pat@example.invalid"
+4:0-22 fg=DarkGray bg=Reset mod=NONE text="root commit · 1 file · "
+4:23-24 fg=Green bg=Reset mod=NONE text="+1"
+4:26-27 fg=Red bg=Reset mod=NONE text="-1"
+10:0-1 fg=Yellow bg=Reset mod=BOLD text="M "
+10:2-12 fg=Reset bg=Reset mod=BOLD text="src/main.rs"
+10:13-132 fg=DarkGray bg=Reset mod=NONE text=" ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────"
+10:133-135 fg=Green bg=Reset mod=NONE text=" +1"
+10:136-138 fg=Red bg=Reset mod=NONE text=" -1"
+11:0-9 fg=DarkGray bg=Reset mod=NONE text="        │ "
+11:10-20 fg=Cyan bg=Reset mod=NONE text="@@ -1 +1 @@"
+12:0-9 fg=Red bg=Reset mod=DIM text="        │ "
+12:10-10 fg=Red bg=Reset mod=NONE text="-"
+12:11-13 fg=Red bg=Reset mod=BOLD | UNDERLINED text="old"
+13:0-9 fg=Green bg=Reset mod=DIM text="        │ "
+13:10-10 fg=Green bg=Reset mod=NONE text="+"
+13:11-13 fg=Green bg=Reset mod=BOLD | UNDERLINED text="new"
+39:1-4 fg=Reset bg=Reset mod=BOLD text="j/k "
+39:5-13 fg=DarkGray bg=Reset mod=NONE text="scroll · "
+39:14-17 fg=Reset bg=Reset mod=BOLD text="[/] "
+39:18-24 fg=DarkGray bg=Reset mod=NONE text="hunk · "
+39:25-26 fg=Reset bg=Reset mod=BOLD text="f "
+39:27-34 fg=DarkGray bg=Reset mod=NONE text="files · "
+39:35-36 fg=Reset bg=Reset mod=BOLD text="? "
+39:37-40 fg=DarkGray bg=Reset mod=NONE text="help"
+39:133-139 fg=DarkGray bg=Reset mod=NONE text="line 1 "
 
 HELP 60x16
 TEXT
- ╭ Help ──────────────────────────────────────────────────╮
- │j/k            move / scroll                            │
- │Enter          open · Esc back                          │
- │/              search · n/N matches                     │
- │:              commands · f changed files               │
- │F              expand/restore diff · T file tree        │
- │[/] hunks · {/} files                                   │
- │S              split/unified diff                       │
- │r refs · s status · t tree · b blame · z stash          │
- │v mark · c compare · y copy · p preview                 │
- │                                                        │
- │log view                                                │
- │                                                        │
- │                                                        │
- │? close                                                 │
+ ╭ Keys ──────────────────────────────────────────────────╮
+ │ Move                         Find                      │
+ │ j/k       down/up            /         search          │
+ │ Ctrl+d/u  page down/up       n/N       next/prev match │
+ │ g/G       top/bottom         f         jump to file    │
+ │ Enter     open               :         every command   │
+ │ Esc       back                                         │
+ │ q         quit               Diff                      │
+ │                              ]/[       next/prev hunk  │
+ │ Views                        }/{       next/prev file  │
+ │ r         refs               T         file tree       │
+ │ s         status             F         expand diff     │
+ │ t         tree               S         split/unified   │
+ │ b         blame              P         merge parent    │
+ │ : all commands · ? close · log view                    │
  ╰────────────────────────────────────────────────────────╯
 STYLES
 0:1-1 fg=DarkGray bg=Reset mod=NONE text="╭"
-0:2-7 fg=Cyan bg=Reset mod=BOLD text=" Help "
+0:2-7 fg=Cyan bg=Reset mod=BOLD text=" Keys "
 0:8-58 fg=DarkGray bg=Reset mod=NONE text="──────────────────────────────────────────────────╮"
 1:1-1 fg=DarkGray bg=Reset mod=NONE text="│"
+1:3-6 fg=Cyan bg=Reset mod=BOLD text="Move"
+1:32-35 fg=Cyan bg=Reset mod=BOLD text="Find"
 1:58-58 fg=DarkGray bg=Reset mod=NONE text="│"
 2:1-1 fg=DarkGray bg=Reset mod=NONE text="│"
+2:3-10 fg=Reset bg=Reset mod=BOLD text="j/k     "
+2:13-19 fg=DarkGray bg=Reset mod=NONE text="down/up"
+2:32-39 fg=Reset bg=Reset mod=BOLD text="/       "
+2:42-47 fg=DarkGray bg=Reset mod=NONE text="search"
 2:58-58 fg=DarkGray bg=Reset mod=NONE text="│"
 3:1-1 fg=DarkGray bg=Reset mod=NONE text="│"
+3:3-10 fg=Reset bg=Reset mod=BOLD text="Ctrl+d/u"
+3:13-24 fg=DarkGray bg=Reset mod=NONE text="page down/up"
+3:32-39 fg=Reset bg=Reset mod=BOLD text="n/N     "
+3:42-56 fg=DarkGray bg=Reset mod=NONE text="next/prev match"
 3:58-58 fg=DarkGray bg=Reset mod=NONE text="│"
 4:1-1 fg=DarkGray bg=Reset mod=NONE text="│"
+4:3-10 fg=Reset bg=Reset mod=BOLD text="g/G     "
+4:13-22 fg=DarkGray bg=Reset mod=NONE text="top/bottom"
+4:32-39 fg=Reset bg=Reset mod=BOLD text="f       "
+4:42-53 fg=DarkGray bg=Reset mod=NONE text="jump to file"
 4:58-58 fg=DarkGray bg=Reset mod=NONE text="│"
 5:1-1 fg=DarkGray bg=Reset mod=NONE text="│"
+5:3-10 fg=Reset bg=Reset mod=BOLD text="Enter   "
+5:13-16 fg=DarkGray bg=Reset mod=NONE text="open"
+5:32-39 fg=Reset bg=Reset mod=BOLD text=":       "
+5:42-54 fg=DarkGray bg=Reset mod=NONE text="every command"
 5:58-58 fg=DarkGray bg=Reset mod=NONE text="│"
 6:1-1 fg=DarkGray bg=Reset mod=NONE text="│"
+6:3-10 fg=Reset bg=Reset mod=BOLD text="Esc     "
+6:13-16 fg=DarkGray bg=Reset mod=NONE text="back"
 6:58-58 fg=DarkGray bg=Reset mod=NONE text="│"
 7:1-1 fg=DarkGray bg=Reset mod=NONE text="│"
+7:3-10 fg=Reset bg=Reset mod=BOLD text="q       "
+7:13-16 fg=DarkGray bg=Reset mod=NONE text="quit"
+7:32-35 fg=Cyan bg=Reset mod=BOLD text="Diff"
 7:58-58 fg=DarkGray bg=Reset mod=NONE text="│"
 8:1-1 fg=DarkGray bg=Reset mod=NONE text="│"
+8:32-39 fg=Reset bg=Reset mod=BOLD text="]/[     "
+8:42-55 fg=DarkGray bg=Reset mod=NONE text="next/prev hunk"
 8:58-58 fg=DarkGray bg=Reset mod=NONE text="│"
 9:1-1 fg=DarkGray bg=Reset mod=NONE text="│"
+9:3-7 fg=Cyan bg=Reset mod=BOLD text="Views"
+9:32-39 fg=Reset bg=Reset mod=BOLD text="}/{     "
+9:42-55 fg=DarkGray bg=Reset mod=NONE text="next/prev file"
 9:58-58 fg=DarkGray bg=Reset mod=NONE text="│"
 10:1-1 fg=DarkGray bg=Reset mod=NONE text="│"
+10:3-10 fg=Reset bg=Reset mod=BOLD text="r       "
+10:13-16 fg=DarkGray bg=Reset mod=NONE text="refs"
+10:32-39 fg=Reset bg=Reset mod=BOLD text="T       "
+10:42-50 fg=DarkGray bg=Reset mod=NONE text="file tree"
 10:58-58 fg=DarkGray bg=Reset mod=NONE text="│"
-11:1-9 fg=DarkGray bg=Reset mod=NONE text="│log view"
+11:1-1 fg=DarkGray bg=Reset mod=NONE text="│"
+11:3-10 fg=Reset bg=Reset mod=BOLD text="s       "
+11:13-18 fg=DarkGray bg=Reset mod=NONE text="status"
+11:32-39 fg=Reset bg=Reset mod=BOLD text="F       "
+11:42-52 fg=DarkGray bg=Reset mod=NONE text="expand diff"
 11:58-58 fg=DarkGray bg=Reset mod=NONE text="│"
 12:1-1 fg=DarkGray bg=Reset mod=NONE text="│"
+12:3-10 fg=Reset bg=Reset mod=BOLD text="t       "
+12:13-16 fg=DarkGray bg=Reset mod=NONE text="tree"
+12:32-39 fg=Reset bg=Reset mod=BOLD text="S       "
+12:42-54 fg=DarkGray bg=Reset mod=NONE text="split/unified"
 12:58-58 fg=DarkGray bg=Reset mod=NONE text="│"
 13:1-1 fg=DarkGray bg=Reset mod=NONE text="│"
+13:3-10 fg=Reset bg=Reset mod=BOLD text="b       "
+13:13-17 fg=DarkGray bg=Reset mod=NONE text="blame"
+13:32-39 fg=Reset bg=Reset mod=BOLD text="P       "
+13:42-53 fg=DarkGray bg=Reset mod=NONE text="merge parent"
 13:58-58 fg=DarkGray bg=Reset mod=NONE text="│"
-14:1-58 fg=DarkGray bg=Reset mod=NONE text="│? close                                                 │"
+14:1-1 fg=DarkGray bg=Reset mod=NONE text="│"
+14:3-3 fg=Reset bg=Reset mod=BOLD text=":"
+14:4-19 fg=DarkGray bg=Reset mod=NONE text=" all commands · "
+14:20-20 fg=Reset bg=Reset mod=BOLD text="?"
+14:21-37 fg=DarkGray bg=Reset mod=NONE text=" close · log view"
+14:58-58 fg=DarkGray bg=Reset mod=NONE text="│"
 15:1-58 fg=DarkGray bg=Reset mod=NONE text="╰────────────────────────────────────────────────────────╯"

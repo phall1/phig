@@ -1,10 +1,11 @@
 ---
 source: src/tui/render/tests.rs
+assertion_line: 652
 expression: "styled_screen(60, 16, &sample_app())"
 ---
 TEXT
- phig LOG phig-demo / main  HEAD
-›   ◌ aaaaaaaa HEAD→main 1700000000 Pat Examp… make history…
+ LOG  phig-demo · main · HEAD
+› ◌ aaaaaaaa 1700000000 HEAD→main make history pleasant
 
 
 
@@ -18,17 +19,29 @@ TEXT
 
 
 
- j/k move · Enter open · / search                        1/1
+ j/k move · Enter open · / search · v mark · ? help     1/1
 STYLES
-0:0-9 fg=Cyan bg=Reset mod=BOLD text=" phig LOG "
-0:19-31 fg=DarkGray bg=Reset mod=NONE text=" / main  HEAD"
-1:0-5 fg=Cyan bg=Reset mod=BOLD text="›   ◌ "
-1:6-13 fg=Yellow bg=Reset mod=BOLD text="aaaaaaaa"
-1:14-14 fg=Reset bg=Reset mod=BOLD text=" "
-1:15-18 fg=Cyan bg=Reset mod=BOLD text="HEAD"
-1:19-19 fg=DarkGray bg=Reset mod=BOLD text="→"
-1:20-23 fg=Cyan bg=Reset mod=BOLD text="main"
-1:24-24 fg=Reset bg=Reset mod=BOLD text=" "
-1:25-46 fg=DarkGray bg=Reset mod=BOLD text="1700000000 Pat Examp… "
-1:47-59 fg=Reset bg=Reset mod=BOLD text="make history…"
-15:0-59 fg=DarkGray bg=Reset mod=NONE text=" j/k move · Enter open · / search                        1/1"
+0:0-4 fg=Cyan bg=Reset mod=BOLD | REVERSED text=" LOG "
+0:6-14 fg=Reset bg=Reset mod=BOLD text="phig-demo"
+0:15-17 fg=DarkGray bg=Reset mod=NONE text=" · "
+0:18-21 fg=Green bg=Reset mod=NONE text="main"
+0:22-28 fg=DarkGray bg=Reset mod=NONE text=" · HEAD"
+1:0-3 fg=Cyan bg=Reset mod=BOLD text="› ◌ "
+1:4-11 fg=Yellow bg=Reset mod=BOLD text="aaaaaaaa"
+1:12-12 fg=Reset bg=Reset mod=BOLD text=" "
+1:13-23 fg=DarkGray bg=Reset mod=BOLD text="1700000000 "
+1:24-27 fg=Cyan bg=Reset mod=BOLD text="HEAD"
+1:28-28 fg=DarkGray bg=Reset mod=BOLD text="→"
+1:29-32 fg=Cyan bg=Reset mod=BOLD text="main"
+1:33-59 fg=Reset bg=Reset mod=BOLD text=" make history pleasant     "
+15:1-4 fg=Reset bg=Reset mod=BOLD text="j/k "
+15:5-11 fg=DarkGray bg=Reset mod=NONE text="move · "
+15:12-17 fg=Reset bg=Reset mod=BOLD text="Enter "
+15:18-24 fg=DarkGray bg=Reset mod=NONE text="open · "
+15:25-26 fg=Reset bg=Reset mod=BOLD text="/ "
+15:27-35 fg=DarkGray bg=Reset mod=NONE text="search · "
+15:36-37 fg=Reset bg=Reset mod=BOLD text="v "
+15:38-44 fg=DarkGray bg=Reset mod=NONE text="mark · "
+15:45-46 fg=Reset bg=Reset mod=BOLD text="? "
+15:47-50 fg=DarkGray bg=Reset mod=NONE text="help"
+15:56-59 fg=DarkGray bg=Reset mod=NONE text="1/1 "

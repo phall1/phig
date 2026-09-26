@@ -31,8 +31,15 @@ impl Decoration {
     }
 }
 
+/// Classify Git's short decorations. A remote's symbolic `HEAD` always sits
+/// beside the branch it names, so it is dropped as redundant noise.
 pub(super) fn parse_decorations(raw: &[String]) -> Vec<Decoration> {
-    raw.iter().filter_map(|item| parse_one(item)).collect()
+    raw.iter()
+        .filter_map(|item| parse_one(item))
+        .filter(
+            |decoration| !matches!(decoration, Decoration::Remote(name) if name.ends_with("/HEAD")),
+        )
+        .collect()
 }
 
 fn parse_one(raw: &str) -> Option<Decoration> {
@@ -45,6 +52,7 @@ fn parse_one(raw: &str) -> Option<Decoration> {
     }
     if let Some(branch) = raw.strip_prefix("HEAD -> ") {
         let branch = branch.trim();
+        let branch = branch.strip_prefix("refs/heads/").unwrap_or(branch);
         if branch.is_empty() {
             return Some(Decoration::Head);
         }
@@ -52,10 +60,25 @@ fn parse_one(raw: &str) -> Option<Decoration> {
     }
     if let Some(tag) = raw.strip_prefix("tag: ") {
         let tag = tag.trim();
+        let tag = tag.strip_prefix("refs/tags/").unwrap_or(tag);
         if tag.is_empty() {
             return None;
         }
         return Some(Decoration::Tag(tag.to_owned()));
+    }
+    // Git reports full refnames, which classify exactly. Short names are
+    // still accepted, where a slash is the best available remote signal.
+    if let Some(name) = raw.strip_prefix("refs/heads/") {
+        return (!name.is_empty()).then(|| Decoration::Local(name.to_owned()));
+    }
+    if let Some(name) = raw.strip_prefix("refs/remotes/") {
+        return (!name.is_empty()).then(|| Decoration::Remote(name.to_owned()));
+    }
+    if let Some(name) = raw.strip_prefix("refs/tags/") {
+        return (!name.is_empty()).then(|| Decoration::Tag(name.to_owned()));
+    }
+    if let Some(name) = raw.strip_prefix("refs/") {
+        return Some(Decoration::Local(name.to_owned()));
     }
     if raw.contains('/') {
         return Some(Decoration::Remote(raw.to_owned()));
@@ -267,6 +290,32 @@ mod tests {
                 Decoration::Local("comma,name".into()),
                 Decoration::Head,
             ]
+        );
+    }
+
+    #[test]
+    fn full_refnames_classify_slashed_local_branches_exactly() {
+        let parsed = parse_decorations(&[
+            "HEAD -> refs/heads/feat/x".into(),
+            "refs/heads/ci/fix".into(),
+            "refs/remotes/origin/feat/x".into(),
+            "refs/remotes/origin/HEAD".into(),
+            "tag: refs/tags/v1".into(),
+            "refs/stash".into(),
+        ]);
+        assert_eq!(
+            parsed,
+            vec![
+                Decoration::HeadBranch("feat/x".into()),
+                Decoration::Local("ci/fix".into()),
+                Decoration::Remote("origin/feat/x".into()),
+                Decoration::Tag("v1".into()),
+                Decoration::Local("stash".into()),
+            ]
+        );
+        assert_eq!(
+            lane_name(&["refs/remotes/origin/a".into(), "refs/heads/a/b".into()]),
+            Some("a/b".into())
         );
     }
 
