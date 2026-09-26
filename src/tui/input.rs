@@ -41,6 +41,39 @@ fn picker_step(code: KeyCode, modifiers: KeyModifiers) -> Option<i32> {
     }
 }
 
+/// Keys shared by every text-entry overlay: plain characters type,
+/// `Backspace` deletes, and `Ctrl-u` clears the query.
+fn query_edit(key: KeyEvent) -> Option<Action> {
+    let control = key.modifiers.contains(KeyModifiers::CONTROL);
+    match key.code {
+        KeyCode::Backspace => Some(Action::SearchBackspace),
+        KeyCode::Char('u') if control => Some(Action::SearchClear),
+        KeyCode::Char(character)
+            if !key
+                .modifiers
+                .intersects(KeyModifiers::CONTROL | KeyModifiers::ALT) =>
+        {
+            Some(Action::SearchInput(character))
+        }
+        _ => None,
+    }
+}
+
+/// A fuzzy picker: list steps move, `Enter` accepts, `Esc` closes, and
+/// everything else edits the query.
+fn picker_key(key: KeyEvent, step: fn(i32) -> Action, accept: Action) -> Option<Action> {
+    if let Some(delta) = picker_step(key.code, key.modifiers) {
+        return Some(step(delta));
+    }
+    match key.code {
+        KeyCode::Esc => Some(Action::CancelOverlay),
+        KeyCode::Enter => Some(accept),
+        KeyCode::Down | KeyCode::Tab => Some(step(1)),
+        KeyCode::Up | KeyCode::BackTab => Some(step(-1)),
+        _ => query_edit(key),
+    }
+}
+
 pub(super) fn key_action(app: &App, key: KeyEvent) -> Option<Action> {
     match &app.overlay {
         // Help is a launcher: Esc closes it, and every other key keeps its
@@ -51,65 +84,14 @@ pub(super) fn key_action(app: &App, key: KeyEvent) -> Option<Action> {
             return match key.code {
                 KeyCode::Esc => Some(Action::CancelOverlay),
                 KeyCode::Enter => Some(Action::AcceptSearch),
-                KeyCode::Backspace => Some(Action::SearchBackspace),
-                KeyCode::Char('u') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                    Some(Action::SearchClear)
-                }
-                KeyCode::Char(character)
-                    if !key
-                        .modifiers
-                        .intersects(KeyModifiers::CONTROL | KeyModifiers::ALT) =>
-                {
-                    Some(Action::SearchInput(character))
-                }
-                _ => None,
+                _ => query_edit(key),
             };
         }
         Overlay::Palette { .. } => {
-            if let Some(step) = picker_step(key.code, key.modifiers) {
-                return Some(Action::PaletteMove(step));
-            }
-            return match key.code {
-                KeyCode::Esc => Some(Action::CancelOverlay),
-                KeyCode::Enter => Some(Action::ExecutePalette),
-                KeyCode::Down | KeyCode::Tab => Some(Action::PaletteMove(1)),
-                KeyCode::Up | KeyCode::BackTab => Some(Action::PaletteMove(-1)),
-                KeyCode::Backspace => Some(Action::SearchBackspace),
-                KeyCode::Char('u') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                    Some(Action::SearchClear)
-                }
-                KeyCode::Char(character)
-                    if !key
-                        .modifiers
-                        .intersects(KeyModifiers::CONTROL | KeyModifiers::ALT) =>
-                {
-                    Some(Action::SearchInput(character))
-                }
-                _ => None,
-            };
+            return picker_key(key, Action::PaletteMove, Action::ExecutePalette);
         }
         Overlay::FilePicker { .. } => {
-            if let Some(step) = picker_step(key.code, key.modifiers) {
-                return Some(Action::FilePickerMove(step));
-            }
-            return match key.code {
-                KeyCode::Esc => Some(Action::CancelOverlay),
-                KeyCode::Enter => Some(Action::AcceptFilePicker),
-                KeyCode::Down | KeyCode::Tab => Some(Action::FilePickerMove(1)),
-                KeyCode::Up | KeyCode::BackTab => Some(Action::FilePickerMove(-1)),
-                KeyCode::Backspace => Some(Action::SearchBackspace),
-                KeyCode::Char('u') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                    Some(Action::SearchClear)
-                }
-                KeyCode::Char(character)
-                    if !key
-                        .modifiers
-                        .intersects(KeyModifiers::CONTROL | KeyModifiers::ALT) =>
-                {
-                    Some(Action::SearchInput(character))
-                }
-                _ => None,
-            };
+            return picker_key(key, Action::FilePickerMove, Action::AcceptFilePicker);
         }
         Overlay::None => {}
         Overlay::DiffTree(_) if key.code == KeyCode::Esc => return Some(Action::CancelOverlay),
