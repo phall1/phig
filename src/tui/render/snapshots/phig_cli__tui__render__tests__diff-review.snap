@@ -215,7 +215,7 @@ CHANGED FILES                           │DIFF aaaaaaaaaa  src/main.rs  ·  fil
                                         │
                                         │
 src/main.rs M +1 -1                     │
- Enter open · Left/Right fold · -/+ fold all · Esc cancel · ? help                                                  4/5
+ Enter open · Left/Right fold · Esc cancel · -/+ fold all · ? help                                                  4/5
 STYLES
 0:0-4 fg=Cyan bg=Reset mod=BOLD | REVERSED text=" LOG "
 0:6-14 fg=Reset bg=Reset mod=BOLD text="phig-demo"
@@ -307,10 +307,10 @@ STYLES
 21:7-13 fg=DarkGray bg=Reset mod=NONE text="open · "
 21:14-24 fg=Reset bg=Reset mod=BOLD text="Left/Right "
 21:25-31 fg=DarkGray bg=Reset mod=NONE text="fold · "
-21:32-35 fg=Reset bg=Reset mod=BOLD text="-/+ "
-21:36-46 fg=DarkGray bg=Reset mod=NONE text="fold all · "
-21:47-50 fg=Reset bg=Reset mod=BOLD text="Esc "
-21:51-59 fg=DarkGray bg=Reset mod=NONE text="cancel · "
+21:32-35 fg=Reset bg=Reset mod=BOLD text="Esc "
+21:36-44 fg=DarkGray bg=Reset mod=NONE text="cancel · "
+21:45-48 fg=Reset bg=Reset mod=BOLD text="-/+ "
+21:49-59 fg=DarkGray bg=Reset mod=NONE text="fold all · "
 21:60-61 fg=Reset bg=Reset mod=BOLD text="? "
 21:62-65 fg=DarkGray bg=Reset mod=NONE text="help"
 21:116-119 fg=DarkGray bg=Reset mod=NONE text="4/5 "
@@ -331,4 +331,4 @@ CHANGED FILES
                                                             
                                                             
 src/main.rs M +1 -1                                         
- Enter open · Left/Right fold · -/+ fold all · ? help   4/5
+ Enter open · Left/Right fold · Esc cancel · ? help     4/5

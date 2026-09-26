@@ -198,11 +198,11 @@ fn hints(app: &App, context: &RenderContext) -> Vec<Hint> {
         return vec![
             (key(&Action::Open), "open"),
             (pair(&Action::TreeCollapse, &Action::TreeExpand), "fold"),
+            (key(&Action::Back), "cancel"),
             (
                 pair(&Action::TreeCollapseAll, &Action::TreeExpandAll),
                 "fold all",
             ),
-            (key(&Action::Back), "cancel"),
         ];
     }
     let hunk = || pair(&Action::NextHunk(-1), &Action::NextHunk(1));
@@ -309,7 +309,13 @@ pub(super) fn render_footer(frame: &mut Frame<'_>, app: &App, area: Rect, contex
         // Contextual hints first; `?` always closes the row so the full key
         // reference is one keystroke away on every screen.
         let mut hints = hints(app, context);
-        hints.truncate(if app.view == View::Log { 4 } else { 3 });
+        // The log and the file tree each have a fourth hint worth its room.
+        let limit = if app.view == View::Log || matches!(app.overlay, Overlay::DiffTree(_)) {
+            4
+        } else {
+            3
+        };
+        hints.truncate(limit);
         let help: Hint = (context.key(&Action::ToggleHelp), "help");
         let separator = format!(" {} ", context.glyphs().separator);
         let hint_width = |(key, label): &Hint| {
