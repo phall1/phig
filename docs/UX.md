@@ -2,14 +2,19 @@
 
 ## Visual model
 
-The width-budgeted header names the active view and repository first, reserves
-space for critical selection/error state, and then adds revision, branch, path,
-loading, and marked-endpoint context as room permits. The body is one dominant
-list or document. At 110 columns and wider, log, refs, status, blame, and stash
-previews occupy the right side behind one thin vertical divider. Normal widths
-use a stacked list/preview with one horizontal divider; narrow terminals hide
-previews and open details with `Enter`. The footer shows at most three effective,
-contextual key hints plus a quiet right-aligned position.
+The width-budgeted header names the active view in a reverse-video badge and
+the repository first, reserves space for critical selection/error state, and
+then adds branch, revision, path, loading, and marked-endpoint context as room
+permits. The body is one dominant list or document. At 110 columns and wider,
+log, refs, status, blame, and stash previews occupy the right side behind one
+thin vertical divider; lists keep about half the width (blame, which is read as
+source, keeps more) and the preview gets one cell of padding. Normal widths use
+a stacked list/preview with one horizontal divider; narrow terminals hide
+previews and open details with `Enter`. Empty lists drop the preview and state
+why they are empty; loading and unavailable states are centered notices. The
+footer shows up to three effective, contextual key hints (four in the log), then
+always `? help`, with keys in normal weight and descriptions muted, plus a quiet
+right-aligned position (`12/256+` while more history can stream in).
 
 Phig must remain usable at 60×16, comfortable at 100×28, and information-dense
 without decorative borders at larger sizes. It uses the terminal's native
@@ -53,7 +58,7 @@ frame with a short title and a persistent action footer.
 | `p` | toggle preview |
 | `y` | copy selected stable identifier |
 | `:` | command palette |
-| `?` | contextual help |
+| `?` | key sheet (any listed key closes it and runs) |
 | `Ctrl-l` | redraw |
 
 Printable keys in search or command overlays edit their query. `:` opens a
@@ -68,12 +73,17 @@ actions.
 
 ### Log
 
-Rows contain graph glyphs, short object ID, named refs, relative/absolute date
-according to available width, author, and subject. Named refs sit immediately
-after the object id so a lane's identity is visible before the commit text.
-HEAD, local branches, remotes, and tags stay distinct by prefix (`HEAD→`,
-`tag:`, remote `/`) as well as color; local branch names use the matching lane
-color. Width budget keeps those names in preference to the author column.
+Rows are a grid: graph glyphs, short object ID, date, author, then named refs
+and subject. Date and author widths are planned once per screen, so every
+column starts on the same cell on every row; the author column narrows and then
+drops before the date as width shrinks, and dates are compact (`14d`, or
+`2026-09-12 15:43` in absolute modes). Named refs sit inline before the subject,
+where they cannot shift the grid, and take at most the room that leaves the
+subject readable. HEAD, local branches, remotes, and tags stay distinct by
+prefix (`HEAD→`, `tag:`, remote `/`) as well as color; local branch names use
+the matching lane color. Git reports full refnames, so a slashed local branch
+such as `feat/x` is never mistaken for a remote, and a remote's symbolic
+`HEAD` is omitted as redundant.
 When a branch tip has scrolled off screen, the first visible commit of that
 lane repeats its name more quietly, and the selected commit does the same when
 it has no decorations of its own. Graph and text degrade cleanly on narrow
@@ -88,8 +98,9 @@ so adjacent branches stay separable, and the whole repertoire has an ASCII
 fallback. Lane count is budgeted from terminal width; beyond that budget lanes
 fold into a `~`-marked final column rather than pushing the commit text off
 screen. The bundle is explicitly approximate on screen; all underlying parent
-identities remain intact. Branch colors follow their ancestry through joins
-and reused columns, and the selected branch is bold across the visible graph.
+identities remain intact. Branch colors cycle `theme.graph_lanes` and follow
+their ancestry through joins and reused columns, and the selected branch is
+bold across the visible graph.
 Selection is marker-led: the selected log row keeps graph and decoration colors
 and adds emphasis, rather than repainting the row as a single accent.
 Previously computed graph rows are reused during navigation.
@@ -101,8 +112,15 @@ single object, because a scope has no single target.
 
 ### Commit/diff
 
-Metadata precedes file summary and patch. `f` opens a fuzzy-searchable changed-file
-index; `Enter` jumps directly to the selected file header. Hunk headers are
+Metadata precedes file summary and patch: the object id and named refs, the
+subject in bold, one byline (`author · 14d ago · date · email`), and a stats
+line (`parent …` or merge parents with the selected one underlined, file count,
+`+N -M`). The body follows, reflowed when the pane is narrower than its
+hard-wrapped lines while lists and trailers keep their own lines; the log
+preview shows three body rows and the detail view up to two fifths of the
+height, ending with `… N more lines` when cut. Each file in the patch opens with
+a banner row (see [diff review](diff-review.md)). `f` opens a fuzzy-searchable
+changed-file index; `Enter` jumps directly to the selected file header. Hunk headers are
 anchors. Merge commits expose explicit parent cycling with `P`; version 1 does
 not claim a combined-diff display.
 
@@ -126,33 +144,42 @@ patch space. Comparison retains its endpoint and merge-base header.
 ### Compare
 
 The header always states either `LEFT → RIGHT` for exact endpoint comparison or
-`merge-base(BASE, HEAD) → HEAD` for branch comparison. The UI shows ahead/behind
-counts, changed files, and patch. Users can swap endpoints and choose refs
+`merge-base(BASE, HEAD) → HEAD` for branch comparison, with endpoint labels
+emphasized and resolved ids beside them. A second row shows ahead/behind counts,
+changed files, and `+N -M`, plus the requested inputs when they differ from the
+labels. The patch follows. Users can swap endpoints and choose refs
 without checkout.
 
 ### Refs
 
-Branches, remotes, and tags are searchable. Each row includes checked-out state,
-upstream, ahead/behind when inexpensive, target ID, and subject. Opening a ref
+Branches, remotes, and tags are searchable. Each row is a grid of kind, name
+(`*` marks the checked-out branch), target ID, age, and subject, with the
+upstream trailing as `→ origin/name` when there is room. Opening a ref
 changes the viewed history; it never checks anything out.
 
 ### Status
 
 Porcelain-v2 records use compact `XY` codes and are grouped into conflicted,
-staged, mixed staged+unstaged, unstaged, and untracked entries. `d` switches
+staged, mixed staged+unstaged, unstaged, and untracked entries; each group is
+named once at its first row, the index letter reads as staged and the worktree
+letter as unstaged, and paths keep their directory quiet. The preview header
+names the side shown and the key for the other (`staged diff · d unstaged`). `d` switches
 between the two patches for mixed entries. Opening an entry displays the
 relevant read-only diff as the dominant surface, including on narrow terminals.
 No key mutates the index or worktree.
 
 ### Tree
 
-Lists the selected revision's tree with type, mode, size when known, and name.
-Directories descend; blobs open content or a safe binary summary. `Backspace`
+Lists the selected revision's tree by name with a trailing `/` on directories,
+a word only for unusual modes (`exec`, `link`, `sub`), and a right-aligned
+human size. Directories descend; blobs open line-numbered content (clipped, not
+wrapped, so one step is one line) or a safe binary summary. `Backspace`
 ascends and the header retains the current tree breadcrumb.
 
 ### Blame
 
-Shows commit, author, date, and source line with grouping. Opening a blame group
+Shows commit, age, author, and line-numbered source with attribution printed
+once per run of lines from the same commit. Opening a blame group
 jumps to the commit while retaining path context.
 
 ### Stash
@@ -162,7 +189,11 @@ Lists stash reflog entries and previews their patch. No apply/drop action exists
 ## Overlays
 
 Search, refs selection, comparison selection, command palette, errors, and help
-are bounded overlays. They never permanently divide the screen. Errors retain
+are bounded overlays with one cell of inner padding. Help is a sectioned key
+sheet (Move, Find, Diff, Views, Compare) laid out in as many aligned columns as
+fit; a shared modifier is written once (`Ctrl+d/u`). It is also a launcher:
+`Esc` closes it and any other key closes it and does what it lists, so `:`
+opens the palette. They never permanently divide the screen. Errors retain
 context, include the failed operation, and offer retry/copy where applicable.
 
 ## Command palette
@@ -177,10 +208,16 @@ rank first, followed by contiguous matches (favoring word/path boundaries), then
 abbreviations with fewer gaps. Empty queries retain the original list order;
 equal-ranked results retain their relative order. Leading/trailing query spaces
 are ignored; internal spaces remain literal. Active-view `/` search remains
-literal text search.
+literal, case-insensitive text search in every view, including blobs. While a
+query is active its hits are shown in reverse video in commit ids, authors,
+subjects, patch lines, and blob lines; the search bar states `no match` in
+words when nothing is found and keeps the last position.
 
 The pickers highlight matching characters, show a live result count, and keep
-their geometry steady while typing. The palette also shows effective remapped
+their geometry steady while typing. `Tab`/`Shift-Tab`, `Ctrl-n`/`Ctrl-p`, and
+`Ctrl-j`/`Ctrl-k` move through results and `Ctrl-u` clears the query; plain
+letters always type. With an empty query the palette lists discoverable
+commands before basic movement. The palette also shows effective remapped
 shortcuts. Long queries scroll to keep the insertion point visible; empty results
 offer a recovery hint. Arrows move through the ranked results, `Enter` runs or
 jumps, and `Esc` closes without changing the original diff position. Monochrome
