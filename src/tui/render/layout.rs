@@ -166,9 +166,13 @@ pub(crate) fn diff_split_available(app: &App, width: u16, height: u16) -> bool {
         return width >= 100;
     }
     let body = Rect::new(0, 1, width, height.saturating_sub(2));
-    pane_layout(app, body, 45)
-        .secondary
-        .is_some_and(|pane| pane.width >= 100)
+    // The same geometry the renderer draws with, or the reducer would step
+    // through split rows while unified rows are on screen.
+    let layout = match app.view {
+        View::Log => log_layout(app, body),
+        _ => list_preview_layout(app, body),
+    };
+    layout.secondary.is_some_and(|pane| pane.width >= 100)
 }
 
 pub(super) fn centered_rect(width: u16, height: u16, area: Rect) -> Rect {

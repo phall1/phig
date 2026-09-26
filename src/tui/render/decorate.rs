@@ -18,6 +18,9 @@ pub(super) enum Decoration {
     Local(String),
     Remote(String),
     Tag(String),
+    /// Any other namespace (`refs/stash`, `refs/pull/1/head`): shown quietly
+    /// in full and never used to name a lane.
+    Other(String),
 }
 
 impl Decoration {
@@ -27,6 +30,7 @@ impl Decoration {
             Self::HeadBranch(branch) => format!("HEAD{arrow}{branch}"),
             Self::Local(name) | Self::Remote(name) => name.clone(),
             Self::Tag(name) => format!("tag:{name}"),
+            Self::Other(name) => name.clone(),
         }
     }
 }
@@ -77,8 +81,8 @@ fn parse_one(raw: &str) -> Option<Decoration> {
     if let Some(name) = raw.strip_prefix("refs/tags/") {
         return (!name.is_empty()).then(|| Decoration::Tag(name.to_owned()));
     }
-    if let Some(name) = raw.strip_prefix("refs/") {
-        return Some(Decoration::Local(name.to_owned()));
+    if raw.starts_with("refs/") {
+        return Some(Decoration::Other(raw.to_owned()));
     }
     if raw.contains('/') {
         return Some(Decoration::Remote(raw.to_owned()));
@@ -204,7 +208,7 @@ fn decoration_badge(
         Decoration::Local(name) => {
             vec![Span::styled(name.clone(), local_style(lane, context))]
         }
-        Decoration::Remote(name) => {
+        Decoration::Remote(name) | Decoration::Other(name) => {
             vec![Span::styled(name.clone(), context.style(context.muted()))]
         }
         Decoration::Tag(name) => vec![Span::styled(
@@ -226,7 +230,7 @@ fn decoration_style(
     match decoration {
         Decoration::Head | Decoration::HeadBranch(_) => context.strong(context.accent()),
         Decoration::Local(_) => local_style(lane, context),
-        Decoration::Remote(_) => context.style(context.muted()),
+        Decoration::Remote(_) | Decoration::Other(_) => context.style(context.muted()),
         Decoration::Tag(_) => context.style(context.warning()),
     }
 }
@@ -310,7 +314,7 @@ mod tests {
                 Decoration::Local("ci/fix".into()),
                 Decoration::Remote("origin/feat/x".into()),
                 Decoration::Tag("v1".into()),
-                Decoration::Local("stash".into()),
+                Decoration::Other("refs/stash".into()),
             ]
         );
         assert_eq!(

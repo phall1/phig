@@ -185,26 +185,33 @@ impl App {
     /// Returning to a history view: fetch the preview again when the one on
     /// hand belongs to another commit or was never delivered.
     fn resume_history_preview(&mut self) -> Vec<Effect> {
-        if !matches!(self.view, View::Log | View::Detail) || self.preview_loading {
+        if self.preview_loading {
             return Vec::new();
         }
-        let wanted = self.selected_commit().map(|commit| &commit.id);
-        let shown = self.preview.as_ref().map(|detail| &detail.commit.id);
-        if wanted.is_none() || (self.view == View::Detail && shown.is_some()) || shown == wanted {
-            return Vec::new();
+        match self.view {
+            View::Log => {
+                let wanted = self.selected_commit().map(|commit| &commit.id);
+                let shown = self.preview.as_ref().map(|detail| &detail.commit.id);
+                if wanted.is_none() || shown == wanted {
+                    return Vec::new();
+                }
+                self.request_preview()
+            }
+            View::Detail if self.preview.is_none() => {
+                // Detail shows its own target, which may not be the log
+                // selection; without one there is nothing honest to show.
+                let Some(revision) = self.detail_target.clone() else {
+                    return Vec::new();
+                };
+                self.preview_loading = true;
+                self.preview_error = None;
+                vec![Effect::LoadPreview {
+                    revision,
+                    parent_index: self.parent_index,
+                }]
+            }
+            _ => Vec::new(),
         }
-        if self.view == View::Detail {
-            // Detail shows the selected commit; request_preview reads it from
-            // the current preview, which is gone.
-            let revision = wanted.expect("checked above").to_string();
-            self.preview_loading = true;
-            self.preview_error = None;
-            return vec![Effect::LoadPreview {
-                revision,
-                parent_index: self.parent_index,
-            }];
-        }
-        self.request_preview()
     }
 
     fn back(&mut self) -> Vec<Effect> {

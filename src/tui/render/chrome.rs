@@ -55,8 +55,8 @@ pub(super) fn render_header(frame: &mut Frame<'_>, app: &App, area: Rect, contex
         (Some(label), false) => sanitize_str(label),
         (None, _) => sanitize_str(&app.revision),
     };
-    // The view badge is reverse video so it reads as a tab in any palette,
-    // including monochrome.
+    // The view badge is reverse video so it reads as a tab in any palette;
+    // monochrome keeps plain text, where the uppercase name still stands out.
     let badge = context.emphasize(
         context.strong(context.accent()),
         ratatui::style::Modifier::REVERSED,
