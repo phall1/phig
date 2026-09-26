@@ -1640,3 +1640,54 @@ fn merge_stats_keep_their_totals_when_the_pane_is_narrow() {
         "{narrow}"
     );
 }
+
+#[test]
+fn exact_compare_named_by_ids_does_not_echo_them() {
+    let mut app = sample_app();
+    let base: Oid = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb".parse().unwrap();
+    let head: Oid = "cccccccccccccccccccccccccccccccccccccccc".parse().unwrap();
+    app.view = View::Compare;
+    app.inspect.compare_base_label = Some(base.short(10).to_owned());
+    app.inspect.compare_head_label = Some(head.short(10).to_owned());
+    app.inspect.comparison = Some(Comparison {
+        mode: ComparisonMode::Exact,
+        requested_base: base.to_string(),
+        requested_head: head.to_string(),
+        resolved_base: base,
+        resolved_head: head,
+        merge_base: None,
+        ahead: 1,
+        behind: 0,
+        diff: app.preview.as_ref().unwrap().diff.clone(),
+    });
+    let output = screen(100, 20, &app);
+    assert!(output.contains("exact bbbbbbbbbb → cccccccccc"), "{output}");
+    assert!(
+        !output.contains("@bbbb") && !output.contains("@cccc"),
+        "{output}"
+    );
+    assert!(!output.contains("from "), "{output}");
+}
+
+#[test]
+fn ref_previews_name_their_commit_and_the_picker_footer_says_compare() {
+    let mut app = sample_app();
+    app.view = View::Refs;
+    app.inspect.refs = vec![RefInfo {
+        full_name: RefName::new(b"refs/heads/feature".to_vec()),
+        short_name: RefName::new(b"feature".to_vec()),
+        kind: RefKind::LocalBranch,
+        target: app.commits[0].id.clone(),
+        peeled: None,
+        upstream: None,
+        subject: "work".into(),
+        timestamp: None,
+        is_head: false,
+    }];
+    let output = screen(100, 28, &app);
+    assert!(output.contains("make history pleasant"), "{output}");
+    app.inspect.compare_picker = true;
+    let footer = screen(100, 28, &app).lines().nth(27).unwrap().to_owned();
+    assert!(footer.contains("Enter compare"), "{footer}");
+    assert!(footer.contains("Esc cancel"), "{footer}");
+}
