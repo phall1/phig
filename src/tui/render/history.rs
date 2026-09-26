@@ -424,7 +424,10 @@ const METADATA_MIN_PATCH_ROWS: usize = 3;
 
 impl MetadataPlan {
     fn new(app: &App, width: u16, available: u16) -> Option<Self> {
-        if app.view != View::Detail && app.view != View::Log {
+        if !matches!(
+            app.view,
+            View::Detail | View::Log | View::Refs | View::Blame | View::Stash
+        ) {
             return None;
         }
         let detail = app.preview.as_ref()?;

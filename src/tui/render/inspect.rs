@@ -113,6 +113,11 @@ pub(super) fn render_compare(
     render_diff_value(frame, app, parts[1], true, context);
 }
 
+/// Whether `name` is just (a prefix of) the object id itself.
+fn names_oid(name: &str, id: &crate::domain::Oid) -> bool {
+    name.len() >= 7 && id.to_string().starts_with(&name.to_ascii_lowercase())
+}
+
 /// Endpoints and semantics first, then the counts that size the change.
 /// A trailing blank row separates the header from the patch.
 fn compare_header(
@@ -126,15 +131,22 @@ fn compare_header(
     let label = context.strong(context.accent());
     let oid = context.style(context.warning());
     let arrow = Span::styled(format!(" {} ", glyphs.arrow), muted);
+    // An endpoint named by its own id needs no `@id` echo.
+    let endpoint = |name: &str, id: &crate::domain::Oid| {
+        let mut spans = vec![Span::styled(sanitize_str(name), label)];
+        if !names_oid(name, id) {
+            spans.push(Span::styled(format!("@{}", id.short(10)), oid));
+        }
+        spans
+    };
     let semantics = match comparison.mode {
-        crate::domain::ComparisonMode::Exact => vec![
-            Span::styled("exact ".to_owned(), muted),
-            Span::styled(sanitize_str(base_label), label),
-            Span::styled(format!("@{}", comparison.resolved_base.short(10)), oid),
-            arrow,
-            Span::styled(sanitize_str(head_label), label),
-            Span::styled(format!("@{}", comparison.resolved_head.short(10)), oid),
-        ],
+        crate::domain::ComparisonMode::Exact => {
+            let mut spans = vec![Span::styled("exact ".to_owned(), muted)];
+            spans.extend(endpoint(base_label, &comparison.resolved_base));
+            spans.push(arrow);
+            spans.extend(endpoint(head_label, &comparison.resolved_head));
+            spans
+        }
         crate::domain::ComparisonMode::MergeBase => vec![
             Span::styled("merge-base(".to_owned(), muted),
             Span::styled(sanitize_str(base_label), label),
@@ -185,7 +197,18 @@ fn compare_header(
         Span::raw(" "),
         Span::styled(format!("-{removed}"), context.style(context.removed())),
     ];
-    if comparison.requested_base != base_label || comparison.requested_head != head_label {
+    let restated = |requested: &str, label: &str, id: &crate::domain::Oid| {
+        requested == label || names_oid(requested, id)
+    };
+    if !restated(
+        &comparison.requested_base,
+        base_label,
+        &comparison.resolved_base,
+    ) || !restated(
+        &comparison.requested_head,
+        head_label,
+        &comparison.resolved_head,
+    ) {
         counts.push(Span::styled(
             format!(
                 "{separator}from {} {} {}",

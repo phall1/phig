@@ -221,6 +221,11 @@ fn hints(app: &App, context: &RenderContext) -> Vec<Hint> {
             (key(&Action::StartSearch), "search"),
             (key(&Action::Mark), "mark"),
         ],
+        View::Refs if app.inspect.compare_picker => vec![
+            (move_keys, "choose base"),
+            (key(&Action::Open), "compare"),
+            (key(&Action::Back), "cancel"),
+        ],
         View::Refs | View::Blame | View::Stash => vec![
             (move_keys, "move"),
             (key(&Action::Open), "open"),
