@@ -5,9 +5,13 @@
 # still catches the release — this job is latency, not authority.
 name: Notify Homebrew tap
 
+# cargo-dist creates the GitHub Release with GITHUB_TOKEN, and events made
+# with that token do not start other workflows, so `release: published` never
+# fires. Follow the Release workflow's completion instead.
 on:
-  release:
-    types: [published]
+  workflow_run:
+    workflows: [Release]
+    types: [completed]
   workflow_dispatch:
     inputs:
       tag:
@@ -20,13 +24,20 @@ permissions:
 
 jobs:
   notify:
-    if: github.repository == 'phall1/phig'
+    # Tag-triggered Release runs carry the tag as head_branch; pull-request
+    # plan runs of the same workflow are ignored.
+    if: >-
+      github.repository == 'phall1/phig' &&
+      (github.event_name == 'workflow_dispatch' ||
+       (github.event.workflow_run.conclusion == 'success' &&
+        github.event.workflow_run.event == 'push' &&
+        startsWith(github.event.workflow_run.head_branch, 'v')))
     runs-on: ubuntu-22.04
     steps:
       - name: Wait until release assets are listed
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG: ${{ github.event.release.tag_name || inputs.tag }}
+          TAG: ${{ github.event.workflow_run.head_branch || inputs.tag }}
         run: |
           set -euo pipefail
           tag="${TAG:-}"
