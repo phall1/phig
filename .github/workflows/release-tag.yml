@@ -4,6 +4,11 @@
 # crates.io publish workflow. The push uses RELEASE_PLEASE_TOKEN rather than
 # GITHUB_TOKEN because tags created with the default token do not trigger
 # further workflow runs.
+#
+# Because release-please runs with `skip-github-release: true`, it never marks
+# the merged release PR as tagged itself. It refuses to open the next release
+# PR while any merged release PR is still labeled `autorelease: pending`, so
+# this workflow flips that label once the tag exists.
 name: release-tag
 
 on:
@@ -12,6 +17,8 @@ on:
 
 permissions:
   contents: write
+  pull-requests: write
+  issues: write
 
 jobs:
   tag:
@@ -47,3 +54,13 @@ jobs:
           git tag -a "${tag}" -m "phig ${{ steps.version.outputs.version }} (tagged by release-tag on merge of the release PR)"
           git -c http.https://github.com/.extraheader="AUTHORIZATION: bearer ${RELEASE_PLEASE_TOKEN}" \
             push "https://github.com/${GITHUB_REPOSITORY}.git" "refs/tags/${tag}"
+      - name: Mark the release PR as tagged
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          gh label create "autorelease: tagged" --repo "$GITHUB_REPOSITORY" \
+            --color ededed --description "release-please: release PR has been tagged" --force
+          gh pr edit "$PR" --repo "$GITHUB_REPOSITORY" \
+            --remove-label "autorelease: pending" \
+            --add-label "autorelease: tagged"
