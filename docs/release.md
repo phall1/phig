@@ -40,6 +40,12 @@ There are two important constraints behind this design:
 - `skip-github-release: true` keeps release-please from creating the tag or a
   GitHub Release itself; cargo-dist stays the single creator of the GitHub
   Release on the tag push.
+- Because release-please does not create the release, it also never relabels
+  the merged release PR. It will not open the next release PR while a merged
+  one still carries `autorelease: pending`, so `release-tag` flips that label
+  to `autorelease: tagged` after pushing the tag. If release-please logs
+  "untagged, merged release PRs outstanding", relabel that PR by hand:
+  `gh pr edit N --remove-label "autorelease: pending" --add-label "autorelease: tagged"`.
 
 ## One-time repository setup
 
