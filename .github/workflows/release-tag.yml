@@ -18,6 +18,7 @@ on:
 permissions:
   contents: write
   pull-requests: write
+  issues: write
 
 jobs:
   tag:
@@ -58,6 +59,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           PR: ${{ github.event.pull_request.number }}
         run: |
+          gh label create "autorelease: tagged" --repo "$GITHUB_REPOSITORY" \
+            --color ededed --description "release-please: release PR has been tagged" --force
           gh pr edit "$PR" --repo "$GITHUB_REPOSITORY" \
             --remove-label "autorelease: pending" \
             --add-label "autorelease: tagged"
