@@ -52,8 +52,10 @@ jobs:
             exit 0
           fi
           git tag -a "${tag}" -m "phig ${{ steps.version.outputs.version }} (tagged by release-tag on merge of the release PR)"
-          git -c http.https://github.com/.extraheader="AUTHORIZATION: bearer ${RELEASE_PLEASE_TOKEN}" \
-            push "https://github.com/${GITHUB_REPOSITORY}.git" "refs/tags/${tag}"
+          # Git's HTTPS endpoint takes a PAT as basic-auth password, not as
+          # a bearer header; the token is masked in logs.
+          git push "https://x-access-token:${RELEASE_PLEASE_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" \
+            "refs/tags/${tag}"
       - name: Mark the release PR as tagged
         env:
           GH_TOKEN: ${{ github.token }}
