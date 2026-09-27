@@ -22,7 +22,8 @@ release-please (`.github/workflows/release-please.yml`, configured in
 5. The tag push triggers cargo-dist's Release workflow (archives, checksums,
    shell installer, attestations, GitHub Release) and
    `.github/workflows/publish-crates.yml` (`cargo publish --locked`).
-6. `.github/workflows/notify-tap.yml` dispatches `phig-release` to
+6. When the Release workflow finishes, `.github/workflows/notify-tap.yml`
+   dispatches `phig-release` to
    `phall1/homebrew-tap` once the Darwin ARM archive is listed, so
    `Formula/phig.rb` updates immediately. The tap still re-resolves every
    fifteen minutes if the dispatch is skipped or delayed.
