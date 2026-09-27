@@ -4,6 +4,28 @@ All notable changes to phig are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and releases follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.6.0](https://github.com/phall1/phig/compare/v1.5.0...v1.6.0) (2026-09-27)
+
+
+### Added
+
+* **tui:** aligned log grid, file banners, and a sharper visual system ([0dc21b8](https://github.com/phall1/phig/commit/0dc21b81d047089b1c972447a0f02a79b2bfce5d))
+* **tui:** highlight search hits, report misses, search blobs ([314445b](https://github.com/phall1/phig/commit/314445bd36f0e5860abcf8c6e505ff182162774c))
+* **tui:** roomier log split, first-name authors, faithful demo ([b0b5ed8](https://github.com/phall1/phig/commit/b0b5ed84cc553c076cf5132e5c351bc8f8c28be4))
+
+
+### Fixed
+
+* **tui:** address review findings on scrolling, split, detail, and output ([93194be](https://github.com/phall1/phig/commit/93194be846645fc52fb8d4430e429e5852298a68))
+* **tui:** keep Esc cancel visible in the changed-file tree footer ([a86191e](https://github.com/phall1/phig/commit/a86191e6e64e2c2edefa68474c4d8cb77a7283be))
+* **tui:** quieter exact-compare header, named ref previews, picker footer ([599a2e8](https://github.com/phall1/phig/commit/599a2e8264ed8f9acdeac0fbdcf3a65d2738cf90))
+* **tui:** settle abandoned requests; help launches; readline picker keys ([baa9f6a](https://github.com/phall1/phig/commit/baa9f6a2137ef0e14f2ab1d26518da44a2d50a8c))
+
+
+### Changed
+
+* **tui:** share text-overlay keys; split footer hints ([63a50ce](https://github.com/phall1/phig/commit/63a50cebb7e544403ef79c015164580533bbd4c0))
+
 ## [1.5.0](https://github.com/phall1/phig/compare/v1.4.0...v1.5.0) (2026-09-12)
 
 
