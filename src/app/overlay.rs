@@ -1,9 +1,15 @@
 //! Search, command palette, and changed-file overlay behavior.
 
-use super::{Action, App, Effect, Overlay, View, commands::palette_commands};
+use super::{Action, App, Effect, Overlay, View};
 
 impl App {
     pub(super) fn update_overlay(&mut self, action: Action, page_rows: usize) -> Vec<Effect> {
+        let palette = match (&self.overlay, &action) {
+            (Overlay::Palette { draft, .. }, Action::PaletteMove(_) | Action::ExecutePalette) => {
+                self.commands_for_palette(draft)
+            }
+            _ => Vec::new(),
+        };
         let file_picker_count = match (&self.overlay, &action) {
             (Overlay::FilePicker { draft, .. }, Action::FilePickerMove(_)) => {
                 self.cached_file_picker_entries(draft).len()
@@ -87,17 +93,15 @@ impl App {
                 draft.clear();
                 *selected = 0;
             }
-            (Overlay::Palette { draft, selected }, Action::PaletteMove(delta)) => {
-                let count = palette_commands(draft).len();
+            (Overlay::Palette { selected, .. }, Action::PaletteMove(delta)) => {
+                let count = palette.len();
                 if count > 0 {
                     *selected =
                         ((*selected as i64 + i64::from(delta)).rem_euclid(count as i64)) as usize;
                 }
             }
-            (Overlay::Palette { draft, selected }, Action::ExecutePalette) => {
-                palette_action = palette_commands(draft)
-                    .get(*selected)
-                    .map(|command| command.action.clone());
+            (Overlay::Palette { selected, .. }, Action::ExecutePalette) => {
+                palette_action = palette.get(*selected).map(|command| command.action.clone());
                 self.overlay = Overlay::None;
             }
             (Overlay::Palette { .. }, Action::CancelOverlay | Action::Back | Action::Quit) => {

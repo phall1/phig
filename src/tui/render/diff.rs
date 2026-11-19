@@ -1,7 +1,7 @@
 //! Shared patch rendering for detail and inspection views.
 
+use super::Canvas;
 use ratatui::{
-    Frame,
     layout::Rect,
     style::{Color, Modifier, Style},
     text::{Line, Span},
@@ -21,11 +21,16 @@ use super::{
     theme::RenderContext,
 };
 
-pub(super) fn render_detail(frame: &mut Frame<'_>, app: &App, area: Rect, context: &RenderContext) {
+pub(super) fn render_detail(
+    frame: &mut Canvas<'_>,
+    app: &App,
+    area: Rect,
+    context: &RenderContext,
+) {
     render_preview(frame, app, area, context);
 }
 
-pub(super) fn render_diff(frame: &mut Frame<'_>, app: &App, area: Rect, context: &RenderContext) {
+pub(super) fn render_diff(frame: &mut Canvas<'_>, app: &App, area: Rect, context: &RenderContext) {
     render_diff_value(
         frame,
         app,
@@ -36,7 +41,7 @@ pub(super) fn render_diff(frame: &mut Frame<'_>, app: &App, area: Rect, context:
 }
 
 pub(super) fn render_diff_value(
-    frame: &mut Frame<'_>,
+    frame: &mut Canvas<'_>,
     app: &App,
     area: Rect,
     active: bool,
@@ -70,7 +75,7 @@ pub(super) fn render_diff_value(
 }
 
 fn render_unified(
-    frame: &mut Frame<'_>,
+    frame: &mut Canvas<'_>,
     app: &App,
     area: Rect,
     active: bool,
@@ -321,7 +326,7 @@ fn content_spans<'a>(line: &'a DiffLine, pair: Option<&DiffLine>, style: Style) 
     spans
 }
 
-fn render_split(frame: &mut Frame<'_>, app: &App, area: Rect, context: &RenderContext) {
+fn render_split(frame: &mut Canvas<'_>, app: &App, area: Rect, context: &RenderContext) {
     let Some(diff) = app.active_diff() else {
         return;
     };
@@ -352,7 +357,7 @@ struct SplitSource<'a> {
 }
 
 fn render_split_row(
-    frame: &mut Frame<'_>,
+    frame: &mut Canvas<'_>,
     source: &SplitSource<'_>,
     raw: usize,
     row: Rect,
@@ -414,7 +419,7 @@ fn render_split_row(
 }
 
 fn render_side(
-    frame: &mut Frame<'_>,
+    frame: &mut Canvas<'_>,
     (line, pair): (&DiffLine, Option<&DiffLine>),
     n: Option<usize>,
     (number_width, search): (usize, &str),

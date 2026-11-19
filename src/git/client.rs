@@ -85,46 +85,8 @@ impl GitClient {
             });
         }
         let cancellation = CancellationToken::new();
-        let version_output =
-            self.runner
-                .run_complete(None, "version", ["--version"], &cancellation)?;
-        let version_bytes = version_output
-            .stdout
-            .strip_suffix(b"\n")
-            .unwrap_or(&version_output.stdout);
-        let version_display = crate::sanitize::sanitize_bytes(version_bytes);
-        let git_version = version_display
-            .strip_prefix("git version ")
-            .unwrap_or(&version_display)
-            .to_owned();
-        ensure_minimum_git(&git_version)?;
-
-        let git_dir = match self.runner.run_complete(
-            Some(path),
-            "discover",
-            ["rev-parse", "--path-format=absolute", "--git-dir"],
-            &cancellation,
-        ) {
-            Ok(output) => path_from_output(&output.stdout)?,
-            Err(GitError::Failed { ref stderr, .. })
-                if stderr.to_ascii_lowercase().contains("not a git repository")
-                    && !has_git_marker(path) =>
-            {
-                return Err(GitError::NotRepository(path.to_path_buf()));
-            }
-            Err(error) => return Err(error),
-        };
-        let bare = output_bool(
-            &self
-                .runner
-                .run_complete(
-                    Some(path),
-                    "discover",
-                    ["rev-parse", "--is-bare-repository"],
-                    &cancellation,
-                )?
-                .stdout,
-        );
+        let git_version = self.git_version(&cancellation)?;
+        let (git_dir, bare, object_format) = self.repository_fields(path, &cancellation)?;
         let root = if bare {
             git_dir.clone()
         } else {
@@ -140,71 +102,15 @@ impl GitClient {
                     .stdout,
             )?
         };
-        let object_format = ObjectFormat::from_git(
-            std::str::from_utf8(
-                &self
-                    .runner
-                    .run_complete(
-                        Some(path),
-                        "object-format",
-                        ["rev-parse", "--show-object-format"],
-                        &cancellation,
-                    )?
-                    .stdout,
-            )
-            .unwrap_or("unknown"),
-        );
-        let symbolic_ref = match self.runner.run_complete(
-            Some(&root),
-            "branch",
-            ["symbolic-ref", "--quiet", "HEAD"],
-            &cancellation,
-        ) {
-            Ok(output) => {
-                let value = output.stdout.strip_suffix(b"\n").unwrap_or(&output.stdout);
-                (!value.is_empty()).then(|| GitPath::new(value.to_vec()))
-            }
-            Err(GitError::Failed {
-                code: Some(1),
-                ref stderr,
-                ..
-            }) if stderr.is_empty() => None,
-            Err(error) => return Err(error),
-        };
+        let symbolic_ref = self.symbolic_head(&root, &cancellation)?;
         let branch = symbolic_ref.as_ref().map(|name| {
             name.display
                 .strip_prefix("refs/heads/")
                 .unwrap_or(&name.display)
                 .to_owned()
         });
-        let head = match self.resolve(&root, "HEAD", object_format, &cancellation) {
-            Ok(head) => Some(head),
-            Err(resolve_error @ GitError::Failed { .. }) => {
-                let Some(symbolic_ref) = &symbolic_ref else {
-                    return Err(resolve_error);
-                };
-                let check = self.runner.run_complete(
-                    Some(&root),
-                    "head-ref",
-                    [
-                        OsString::from("show-ref"),
-                        OsString::from("--verify"),
-                        OsString::from("--quiet"),
-                        symbolic_ref.to_os_string()?,
-                    ],
-                    &cancellation,
-                );
-                match check {
-                    Err(GitError::Failed {
-                        code: Some(1),
-                        ref stderr,
-                        ..
-                    }) if stderr.is_empty() => None,
-                    _ => return Err(resolve_error),
-                }
-            }
-            Err(error) => return Err(error),
-        };
+        let head =
+            self.discover_head(&root, object_format, symbolic_ref.as_ref(), &cancellation)?;
         Ok(Repository {
             root: root.clone(),
             worktree: (!bare).then_some(root),
@@ -215,6 +121,106 @@ impl GitClient {
             head,
             branch,
         })
+    }
+
+    fn repository_fields(
+        &self,
+        path: &Path,
+        cancellation: &CancellationToken,
+    ) -> Result<(std::path::PathBuf, bool, ObjectFormat), GitError> {
+        match self.runner.run_complete(
+            Some(path),
+            "discover",
+            [
+                "rev-parse",
+                "--is-bare-repository",
+                "--show-object-format",
+                "--path-format=absolute",
+                "--git-dir",
+            ],
+            cancellation,
+        ) {
+            Ok(output) => discovery_fields(&output.stdout),
+            Err(GitError::Failed { ref stderr, .. })
+                if stderr.to_ascii_lowercase().contains("not a git repository")
+                    && !has_git_marker(path) =>
+            {
+                Err(GitError::NotRepository(path.to_path_buf()))
+            }
+            Err(error) => Err(error),
+        }
+    }
+
+    fn symbolic_head(
+        &self,
+        root: &Path,
+        cancellation: &CancellationToken,
+    ) -> Result<Option<GitPath>, GitError> {
+        match self.runner.run_complete(
+            Some(root),
+            "branch",
+            ["symbolic-ref", "--quiet", "HEAD"],
+            cancellation,
+        ) {
+            Ok(output) => {
+                let value = output.stdout.strip_suffix(b"\n").unwrap_or(&output.stdout);
+                Ok((!value.is_empty()).then(|| GitPath::new(value.to_vec())))
+            }
+            Err(GitError::Failed {
+                code: Some(1),
+                ref stderr,
+                ..
+            }) if stderr.is_empty() => Ok(None),
+            Err(error) => Err(error),
+        }
+    }
+
+    fn git_version(&self, cancellation: &CancellationToken) -> Result<String, GitError> {
+        let output = self
+            .runner
+            .run_complete(None, "version", ["--version"], cancellation)?;
+        let version_bytes = output.stdout.strip_suffix(b"\n").unwrap_or(&output.stdout);
+        let display = crate::sanitize::sanitize_bytes(version_bytes);
+        let version = display.strip_prefix("git version ").unwrap_or(&display);
+        ensure_minimum_git(version)?;
+        Ok(version.to_owned())
+    }
+
+    fn discover_head(
+        &self,
+        root: &Path,
+        format: ObjectFormat,
+        symbolic_ref: Option<&GitPath>,
+        cancellation: &CancellationToken,
+    ) -> Result<Option<Oid>, GitError> {
+        match self.resolve(root, "HEAD", format, cancellation) {
+            Ok(head) => Ok(Some(head)),
+            Err(resolve_error @ GitError::Failed { .. }) => {
+                let Some(symbolic_ref) = symbolic_ref else {
+                    return Err(resolve_error);
+                };
+                let check = self.runner.run_complete(
+                    Some(root),
+                    "head-ref",
+                    [
+                        OsString::from("show-ref"),
+                        OsString::from("--verify"),
+                        OsString::from("--quiet"),
+                        symbolic_ref.to_os_string()?,
+                    ],
+                    cancellation,
+                );
+                match check {
+                    Err(GitError::Failed {
+                        code: Some(1),
+                        ref stderr,
+                        ..
+                    }) if stderr.is_empty() => Ok(None),
+                    _ => Err(resolve_error),
+                }
+            }
+            Err(error) => Err(error),
+        }
     }
 
     /// Walk the history the range describes.
@@ -987,8 +993,22 @@ fn path_from_output(output: &[u8]) -> Result<std::path::PathBuf, GitError> {
     }
 }
 
-fn output_bool(output: &[u8]) -> bool {
-    output.starts_with(b"true")
+fn discovery_fields(output: &[u8]) -> Result<(std::path::PathBuf, bool, ObjectFormat), GitError> {
+    // Only the fixed tokens are newline-delimited. The last field is a raw
+    // path: its bytes may contain newlines or be non-UTF-8.
+    let mut fields = output.splitn(3, |byte| *byte == b'\n');
+    match (fields.next(), fields.next(), fields.next()) {
+        (Some(bare @ (b"true" | b"false")), Some(format), Some(path)) if path.len() > 1 => Ok((
+            path_from_output(path)?,
+            bare == b"true",
+            ObjectFormat::from_git(std::str::from_utf8(format).unwrap_or("unknown")),
+        )),
+        _ => Err(GitError::Parse {
+            operation: "discover",
+            offset: 0,
+            message: "expected repository kind, object format, and Git directory".into(),
+        }),
+    }
 }
 
 fn ensure_minimum_git(version: &str) -> Result<(), GitError> {
@@ -1017,6 +1037,18 @@ fn ensure_minimum_git(version: &str) -> Result<(), GitError> {
 
 #[cfg(test)]
 mod tests {
+    #[cfg(unix)]
+    #[test]
+    fn discovery_keeps_newlines_and_invalid_utf8_in_the_git_directory() {
+        use std::os::unix::ffi::OsStrExt;
+
+        let (path, bare, format) = super::discovery_fields(b"true\nsha256\n/a\n\xff\n\n").unwrap();
+        assert_eq!(path.as_os_str().as_bytes(), b"/a\n\xff\n");
+        assert!(bare);
+        assert_eq!(format, super::ObjectFormat::Sha256);
+        assert!(super::discovery_fields(b"maybe\nsha1\n/a\n").is_err());
+    }
+
     use super::*;
 
     #[test]

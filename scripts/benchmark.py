@@ -185,11 +185,17 @@ def main() -> int:
     parser.add_argument("--first-frame-p95-ms", type=float, default=1000)
     parser.add_argument("--binary-max-mib", type=float, default=15)
     parser.add_argument("--skip-build", action="store_true")
+    parser.add_argument("--binary", type=Path, help="benchmark an existing binary (requires --skip-build)")
+    parser.add_argument("--binary-source", help="known revision or label of an external binary")
     parser.add_argument("--validate-fixture-only", action="store_true")
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args()
     if min(args.commits, args.snapshot_samples, args.pty_samples) < 1:
         parser.error("commit and sample counts must be positive")
+    if args.binary and not args.skip_build:
+        parser.error("--binary requires --skip-build")
+    if args.binary_source and not args.binary:
+        parser.error("--binary-source requires --binary")
 
     root = Path(__file__).resolve().parent.parent
     fixture = ensure_fixture(root, args.repository, args.commits)
@@ -198,7 +204,7 @@ def main() -> int:
         return 0
     if not args.skip_build:
         subprocess.run(["cargo", "build", "--release", "--locked", "--quiet"], cwd=root, check=True)
-    binary = root / "target/release/phig"
+    binary = args.binary.resolve() if args.binary else root / "target/release/phig"
     if not binary.is_file():
         raise RuntimeError(f"release binary is missing: {binary}")
 
@@ -248,6 +254,9 @@ def main() -> int:
             "binary_max_mib": args.binary_max_mib,
         },
     }
+    if args.binary:
+        result["external_binary"] = str(binary)
+        result["external_binary_source"] = args.binary_source
     failures = []
     if result["warm_snapshot_ms"]["p95"] > args.snapshot_p95_ms:
         failures.append("warm snapshot p95")

@@ -1,13 +1,12 @@
 //! Commit history, graph lanes, metadata, and preview rendering.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 
 use ratatui::{
-    Frame,
     layout::{Constraint, Direction, Layout, Rect},
     style::{Modifier, Style},
     text::{Line, Span},
-    widgets::{List, ListItem, ListState, Paragraph},
+    widgets::Paragraph,
 };
 
 use crate::{
@@ -17,20 +16,21 @@ use crate::{
 };
 
 use super::{
-    decorate::{decoration_spans, lane_name, spans_width},
+    Canvas,
+    decorate::{decoration_spans, spans_width},
     diff::render_diff,
     format::{
-        display_width, highlight_matches, list_date, pad_left, pad_right, relative_age,
-        truncate_with, wrap_words,
+        display_width, highlight_matches, list_date, pad_left, pad_right, truncate_with, wrap_words,
     },
     graph::{GraphCache, GraphRow, lane_limit},
     layout::log_layout,
+    list::Window,
     render_divider, render_notice,
     theme::RenderContext,
 };
 
 pub(super) fn render_log(
-    frame: &mut Frame<'_>,
+    frame: &mut Canvas<'_>,
     app: &App,
     area: Rect,
     context: &RenderContext,
@@ -45,7 +45,7 @@ pub(super) fn render_log(
 }
 
 fn render_history(
-    frame: &mut Frame<'_>,
+    frame: &mut Canvas<'_>,
     app: &App,
     area: Rect,
     context: &RenderContext,
@@ -67,16 +67,16 @@ fn render_history(
         return;
     }
 
-    let visible = usize::from(area.height.max(1));
-    let maximum_start = app.commits.len().saturating_sub(visible);
-    let start = app.selected.saturating_sub(visible / 2).min(maximum_start);
-    let end = (start + visible).min(app.commits.len());
-    let rows = cache.rows(
+    let window = Window::new(app.commits.len(), app.selected, area);
+    let start = window.rows.start;
+    let end = window.rows.end;
+    cache.rows(
         &app.commits,
         end,
         lane_limit(area.width),
         context.glyphs().graph,
     );
+    let rows = cache.computed_rows();
     // Every row is padded to the widest lane column in view so the commit text
     // stays aligned while the graph breathes.
     let graph_width = rows[start..end]
@@ -85,7 +85,6 @@ fn render_history(
         .max()
         .unwrap_or(0);
     let columns = LogColumns::plan(&app.commits[start..end], graph_width, area.width, context);
-    let lane_names = visible_lane_names(&app.commits[..end], &rows[..end]);
     let named_in_view: HashSet<usize> = app.commits[start..end]
         .iter()
         .zip(&rows[start..end])
@@ -94,55 +93,41 @@ fn render_history(
         .collect();
     let mut seen_colors = HashSet::new();
     let selected_branch = rows.get(app.selected).map(GraphRow::color);
-    let items: Vec<ListItem<'_>> = app.commits[start..end]
-        .iter()
-        .enumerate()
-        .map(|(offset, commit)| {
-            let index = start + offset;
-            let row = &rows[index];
-            let first_visible = seen_colors.insert(row.color());
-            ListItem::new(history_line(
-                commit,
-                row,
-                HistoryLineOpts {
-                    width: area.width,
-                    columns,
-                    marked: app.marked_oid.as_ref() == Some(&commit.id),
-                    selected: index == app.selected,
-                    selected_branch,
-                    search: &app.search_query,
-                    inherited_label: inherited_lane_label(
-                        commit,
-                        row.color(),
-                        index == app.selected,
-                        first_visible,
-                        &named_in_view,
-                        &lane_names,
-                    ),
-                },
-                context,
-            ))
-        })
-        .collect();
-    let mut state = ListState::default().with_selected(Some(app.selected - start));
+    let items = window.rows.clone().map(|index| {
+        let commit = &app.commits[index];
+        let row = &rows[index];
+        let first_visible = seen_colors.insert(row.color());
+        history_line(
+            commit,
+            row,
+            HistoryLineOpts {
+                width: area.width,
+                columns,
+                marked: app.marked_oid.as_ref() == Some(&commit.id),
+                selected: index == app.selected,
+                selected_branch,
+                search: &app.search_query,
+                inherited_label: inherited_lane_label(
+                    commit,
+                    row.color(),
+                    index == app.selected,
+                    first_visible,
+                    &named_in_view,
+                    cache.lane_name(row.color(), end),
+                ),
+            },
+            context,
+        )
+    });
     let active = app.focus == Focus::List;
-    let list = List::new(items)
-        .highlight_style(log_highlight_style(context, active))
-        .highlight_symbol("");
-    frame.render_stateful_widget(list, area, &mut state);
-}
-
-fn visible_lane_names(commits: &[Commit], rows: &[GraphRow]) -> HashMap<usize, String> {
-    let mut names = HashMap::new();
-    for (commit, row) in commits.iter().zip(rows) {
-        if names.contains_key(&row.color()) {
-            continue;
-        }
-        if let Some(name) = lane_name(&commit.decorations) {
-            names.insert(row.color(), name);
-        }
-    }
-    names
+    window.paint_rows(
+        frame,
+        area,
+        context,
+        "",
+        log_highlight_style(context, active),
+        items,
+    );
 }
 
 fn inherited_lane_label<'a>(
@@ -151,14 +136,13 @@ fn inherited_lane_label<'a>(
     selected: bool,
     first_visible: bool,
     named_in_view: &HashSet<usize>,
-    lane_names: &'a HashMap<usize, String>,
+    lane_name: Option<&'a str>,
 ) -> Option<&'a str> {
     if !commit.decorations.is_empty() {
         return None;
     }
-    let name = lane_names.get(&color)?;
     if selected || (first_visible && !named_in_view.contains(&color)) {
-        Some(name.as_str())
+        lane_name
     } else {
         None
     }
@@ -269,6 +253,9 @@ fn short_name(name: &str, width: usize, ellipsis: &str) -> String {
 }
 
 fn commit_date(commit: &Commit, context: &RenderContext) -> String {
+    if context.config().date_mode == super::DateMode::Relative {
+        return context.relative_age(commit.author.timestamp);
+    }
     list_date(
         commit.author.timestamp,
         &commit.author.timezone,
@@ -381,7 +368,7 @@ pub(super) fn history_line(
 }
 
 pub(super) fn render_preview(
-    frame: &mut Frame<'_>,
+    frame: &mut Canvas<'_>,
     app: &App,
     area: Rect,
     context: &RenderContext,
@@ -558,7 +545,7 @@ fn detail_metadata(app: &App, area: Rect, context: &RenderContext) -> Vec<Line<'
     let byline = format!(
         "{}{separator}{} ago{separator}{} {}{separator}{}",
         sanitize_str(&commit.author.name),
-        relative_age(commit.author.timestamp),
+        context.relative_age(commit.author.timestamp),
         list_date(
             commit.author.timestamp,
             &commit.author.timezone,

@@ -245,7 +245,7 @@ impl GitRunner {
                         })
                     };
                 }
-                Ok(None) => thread::sleep(Duration::from_millis(10)),
+                Ok(None) => wait_for_git(started, self.limits.timeout),
                 Err(source) => break Some(GitError::Io { operation, source }),
             }
         };
@@ -317,6 +317,18 @@ impl GitRunner {
     ) -> Result<GitOutput, GitError> {
         self.run_complete(directory, operation, args, &CancellationToken::new())
     }
+}
+
+fn wait_for_git(started: Instant, timeout: Duration) {
+    // Most plumbing commands finish almost immediately. Don't round each one
+    // up to 10 ms; switch back to bounded low-frequency polling for slow Git.
+    let elapsed = started.elapsed();
+    let interval = Duration::from_millis(if elapsed < Duration::from_millis(8) {
+        1
+    } else {
+        10
+    });
+    thread::sleep(interval.min(timeout.saturating_sub(elapsed)));
 }
 
 fn spawn_reader<R: Read + Send + 'static>(

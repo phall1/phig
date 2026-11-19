@@ -1,7 +1,7 @@
 //! An expanded patch with a sticky file/hunk location and the original view intact.
 
+use super::Canvas;
 use ratatui::{
-    Frame,
     layout::{Constraint, Layout, Rect},
     text::{Line, Span},
     widgets::Paragraph,
@@ -19,7 +19,7 @@ use super::{
     theme::RenderContext,
 };
 
-pub(super) fn render(frame: &mut Frame<'_>, app: &App, area: Rect, context: &RenderContext) {
+pub(super) fn render(frame: &mut Canvas<'_>, app: &App, area: Rect, context: &RenderContext) {
     // Comparison endpoints and merge-base semantics remain visible when expanded.
     if app.view == View::Compare {
         render_compare(frame, app, area, context);

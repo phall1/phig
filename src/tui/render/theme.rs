@@ -239,7 +239,7 @@ impl GlyphSet {
             ellipsis: "…",
             up_down: "↑/↓",
             dash: "—",
-            border: border::ROUNDED,
+            border: ratcn::BorderStyle::Rounded.to_border_set(),
         }
     }
 
@@ -290,6 +290,8 @@ pub struct RenderContext {
     glyphs: GlyphSet,
     bindings: KeyBindings,
     monochrome: bool,
+    #[cfg(test)]
+    fixed_now: Option<i64>,
 }
 
 fn resolve_monochrome(color_mode: ColorMode, no_color: bool) -> bool {
@@ -309,6 +311,45 @@ fn resolve_ascii(glyph_mode: GlyphMode, dumb_terminal: bool) -> bool {
 }
 
 impl RenderContext {
+    pub(super) fn now(&self) -> i64 {
+        #[cfg(test)]
+        if let Some(now) = self.fixed_now {
+            return now;
+        }
+        super::format::unix_now()
+    }
+
+    #[cfg(test)]
+    pub(super) fn at_time(mut self, now: i64) -> Self {
+        self.fixed_now = Some(now);
+        self
+    }
+
+    pub(super) fn relative_age(&self, timestamp: i64) -> String {
+        super::format::relative_age(timestamp, self.now())
+    }
+
+    pub(in crate::tui) fn bindings(&self) -> &KeyBindings {
+        &self.bindings
+    }
+
+    pub(super) fn ratcn_theme(&self) -> ratcn::Theme {
+        let mut theme = ratcn::Theme::default();
+        theme.foreground = Color::Reset;
+        theme.background = Color::Reset;
+        theme.field = Color::Reset;
+        theme.surface = Color::Reset;
+        theme.primary = self.color(self.config.theme.selection_fg);
+        theme.primary_foreground = Color::Reset;
+        theme.accent = self.accent();
+        theme.muted_foreground = self.muted();
+        theme.border = self.muted();
+        theme.ring = self.accent();
+        theme.warning = self.warning();
+        theme.destructive = self.error();
+        theme
+    }
+
     pub fn new(config: RenderConfig) -> Self {
         Self::with_bindings(config, KeyBindings::default())
     }
@@ -329,6 +370,8 @@ impl RenderContext {
             },
             bindings,
             monochrome,
+            #[cfg(test)]
+            fixed_now: None,
         }
     }
 

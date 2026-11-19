@@ -1,7 +1,6 @@
 ---
 source: src/tui/render/tests.rs
-assertion_line: 317
-expression: scenes
+expression: "scenes.lines().map(str::trim_end).collect::<Vec<_>>().join(\"\\n\")"
 ---
 UNIFIED 100x22
 TEXT
@@ -26,7 +25,7 @@ M README.md ──────────────────────�
 
 
 
- F restore · [/] hunk · T files · ? help                                                  line 1/17
+ F restore · [/] hunk · T files · : commands · ? help                             file 1/3 · line 1
 STYLES
 0:0-4 fg=Cyan bg=Reset mod=BOLD | REVERSED text=" LOG "
 0:6-14 fg=Reset bg=Reset mod=BOLD text="phig-demo"
@@ -82,9 +81,11 @@ STYLES
 21:17-23 fg=DarkGray bg=Reset mod=NONE text="hunk · "
 21:24-25 fg=Reset bg=Reset mod=BOLD text="T "
 21:26-33 fg=DarkGray bg=Reset mod=NONE text="files · "
-21:34-35 fg=Reset bg=Reset mod=BOLD text="? "
-21:36-39 fg=DarkGray bg=Reset mod=NONE text="help"
-21:90-99 fg=DarkGray bg=Reset mod=NONE text="line 1/17 "
+21:34-35 fg=Reset bg=Reset mod=BOLD text=": "
+21:36-46 fg=DarkGray bg=Reset mod=NONE text="commands · "
+21:47-48 fg=Reset bg=Reset mod=BOLD text="? "
+21:49-52 fg=DarkGray bg=Reset mod=NONE text="help"
+21:82-99 fg=DarkGray bg=Reset mod=NONE text="file 1/3 · line 1 "
 
 SPLIT 140x22
 TEXT
@@ -109,7 +110,7 @@ M README.md ──────────────────────�
 
 
 
- F restore · [/] hunk · T files · ? help                                                                                          line 1/17
+ F restore · [/] hunk · T files · : commands · ? help                                                                     file 1/3 · line 1
 STYLES
 0:0-4 fg=Cyan bg=Reset mod=BOLD | REVERSED text=" LOG "
 0:6-14 fg=Reset bg=Reset mod=BOLD text="phig-demo"
@@ -170,27 +171,29 @@ STYLES
 21:17-23 fg=DarkGray bg=Reset mod=NONE text="hunk · "
 21:24-25 fg=Reset bg=Reset mod=BOLD text="T "
 21:26-33 fg=DarkGray bg=Reset mod=NONE text="files · "
-21:34-35 fg=Reset bg=Reset mod=BOLD text="? "
-21:36-39 fg=DarkGray bg=Reset mod=NONE text="help"
-21:130-139 fg=DarkGray bg=Reset mod=NONE text="line 1/17 "
+21:34-35 fg=Reset bg=Reset mod=BOLD text=": "
+21:36-46 fg=DarkGray bg=Reset mod=NONE text="commands · "
+21:47-48 fg=Reset bg=Reset mod=BOLD text="? "
+21:49-52 fg=DarkGray bg=Reset mod=NONE text="help"
+21:122-139 fg=DarkGray bg=Reset mod=NONE text="file 1/3 · line 1 "
 
 NARROW 60x16
- LOG  phig-demo · main · HEAD                               
-DIFF aaaaaaaaaa  src/main.rs  ·  file 1/3                   
-M src/main.rs ─────────────────────────────────────── +1 -1 
-        │ @@ -10,3 +10,3 @@ fn main()                       
- 10  10 │  let label = "café";                              
- 11     │ -let timeout = 100; // old value                  
-     11 │ +let timeout = 250; // new value                  
- 12  12 │  render(label);                                   
-M src/ui/view.rs ──────────────────────────────────── +2 -0 
-        │ @@ -0,0 +1,2 @@                                   
-      1 │ +fn draw() {}                                     
-      2 │ +// 界 面                                           
-M README.md ───────────────────────────────────────── +0 -0 
-        │ old mode 100644                                   
-        │ new mode 100755                                   
- F restore · [/] hunk · T files · ? help          line 1/17 
+ LOG  phig-demo · main · HEAD
+DIFF aaaaaaaaaa  src/main.rs  ·  file 1/3
+M src/main.rs ─────────────────────────────────────── +1 -1
+        │ @@ -10,3 +10,3 @@ fn main()
+ 10  10 │  let label = "café";
+ 11     │ -let timeout = 100; // old value
+     11 │ +let timeout = 250; // new value
+ 12  12 │  render(label);
+M src/ui/view.rs ──────────────────────────────────── +2 -0
+        │ @@ -0,0 +1,2 @@
+      1 │ +fn draw() {}
+      2 │ +// 界 面
+M README.md ───────────────────────────────────────── +0 -0
+        │ old mode 100644
+        │ new mode 100755
+ F restore · [/] hunk · T files · ? help  file 1/3 · line 1
 
 TREE 120x22
 TEXT
@@ -215,7 +218,7 @@ CHANGED FILES                           │DIFF aaaaaaaaaa  src/main.rs  ·  fil
                                         │
                                         │
 src/main.rs M +1 -1                     │
- Enter open · Left/Right fold · Esc cancel · -/+ fold all · ? help                                                  4/5
+ Enter open · Left/Right fold · Esc cancel · -/+ fold all · : commands · ? help                                     4/5
 STYLES
 0:0-4 fg=Cyan bg=Reset mod=BOLD | REVERSED text=" LOG "
 0:6-14 fg=Reset bg=Reset mod=BOLD text="phig-demo"
@@ -311,24 +314,26 @@ STYLES
 21:36-44 fg=DarkGray bg=Reset mod=NONE text="cancel · "
 21:45-48 fg=Reset bg=Reset mod=BOLD text="-/+ "
 21:49-59 fg=DarkGray bg=Reset mod=NONE text="fold all · "
-21:60-61 fg=Reset bg=Reset mod=BOLD text="? "
-21:62-65 fg=DarkGray bg=Reset mod=NONE text="help"
+21:60-61 fg=Reset bg=Reset mod=BOLD text=": "
+21:62-72 fg=DarkGray bg=Reset mod=NONE text="commands · "
+21:73-74 fg=Reset bg=Reset mod=BOLD text="? "
+21:75-78 fg=DarkGray bg=Reset mod=NONE text="help"
 21:116-119 fg=DarkGray bg=Reset mod=NONE text="4/5 "
 
 TREE 60x16
- LOG  phig-demo · main · HEAD                               
-CHANGED FILES                                               
+ LOG  phig-demo · main · HEAD
+CHANGED FILES
   ├─ src/                                              +3 -1
   │ ├─ ui/                                             +2 -0
   │ │ └─ view.rs M                                     +2 -0
 › │ └─ main.rs M                                       +1 -1
   └─ README.md M                                       +0 -0
-                                                            
-                                                            
-                                                            
-                                                            
-                                                            
-                                                            
-                                                            
-src/main.rs M +1 -1                                         
+
+
+
+
+
+
+
+src/main.rs M +1 -1
  Enter open · Left/Right fold · Esc cancel · ? help     4/5

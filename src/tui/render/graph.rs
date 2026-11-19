@@ -148,6 +148,7 @@ pub(super) fn graph_rows(
 #[derive(Debug, Default)]
 pub(in crate::tui) struct GraphCache {
     rows: Vec<GraphRow>,
+    names: HashMap<usize, (usize, String)>,
     state: Lanes,
     projection: Option<(usize, [char; 3])>,
     #[cfg(test)]
@@ -157,6 +158,15 @@ pub(in crate::tui) struct GraphCache {
 impl GraphCache {
     pub(in crate::tui) fn clear(&mut self) {
         *self = Self::default();
+    }
+
+    pub(super) fn computed_rows(&self) -> &[GraphRow] {
+        &self.rows
+    }
+
+    pub(super) fn lane_name(&self, color: usize, end: usize) -> Option<&str> {
+        let (index, name) = self.names.get(&color)?;
+        (*index < end).then_some(name.as_str())
     }
 
     pub(in crate::tui) fn rows(
@@ -174,7 +184,15 @@ impl GraphCache {
         }
         let end = end.min(commits.len());
         for commit in commits.iter().take(end).skip(self.rows.len()) {
-            self.rows.push(self.state.step(commit, lane_limit, glyphs));
+            let row = self.state.step(commit, lane_limit, glyphs);
+            if !commit.decorations.is_empty()
+                && let std::collections::hash_map::Entry::Vacant(entry) =
+                    self.names.entry(row.color())
+                && let Some(name) = super::decorate::lane_name(&commit.decorations)
+            {
+                entry.insert((self.rows.len(), name));
+            }
+            self.rows.push(row);
             #[cfg(test)]
             {
                 self.steps += 1;

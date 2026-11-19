@@ -1,6 +1,5 @@
 ---
 source: src/tui/render/tests.rs
-assertion_line: 844
 expression: output
 ---
 
@@ -33,7 +32,7 @@ M src/main.rs ──────────────────────
         │ -old
         │ +new
 
- j/k move · Enter open · / search · v mark · ? help                                             1/1
+ j/k move · Enter inspect · / search · v mark · : commands · ? help                             1/1
 STYLES
 0:0-4 fg=Cyan bg=Reset mod=BOLD | REVERSED text=" LOG "
 0:6-14 fg=Reset bg=Reset mod=BOLD text="phig-demo"
@@ -79,13 +78,15 @@ STYLES
 27:1-4 fg=Reset bg=Reset mod=BOLD text="j/k "
 27:5-11 fg=DarkGray bg=Reset mod=NONE text="move · "
 27:12-17 fg=Reset bg=Reset mod=BOLD text="Enter "
-27:18-24 fg=DarkGray bg=Reset mod=NONE text="open · "
-27:25-26 fg=Reset bg=Reset mod=BOLD text="/ "
-27:27-35 fg=DarkGray bg=Reset mod=NONE text="search · "
-27:36-37 fg=Reset bg=Reset mod=BOLD text="v "
-27:38-44 fg=DarkGray bg=Reset mod=NONE text="mark · "
-27:45-46 fg=Reset bg=Reset mod=BOLD text="? "
-27:47-50 fg=DarkGray bg=Reset mod=NONE text="help"
+27:18-27 fg=DarkGray bg=Reset mod=NONE text="inspect · "
+27:28-29 fg=Reset bg=Reset mod=BOLD text="/ "
+27:30-38 fg=DarkGray bg=Reset mod=NONE text="search · "
+27:39-40 fg=Reset bg=Reset mod=BOLD text="v "
+27:41-47 fg=DarkGray bg=Reset mod=NONE text="mark · "
+27:48-49 fg=Reset bg=Reset mod=BOLD text=": "
+27:50-60 fg=DarkGray bg=Reset mod=NONE text="commands · "
+27:61-62 fg=Reset bg=Reset mod=BOLD text="? "
+27:63-66 fg=DarkGray bg=Reset mod=NONE text="help"
 27:96-99 fg=DarkGray bg=Reset mod=NONE text="1/1 "
 
 === Detail ===
@@ -117,7 +118,7 @@ M src/main.rs ──────────────────────
 
 
 
- j/k scroll · [/] hunk · f files · ? help                                                    line 1
+ f files · [/] hunk · F expand · T tree · : commands · ? help                              line 1/4
 STYLES
 0:0-5 fg=Cyan bg=Reset mod=BOLD | REVERSED text=" SHOW "
 0:7-15 fg=Reset bg=Reset mod=BOLD text="phig-demo"
@@ -146,15 +147,19 @@ STYLES
 13:0-9 fg=Green bg=Reset mod=DIM text="        │ "
 13:10-10 fg=Green bg=Reset mod=NONE text="+"
 13:11-13 fg=Green bg=Reset mod=BOLD | UNDERLINED text="new"
-27:1-4 fg=Reset bg=Reset mod=BOLD text="j/k "
-27:5-13 fg=DarkGray bg=Reset mod=NONE text="scroll · "
-27:14-17 fg=Reset bg=Reset mod=BOLD text="[/] "
-27:18-24 fg=DarkGray bg=Reset mod=NONE text="hunk · "
-27:25-26 fg=Reset bg=Reset mod=BOLD text="f "
-27:27-34 fg=DarkGray bg=Reset mod=NONE text="files · "
-27:35-36 fg=Reset bg=Reset mod=BOLD text="? "
-27:37-40 fg=DarkGray bg=Reset mod=NONE text="help"
-27:93-99 fg=DarkGray bg=Reset mod=NONE text="line 1 "
+27:1-2 fg=Reset bg=Reset mod=BOLD text="f "
+27:3-10 fg=DarkGray bg=Reset mod=NONE text="files · "
+27:11-14 fg=Reset bg=Reset mod=BOLD text="[/] "
+27:15-21 fg=DarkGray bg=Reset mod=NONE text="hunk · "
+27:22-23 fg=Reset bg=Reset mod=BOLD text="F "
+27:24-32 fg=DarkGray bg=Reset mod=NONE text="expand · "
+27:33-34 fg=Reset bg=Reset mod=BOLD text="T "
+27:35-41 fg=DarkGray bg=Reset mod=NONE text="tree · "
+27:42-43 fg=Reset bg=Reset mod=BOLD text=": "
+27:44-54 fg=DarkGray bg=Reset mod=NONE text="commands · "
+27:55-56 fg=Reset bg=Reset mod=BOLD text="? "
+27:57-60 fg=DarkGray bg=Reset mod=NONE text="help"
+27:91-99 fg=DarkGray bg=Reset mod=NONE text="line 1/4 "
 
 === Compare ===
 TEXT
@@ -185,7 +190,7 @@ TEXT
 
 
 
- j/k scroll · x swap · M mode · ? help                                                       line 1
+ f files · x swap · M mode · [/] hunk · : commands · ? help                                  line 1
 STYLES
 0:0-8 fg=Cyan bg=Reset mod=BOLD | REVERSED text=" COMPARE "
 0:10-18 fg=Reset bg=Reset mod=BOLD text="phig-demo"
@@ -193,14 +198,18 @@ STYLES
 0:22-25 fg=Green bg=Reset mod=NONE text="main"
 0:26-32 fg=DarkGray bg=Reset mod=NONE text=" · HEAD"
 13:0-99 fg=DarkGray bg=Reset mod=NONE text="                                       Comparison unavailable                                       "
-27:1-4 fg=Reset bg=Reset mod=BOLD text="j/k "
-27:5-13 fg=DarkGray bg=Reset mod=NONE text="scroll · "
-27:14-15 fg=Reset bg=Reset mod=BOLD text="x "
-27:16-22 fg=DarkGray bg=Reset mod=NONE text="swap · "
-27:23-24 fg=Reset bg=Reset mod=BOLD text="M "
-27:25-31 fg=DarkGray bg=Reset mod=NONE text="mode · "
-27:32-33 fg=Reset bg=Reset mod=BOLD text="? "
-27:34-37 fg=DarkGray bg=Reset mod=NONE text="help"
+27:1-2 fg=Reset bg=Reset mod=BOLD text="f "
+27:3-10 fg=DarkGray bg=Reset mod=NONE text="files · "
+27:11-12 fg=Reset bg=Reset mod=BOLD text="x "
+27:13-19 fg=DarkGray bg=Reset mod=NONE text="swap · "
+27:20-21 fg=Reset bg=Reset mod=BOLD text="M "
+27:22-28 fg=DarkGray bg=Reset mod=NONE text="mode · "
+27:29-32 fg=Reset bg=Reset mod=BOLD text="[/] "
+27:33-39 fg=DarkGray bg=Reset mod=NONE text="hunk · "
+27:40-41 fg=Reset bg=Reset mod=BOLD text=": "
+27:42-52 fg=DarkGray bg=Reset mod=NONE text="commands · "
+27:53-54 fg=Reset bg=Reset mod=BOLD text="? "
+27:55-58 fg=DarkGray bg=Reset mod=NONE text="help"
 27:93-99 fg=DarkGray bg=Reset mod=NONE text="line 1 "
 
 === Refs ===
@@ -232,7 +241,7 @@ TEXT
 
 
 
- j/k move · Enter open · / search · ? help                                                      0/0
+ j/k move · Enter open · / search · : commands · ? help                                         0/0
 STYLES
 0:0-5 fg=Cyan bg=Reset mod=BOLD | REVERSED text=" REFS "
 0:7-15 fg=Reset bg=Reset mod=BOLD text="phig-demo"
@@ -246,8 +255,10 @@ STYLES
 27:18-24 fg=DarkGray bg=Reset mod=NONE text="open · "
 27:25-26 fg=Reset bg=Reset mod=BOLD text="/ "
 27:27-35 fg=DarkGray bg=Reset mod=NONE text="search · "
-27:36-37 fg=Reset bg=Reset mod=BOLD text="? "
-27:38-41 fg=DarkGray bg=Reset mod=NONE text="help"
+27:36-37 fg=Reset bg=Reset mod=BOLD text=": "
+27:38-48 fg=DarkGray bg=Reset mod=NONE text="commands · "
+27:49-50 fg=Reset bg=Reset mod=BOLD text="? "
+27:51-54 fg=DarkGray bg=Reset mod=NONE text="help"
 27:96-99 fg=DarkGray bg=Reset mod=NONE text="0/0 "
 
 === Status ===
@@ -279,7 +290,7 @@ TEXT
 
 
 
- j/k move · no changes · d staged/unstaged · ? help                                             0/0
+ j/k move · no changes · d staged/unstaged · : commands · ? help                                0/0
 STYLES
 0:0-7 fg=Cyan bg=Reset mod=BOLD | REVERSED text=" STATUS "
 0:9-17 fg=Reset bg=Reset mod=BOLD text="phig-demo"
@@ -291,8 +302,10 @@ STYLES
 27:5-24 fg=DarkGray bg=Reset mod=NONE text="move · no changes · "
 27:25-26 fg=Reset bg=Reset mod=BOLD text="d "
 27:27-44 fg=DarkGray bg=Reset mod=NONE text="staged/unstaged · "
-27:45-46 fg=Reset bg=Reset mod=BOLD text="? "
-27:47-50 fg=DarkGray bg=Reset mod=NONE text="help"
+27:45-46 fg=Reset bg=Reset mod=BOLD text=": "
+27:47-57 fg=DarkGray bg=Reset mod=NONE text="commands · "
+27:58-59 fg=Reset bg=Reset mod=BOLD text="? "
+27:60-63 fg=DarkGray bg=Reset mod=NONE text="help"
 27:96-99 fg=DarkGray bg=Reset mod=NONE text="0/0 "
 
 === StatusDiff ===
@@ -324,7 +337,7 @@ TEXT
 
 
 
- j/k scroll · [/] hunk · f files · ? help                                                    line 1
+ f files · [/] hunk · F expand · T tree · : commands · ? help                                line 1
 STYLES
 0:0-12 fg=Cyan bg=Reset mod=BOLD | REVERSED text=" STATUS DIFF "
 0:14-22 fg=Reset bg=Reset mod=BOLD text="phig-demo"
@@ -332,14 +345,18 @@ STYLES
 0:26-29 fg=Green bg=Reset mod=NONE text="main"
 0:30-36 fg=DarkGray bg=Reset mod=NONE text=" · HEAD"
 13:0-99 fg=DarkGray bg=Reset mod=NONE text="                                      Working diff unavailable                                      "
-27:1-4 fg=Reset bg=Reset mod=BOLD text="j/k "
-27:5-13 fg=DarkGray bg=Reset mod=NONE text="scroll · "
-27:14-17 fg=Reset bg=Reset mod=BOLD text="[/] "
-27:18-24 fg=DarkGray bg=Reset mod=NONE text="hunk · "
-27:25-26 fg=Reset bg=Reset mod=BOLD text="f "
-27:27-34 fg=DarkGray bg=Reset mod=NONE text="files · "
-27:35-36 fg=Reset bg=Reset mod=BOLD text="? "
-27:37-40 fg=DarkGray bg=Reset mod=NONE text="help"
+27:1-2 fg=Reset bg=Reset mod=BOLD text="f "
+27:3-10 fg=DarkGray bg=Reset mod=NONE text="files · "
+27:11-14 fg=Reset bg=Reset mod=BOLD text="[/] "
+27:15-21 fg=DarkGray bg=Reset mod=NONE text="hunk · "
+27:22-23 fg=Reset bg=Reset mod=BOLD text="F "
+27:24-32 fg=DarkGray bg=Reset mod=NONE text="expand · "
+27:33-34 fg=Reset bg=Reset mod=BOLD text="T "
+27:35-41 fg=DarkGray bg=Reset mod=NONE text="tree · "
+27:42-43 fg=Reset bg=Reset mod=BOLD text=": "
+27:44-54 fg=DarkGray bg=Reset mod=NONE text="commands · "
+27:55-56 fg=Reset bg=Reset mod=BOLD text="? "
+27:57-60 fg=DarkGray bg=Reset mod=NONE text="help"
 27:93-99 fg=DarkGray bg=Reset mod=NONE text="line 1 "
 
 === Tree ===
@@ -371,7 +388,7 @@ TEXT
 
 
 
- j/k move · Enter open · Backspace up · ? help                                                  0/0
+ j/k move · Enter open · Backspace up · : commands · ? help                                     0/0
 STYLES
 0:0-5 fg=Cyan bg=Reset mod=BOLD | REVERSED text=" TREE "
 0:7-15 fg=Reset bg=Reset mod=BOLD text="phig-demo"
@@ -385,8 +402,10 @@ STYLES
 27:18-24 fg=DarkGray bg=Reset mod=NONE text="open · "
 27:25-34 fg=Reset bg=Reset mod=BOLD text="Backspace "
 27:35-39 fg=DarkGray bg=Reset mod=NONE text="up · "
-27:40-41 fg=Reset bg=Reset mod=BOLD text="? "
-27:42-45 fg=DarkGray bg=Reset mod=NONE text="help"
+27:40-41 fg=Reset bg=Reset mod=BOLD text=": "
+27:42-52 fg=DarkGray bg=Reset mod=NONE text="commands · "
+27:53-54 fg=Reset bg=Reset mod=BOLD text="? "
+27:55-58 fg=DarkGray bg=Reset mod=NONE text="help"
 27:96-99 fg=DarkGray bg=Reset mod=NONE text="0/0 "
 
 === Blob ===
@@ -418,7 +437,7 @@ TEXT
 
 
 
- j/k scroll · / search · b blame · ? help                                                    line 1
+ j/k scroll · / search · b blame · : commands · ? help                                       line 1
 STYLES
 0:0-5 fg=Cyan bg=Reset mod=BOLD | REVERSED text=" BLOB "
 0:7-15 fg=Reset bg=Reset mod=BOLD text="phig-demo"
@@ -432,8 +451,10 @@ STYLES
 27:16-24 fg=DarkGray bg=Reset mod=NONE text="search · "
 27:25-26 fg=Reset bg=Reset mod=BOLD text="b "
 27:27-34 fg=DarkGray bg=Reset mod=NONE text="blame · "
-27:35-36 fg=Reset bg=Reset mod=BOLD text="? "
-27:37-40 fg=DarkGray bg=Reset mod=NONE text="help"
+27:35-36 fg=Reset bg=Reset mod=BOLD text=": "
+27:37-47 fg=DarkGray bg=Reset mod=NONE text="commands · "
+27:48-49 fg=Reset bg=Reset mod=BOLD text="? "
+27:50-53 fg=DarkGray bg=Reset mod=NONE text="help"
 27:93-99 fg=DarkGray bg=Reset mod=NONE text="line 1 "
 
 === Blame ===
@@ -465,7 +486,7 @@ TEXT
 
 
 
- j/k move · Enter open · / search · ? help                                                      0/0
+ j/k move · Enter open · / search · : commands · ? help                                         0/0
 STYLES
 0:0-6 fg=Cyan bg=Reset mod=BOLD | REVERSED text=" BLAME "
 0:8-16 fg=Reset bg=Reset mod=BOLD text="phig-demo"
@@ -479,8 +500,10 @@ STYLES
 27:18-24 fg=DarkGray bg=Reset mod=NONE text="open · "
 27:25-26 fg=Reset bg=Reset mod=BOLD text="/ "
 27:27-35 fg=DarkGray bg=Reset mod=NONE text="search · "
-27:36-37 fg=Reset bg=Reset mod=BOLD text="? "
-27:38-41 fg=DarkGray bg=Reset mod=NONE text="help"
+27:36-37 fg=Reset bg=Reset mod=BOLD text=": "
+27:38-48 fg=DarkGray bg=Reset mod=NONE text="commands · "
+27:49-50 fg=Reset bg=Reset mod=BOLD text="? "
+27:51-54 fg=DarkGray bg=Reset mod=NONE text="help"
 27:96-99 fg=DarkGray bg=Reset mod=NONE text="0/0 "
 
 === Stash ===
@@ -512,7 +535,7 @@ TEXT
 
 
 
- j/k move · Enter open · / search · ? help                                                      0/0
+ j/k move · Enter open · / search · : commands · ? help                                         0/0
 STYLES
 0:0-6 fg=Cyan bg=Reset mod=BOLD | REVERSED text=" STASH "
 0:8-16 fg=Reset bg=Reset mod=BOLD text="phig-demo"
@@ -526,6 +549,8 @@ STYLES
 27:18-24 fg=DarkGray bg=Reset mod=NONE text="open · "
 27:25-26 fg=Reset bg=Reset mod=BOLD text="/ "
 27:27-35 fg=DarkGray bg=Reset mod=NONE text="search · "
-27:36-37 fg=Reset bg=Reset mod=BOLD text="? "
-27:38-41 fg=DarkGray bg=Reset mod=NONE text="help"
+27:36-37 fg=Reset bg=Reset mod=BOLD text=": "
+27:38-48 fg=DarkGray bg=Reset mod=NONE text="commands · "
+27:49-50 fg=Reset bg=Reset mod=BOLD text="? "
+27:51-54 fg=DarkGray bg=Reset mod=NONE text="help"
 27:96-99 fg=DarkGray bg=Reset mod=NONE text="0/0 "

@@ -2,7 +2,8 @@
 
 use std::{collections::HashMap, time::Duration};
 
-use crossterm::event::{self, Event, KeyCode, KeyEventKind, KeyModifiers, MouseEventKind};
+use crossterm::event::{self, Event};
+use ratatui::layout::Size;
 
 use crate::{
     app::{Action, App, Effect, Overlay},
@@ -18,8 +19,7 @@ use super::signals::SignalMonitor;
 use super::{
     TuiError,
     effects::{apply_response, dispatch_effects, invalidate_for_transition, retry_pending},
-    input::resolve_action,
-    render::{self, RenderConfig, RenderContext},
+    render::{self, Input, RenderConfig, RenderContext, Renderer},
     session::TerminalSession,
 };
 
@@ -128,11 +128,12 @@ fn run_loop(
         pending: HashMap::new(),
         selection: None,
         terminating_signal: None,
-        render: render::RenderState::default(),
+        render: Renderer::new(render_context),
+        size: session.terminal_mut().size()?,
     };
     #[cfg(unix)]
     let signals = SignalMonitor::new()?;
-    state.page_rows(&mut session)?;
+    state.page_rows();
     state.dispatch(state.app.initial_effects())?;
     while !state.app.should_quit {
         #[cfg(unix)]
@@ -140,7 +141,7 @@ fn run_loop(
         if state.app.should_quit {
             break;
         }
-        state.tick(&mut session, &render_context)?;
+        state.tick(&mut session)?;
     }
     session.restore()?;
     if let Some(signal) = state.terminating_signal {
@@ -158,7 +159,8 @@ struct LoopState {
     pending: HashMap<RequestKey, GitQuery>,
     selection: Option<SelectionPayload>,
     terminating_signal: Option<i32>,
-    render: render::RenderState,
+    render: Renderer,
+    size: Size,
 }
 
 impl LoopState {
@@ -174,16 +176,13 @@ impl LoopState {
         Ok(())
     }
 
-    fn tick(
-        &mut self,
-        session: &mut TerminalSession,
-        context: &RenderContext,
-    ) -> Result<(), TuiError> {
+    fn tick(&mut self, session: &mut TerminalSession) -> Result<(), TuiError> {
         retry_pending(&self.coordinator, &mut self.pending)?;
         self.receive()?;
         if self.app.dirty {
             session.terminal_mut().draw(|frame| {
-                render::render_with_state(frame, &self.app, context, &mut self.render)
+                self.size = frame.area().as_size();
+                self.render.draw(frame, &self.app);
             })?;
             self.app.dirty = false;
         }
@@ -194,8 +193,8 @@ impl LoopState {
         dispatch_effects(&self.coordinator, &self.app, effects, &mut self.pending)
     }
 
-    fn page_rows(&mut self, session: &mut TerminalSession) -> Result<usize, TuiError> {
-        let size = session.terminal_mut().size()?;
+    fn page_rows(&mut self) -> usize {
+        let size = self.size;
         self.app.diff_split_available =
             render::diff_split_available(&self.app, size.width, size.height);
         self.app
@@ -204,7 +203,7 @@ impl LoopState {
                 size.width,
                 size.height,
             ));
-        Ok(render::page_rows(&self.app, size.width, size.height))
+        render::page_rows(&self.app, size.width, size.height)
     }
 
     fn receive(&mut self) -> Result<(), TuiError> {
@@ -227,7 +226,12 @@ impl LoopState {
     }
 
     fn read_events(&mut self, session: &mut TerminalSession) -> Result<(), TuiError> {
-        if !event::poll(Duration::from_millis(16))? {
+        let active = self.app.history_loading
+            || self.app.preview_loading
+            || self.app.inspect.loading
+            || !self.pending.is_empty();
+        let timeout = Duration::from_millis(if active { 4 } else { 100 });
+        if !event::poll(timeout)? {
             return Ok(());
         }
         // Drain a bounded burst before painting; held keys and pasted input need
@@ -242,46 +246,23 @@ impl LoopState {
     }
 
     fn event(&mut self, event: Event, session: &mut TerminalSession) -> Result<(), TuiError> {
-        match event {
-            Event::Key(key) if key.kind != KeyEventKind::Release => self.key(key, session)?,
-            Event::Paste(value) => self.paste(&value, session)?,
-            Event::Mouse(mouse) => match mouse.kind {
-                MouseEventKind::ScrollDown => self.action(Action::Move(3), session)?,
-                MouseEventKind::ScrollUp => self.action(Action::Move(-3), session)?,
-                _ => {}
-            },
-            Event::Resize(width, height) => {
-                self.app.diff_split_available =
-                    render::diff_split_available(&self.app, width, height);
-                self.app
-                    .set_preview_focus_available(render::preview_focus_available(
-                        &self.app, width, height,
-                    ));
-                self.app.dirty = true;
+        if let Event::Resize(width, height) = event {
+            self.size = Size::new(width, height);
+            self.page_rows();
+            self.app.dirty = true;
+            return Ok(());
+        }
+        match self.render.input(event, &self.app) {
+            Some(Input::Action(action)) if !self.select(&action) => self.action(action, session)?,
+            Some(Input::Paste(value)) => self.paste(&value)?,
+            Some(Input::Interrupt) => {
+                #[cfg(unix)]
+                {
+                    self.terminating_signal = Some(signal_hook::consts::signal::SIGINT);
+                }
+                self.app.should_quit = true;
             }
             _ => {}
-        }
-        Ok(())
-    }
-
-    fn key(
-        &mut self,
-        key: crossterm::event::KeyEvent,
-        session: &mut TerminalSession,
-    ) -> Result<(), TuiError> {
-        if key.code == KeyCode::Char('c') && key.modifiers.contains(KeyModifiers::CONTROL) {
-            #[cfg(unix)]
-            {
-                self.terminating_signal = Some(signal_hook::consts::signal::SIGINT);
-            }
-            self.app.should_quit = true;
-            return Ok(());
-        }
-        let Some(action) = resolve_action(&self.app, &self.options.bindings, key) else {
-            return Ok(());
-        };
-        if !self.select(&action) {
-            self.action(action, session)?;
         }
         Ok(())
     }
@@ -308,7 +289,7 @@ impl LoopState {
     }
 
     fn action(&mut self, action: Action, session: &mut TerminalSession) -> Result<(), TuiError> {
-        let rows = self.page_rows(session)?;
+        let rows = self.page_rows();
         let previous = self.app.view;
         let effects = self.app.update(action, rows);
         if self.app.view != previous
@@ -347,12 +328,12 @@ impl LoopState {
         Ok(())
     }
 
-    fn paste(&mut self, value: &str, session: &mut TerminalSession) -> Result<(), TuiError> {
+    fn paste(&mut self, value: &str) -> Result<(), TuiError> {
         if matches!(
             self.app.overlay,
             Overlay::Search { .. } | Overlay::Palette { .. } | Overlay::FilePicker { .. }
         ) {
-            let rows = self.page_rows(session)?;
+            let rows = self.page_rows();
             let effects = apply_paste(&mut self.app, value, rows);
             self.dispatch(effects)?;
         }
@@ -381,7 +362,8 @@ impl LoopState {
                         self.options.mouse,
                     )?
                 };
-                self.page_rows(session)?;
+                self.size = session.terminal_mut().size()?;
+                self.page_rows();
                 self.app.dirty = true;
             }
             _ => {}

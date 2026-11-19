@@ -1,22 +1,22 @@
 //! Header, footer, overlays, and actionable error presentation.
 
+use super::Canvas;
 use ratatui::{
-    Frame,
     layout::{Alignment, Constraint, Layout, Rect},
     style::Style,
     text::{Line, Span},
-    widgets::{Block, Borders, Clear, List, ListItem, ListState, Paragraph, Wrap},
+    widgets::{Block, Borders, Clear, Paragraph, Wrap},
 };
 
 use crate::{
-    app::{Action, App, Overlay, View, palette_commands},
+    app::{Action, App, Overlay, View},
     sanitize::sanitize_str,
 };
 
 use super::{
     format::{display_width, pad_right, truncate_with},
     layout::centered_rect,
-    picker::{command_item, matched_label, render_prompt},
+    picker::{command_item, matched_label, render_picker},
     theme::RenderContext,
 };
 
@@ -35,7 +35,32 @@ fn view_label(view: View) -> &'static str {
     }
 }
 
-pub(super) fn render_header(frame: &mut Frame<'_>, app: &App, area: Rect, context: &RenderContext) {
+pub(super) fn render_header(
+    frame: &mut Canvas<'_>,
+    app: &App,
+    area: Rect,
+    context: &RenderContext,
+) {
+    let left = header_context(app, context);
+    let Some((label, style)) = header_status(app, context) else {
+        frame.render_widget(Paragraph::new(left), area);
+        return;
+    };
+    let width = display_width(&label)
+        .saturating_add(1)
+        .min(usize::from(area.width / 2)) as u16;
+    let [left_area, right_area] =
+        Layout::horizontal([Constraint::Min(1), Constraint::Length(width)]).areas(area);
+    frame.render_widget(Paragraph::new(left), left_area);
+    frame.render_widget(
+        Paragraph::new(label)
+            .alignment(Alignment::Right)
+            .style(style),
+        right_area,
+    );
+}
+
+fn header_context(app: &App, context: &RenderContext) -> Line<'static> {
     let repository = app
         .repository
         .root
@@ -69,9 +94,13 @@ pub(super) fn render_header(frame: &mut Frame<'_>, app: &App, area: Rect, contex
         Span::styled(repository, context.strong(ratatui::style::Color::Reset)),
         Span::styled(separator.clone(), muted),
         Span::styled(branch, context.style(context.added())),
-        Span::styled(separator, muted),
-        Span::styled(revision, muted),
     ];
+    // The named branch already describes a default HEAD walk. Keep an
+    // explicit revision or ref family, which changes what is on screen.
+    if revision != "HEAD" || app.revision_explicit || app.repository.branch.is_none() {
+        left.push(Span::styled(separator, muted));
+        left.push(Span::styled(revision, muted));
+    }
     if app.view == View::Tree {
         left.push(Span::styled(
             format!(
@@ -97,55 +126,37 @@ pub(super) fn render_header(frame: &mut Frame<'_>, app: &App, area: Rect, contex
         ));
     }
 
-    let critical = if app.has_errors() {
-        Some(("request failed".to_owned(), context.error(), true))
-    } else if let Some(selection) = &app.selection_contract {
-        Some((
-            format!("select {}", selection.target.label().to_ascii_lowercase()),
-            context.accent(),
-            true,
-        ))
-    } else if app.inspect.compare_picker {
-        Some(("choose comparison base".into(), context.warning(), true))
-    } else if app.inspect.loading || app.history_loading || app.preview_loading {
-        Some((
-            format!("loading{}", context.glyphs().ellipsis),
-            context.warning(),
-            false,
-        ))
-    } else {
-        app.marked_oid.as_ref().map(|marked| {
-            (
-                format!("marked {}", marked.short(10)),
-                context.muted(),
-                false,
-            )
-        })
-    };
+    Line::from(left)
+}
 
-    if let Some((label, color, strong)) = critical {
-        let width = display_width(&label)
-            .saturating_add(1)
-            .min(usize::from(area.width / 2));
-        let parts = Layout::horizontal([
-            Constraint::Min(1),
-            Constraint::Length(u16::try_from(width).unwrap_or(area.width)),
-        ])
-        .split(area);
-        frame.render_widget(Paragraph::new(Line::from(left)), parts[0]);
-        frame.render_widget(
-            Paragraph::new(label)
-                .alignment(Alignment::Right)
-                .style(if strong {
-                    context.strong(color)
-                } else {
-                    context.style(color)
-                }),
-            parts[1],
-        );
-    } else {
-        frame.render_widget(Paragraph::new(Line::from(left)), area);
+fn header_status(app: &App, context: &RenderContext) -> Option<(String, Style)> {
+    if app.has_errors() {
+        return Some(("request failed".into(), context.strong(context.error())));
     }
+    if let Some(selection) = &app.selection_contract {
+        return Some((
+            format!("select {}", selection.target.label().to_ascii_lowercase()),
+            context.strong(context.accent()),
+        ));
+    }
+    if app.inspect.compare_picker {
+        return Some((
+            "choose comparison base".into(),
+            context.strong(context.warning()),
+        ));
+    }
+    if app.inspect.loading || app.history_loading || app.preview_loading {
+        return Some((
+            format!("loading{}", context.glyphs().ellipsis),
+            context.style(context.warning()),
+        ));
+    }
+    app.marked_oid.as_ref().map(|marked| {
+        (
+            format!("marked {}", marked.short(10)),
+            context.style(context.muted()),
+        )
+    })
 }
 
 fn index_position(selected: usize, count: usize) -> String {
@@ -156,16 +167,12 @@ fn index_position(selected: usize, count: usize) -> String {
     }
 }
 
-fn position(app: &App) -> String {
+fn position(app: &App, context: &RenderContext) -> String {
     if let Overlay::DiffTree(tree) = &app.overlay {
         return index_position(tree.selected, tree.visible.len());
     }
     if app.diff_fullscreen {
-        return format!(
-            "line {}/{}",
-            app.diff_scroll + 1,
-            app.active_diff().map_or(0, |diff| diff.lines.len())
-        );
+        return patch_position(app, context);
     }
     match app.view {
         // More history streams in on demand; `+` says the count is a floor.
@@ -178,10 +185,28 @@ fn position(app: &App) -> String {
         View::Tree => index_position(app.inspect.selected, app.inspect.tree.len()),
         View::Blame => index_position(app.inspect.selected, app.inspect.blame.len()),
         View::Stash => index_position(app.inspect.selected, app.inspect.stashes.len()),
-        View::Blob | View::Detail | View::Compare | View::StatusDiff => {
-            format!("line {}", app.diff_scroll + 1)
-        }
+        View::Blob => format!("line {}", app.diff_scroll + 1),
+        View::Detail | View::Compare | View::StatusDiff => patch_position(app, context),
     }
+}
+
+fn patch_position(app: &App, context: &RenderContext) -> String {
+    let line = app.diff_scroll + 1;
+    let Some(diff) = app.active_diff() else {
+        return format!("line {line}");
+    };
+    if diff.files.len() < 2 {
+        return format!("line {}", index_position(app.diff_scroll, diff.lines.len()));
+    }
+    let file = diff
+        .files
+        .partition_point(|file| file.header_line <= app.diff_scroll)
+        .max(1);
+    format!(
+        "file {file}/{} {} line {line}",
+        diff.files.len(),
+        context.glyphs().separator
+    )
 }
 
 fn key_pair(context: &RenderContext, first: &Action, second: &Action) -> String {
@@ -217,7 +242,7 @@ fn hints(app: &App, context: &RenderContext) -> Vec<Hint> {
     match app.view {
         View::Log => vec![
             (move_keys, "move"),
-            (key(&Action::Open), "open"),
+            (key(&Action::Open), "inspect"),
             (key(&Action::StartSearch), "search"),
             (key(&Action::Mark), "mark"),
         ],
@@ -253,13 +278,13 @@ fn hints(app: &App, context: &RenderContext) -> Vec<Hint> {
             (key(&Action::Ascend), "up"),
         ],
         View::Detail | View::StatusDiff => vec![
-            (move_keys, "scroll"),
-            (hunk(), "hunk"),
             (key(&Action::StartFilePicker), "files"),
+            (hunk(), "hunk"),
+            (key(&Action::ToggleDiffFullscreen), "expand"),
             (key(&Action::ToggleDiffTree), "tree"),
         ],
         View::Compare => vec![
-            (move_keys, "scroll"),
+            (key(&Action::StartFilePicker), "files"),
             (key(&Action::SwapCompare), "swap"),
             (key(&Action::ToggleCompareMode), "mode"),
             (hunk(), "hunk"),
@@ -282,13 +307,10 @@ fn hint_line(
 ) -> Line<'static> {
     let muted = context.style(context.muted());
     let mut hints = hints(app, context);
-    // The log and the file tree each have a fourth hint worth its room.
-    let limit = if app.view == View::Log || matches!(app.overlay, Overlay::DiffTree(_)) {
-        4
-    } else {
-        3
-    };
-    hints.truncate(limit);
+    let commands = context.key(&Action::StartPalette);
+    if commands != "unbound" {
+        hints.push((commands, "commands"));
+    }
     let help: Hint = (context.key(&Action::ToggleHelp), "help");
     let separator = format!(" {} ", context.glyphs().separator);
     let hint_width = |(key, label): &Hint| {
@@ -299,7 +321,7 @@ fn hint_line(
     for hint in hints {
         let width = hint_width(&hint) + display_width(&separator);
         if used + width > left_width {
-            break;
+            continue;
         }
         used += width;
         chosen.push(hint);
@@ -318,8 +340,13 @@ fn hint_line(
     Line::from(spans)
 }
 
-pub(super) fn render_footer(frame: &mut Frame<'_>, app: &App, area: Rect, context: &RenderContext) {
-    let position = format!("{} ", position(app));
+pub(super) fn render_footer(
+    frame: &mut Canvas<'_>,
+    app: &App,
+    area: Rect,
+    context: &RenderContext,
+) {
+    let position = format!("{} ", position(app, context));
     let position_width = u16::try_from(display_width(&position)).unwrap_or(area.width);
     let parts = Layout::horizontal([
         Constraint::Min(1),
@@ -364,7 +391,7 @@ pub(super) fn render_footer(frame: &mut Frame<'_>, app: &App, area: Rect, contex
 }
 
 fn overlay_regions(
-    frame: &mut Frame<'_>,
+    frame: &mut Canvas<'_>,
     area: Rect,
     width: u16,
     height: u16,
@@ -377,8 +404,7 @@ fn overlay_regions(
         height.min(area.height),
         area,
     );
-    let clear_band = Rect::new(area.x, popup.y, area.width, popup.height);
-    frame.render_widget(Clear, clear_band);
+    frame.render_widget(Clear, popup);
     let color = if error {
         context.error()
     } else {
@@ -538,7 +564,7 @@ fn help_section(
     lines
 }
 
-pub(super) fn render_help(frame: &mut Frame<'_>, app: &App, area: Rect, context: &RenderContext) {
+pub(super) fn render_help(frame: &mut Canvas<'_>, app: &App, area: Rect, context: &RenderContext) {
     let key_width = HELP_SECTIONS
         .iter()
         .flat_map(|(_, entries)| entries.iter())
@@ -621,7 +647,7 @@ pub(super) fn render_help(frame: &mut Frame<'_>, app: &App, area: Rect, context:
 }
 
 pub(super) fn render_search(
-    frame: &mut Frame<'_>,
+    frame: &mut Canvas<'_>,
     app: &App,
     draft: &str,
     body: Rect,
@@ -663,63 +689,34 @@ pub(super) fn render_search(
 }
 
 pub(super) fn render_palette(
-    frame: &mut Frame<'_>,
+    frame: &mut Canvas<'_>,
+    app: &App,
     draft: &str,
     selected: usize,
     area: Rect,
     context: &RenderContext,
 ) {
-    let commands = palette_commands(draft);
+    let commands = app.commands_for_palette(draft);
     let query = crate::fuzzy::Query::new(draft);
-    let (body, footer) = overlay_regions(frame, area, 62, 13, "Commands", false, context);
-    let parts = Layout::vertical([Constraint::Length(1), Constraint::Min(1)]).split(body);
-    render_prompt(frame, draft, ": ", commands.len(), parts[0], context);
-    let visible = usize::from(parts[1].height.max(1));
-    let selected = selected.min(commands.len().saturating_sub(1));
-    let start = selected
-        .saturating_sub(visible / 2)
-        .min(commands.len().saturating_sub(visible));
-    let items = if commands.is_empty() {
-        vec![
-            ListItem::new("No matching commands"),
-            ListItem::new("Try fewer letters or Backspace to broaden"),
-        ]
-    } else {
-        commands[start..]
-            .iter()
-            .take(visible)
-            .map(|command| {
-                command_item(
-                    command,
-                    &query,
-                    usize::from(parts[1].width).saturating_sub(2),
-                    context,
-                )
-            })
-            .collect()
-    };
-    let mut state = ListState::default()
-        .with_selected((!commands.is_empty()).then_some(selected.saturating_sub(start)));
-    frame.render_stateful_widget(
-        List::new(items)
-            .highlight_symbol(context.glyphs().selected)
-            .highlight_style(context.selection_style(true)),
-        parts[1],
-        &mut state,
-    );
-    frame.render_widget(
-        Paragraph::new(format!(
-            "{} move {s} Enter run {s} Esc close",
-            context.glyphs().up_down,
-            s = context.glyphs().separator,
-        ))
-        .style(context.style(context.muted())),
-        footer,
+    let regions = overlay_regions(frame, area, 62, 13, "Commands", false, context);
+    render_picker(
+        frame,
+        regions,
+        context,
+        super::picker::Picker {
+            draft,
+            selected,
+            count: commands.len(),
+            prefix: "Find: ",
+            empty: "No matching commands",
+            accept: "run",
+        },
+        |index, width| command_item(&commands[index], &query, width, context),
     );
 }
 
 pub(super) fn render_file_picker(
-    frame: &mut Frame<'_>,
+    frame: &mut Canvas<'_>,
     app: &App,
     draft: &str,
     selected: usize,
@@ -730,54 +727,29 @@ pub(super) fn render_file_picker(
     let query = crate::fuzzy::Query::new(draft);
     let total = app.active_diff().map_or(0, |diff| diff.files.len());
     let height = (total.clamp(2, 12) as u16 + 5).min(area.height.saturating_sub(2));
-    let (body, footer) = overlay_regions(frame, area, 68, height, "Changed files", false, context);
-    let parts = Layout::vertical([Constraint::Length(1), Constraint::Min(1)]).split(body);
-    render_prompt(frame, draft, "file: ", files.len(), parts[0], context);
-    let visible = usize::from(parts[1].height.max(1));
-    let selected = selected.min(files.len().saturating_sub(1));
-    let start = selected
-        .saturating_sub(visible / 2)
-        .min(files.len().saturating_sub(visible));
-    let items = if files.is_empty() {
-        vec![
-            ListItem::new("No matching changed files"),
-            ListItem::new("Try fewer letters or Backspace to broaden"),
-        ]
-    } else {
-        files[start..]
-            .iter()
-            .take(visible)
-            .map(|(path, _)| {
-                ListItem::new(matched_label(
-                    path,
-                    &query,
-                    usize::from(parts[1].width).saturating_sub(2),
-                    context,
-                ))
-            })
-            .collect()
-    };
-    let mut state = ListState::default()
-        .with_selected((!files.is_empty()).then_some(selected.saturating_sub(start)));
-    frame.render_stateful_widget(
-        List::new(items)
-            .highlight_symbol(context.glyphs().selected)
-            .highlight_style(context.selection_style(true)),
-        parts[1],
-        &mut state,
-    );
-    frame.render_widget(
-        Paragraph::new(format!(
-            "{} move {s} Enter jump {s} Esc close",
-            context.glyphs().up_down,
-            s = context.glyphs().separator,
-        ))
-        .style(context.style(context.muted())),
-        footer,
+    let regions = overlay_regions(frame, area, 68, height, "Changed files", false, context);
+    render_picker(
+        frame,
+        regions,
+        context,
+        super::picker::Picker {
+            draft,
+            selected,
+            count: files.len(),
+            prefix: "Find: ",
+            empty: "No matching changed files",
+            accept: "jump",
+        },
+        |index, width| matched_label(&files[index].0, &query, width, context),
     );
 }
 
-pub(super) fn render_errors(frame: &mut Frame<'_>, app: &App, area: Rect, context: &RenderContext) {
+pub(super) fn render_errors(
+    frame: &mut Canvas<'_>,
+    app: &App,
+    area: Rect,
+    context: &RenderContext,
+) {
     let failures = [&app.history_error, &app.preview_error, &app.inspect_error]
         .into_iter()
         .flatten()

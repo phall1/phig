@@ -1,6 +1,5 @@
 ---
 source: src/tui/render/tests.rs
-assertion_line: 795
 expression: "format!(\"109x28\\n{}\\n110x28\\n{}\", styled_screen(109, 28, &app),\nstyled_screen(110, 28, &app))"
 ---
 109x28
@@ -32,7 +31,7 @@ M src/main.rs ──────────────────────
         │ -old
         │ +new
 
- j/k move · Enter open · / search · v mark · ? help                                                      1/1
+ j/k move · Enter inspect · / search · v mark · : commands · ? help                                      1/1
 STYLES
 0:0-4 fg=Cyan bg=Reset mod=BOLD | REVERSED text=" LOG "
 0:6-14 fg=Reset bg=Reset mod=BOLD text="phig-demo"
@@ -78,13 +77,15 @@ STYLES
 27:1-4 fg=Reset bg=Reset mod=BOLD text="j/k "
 27:5-11 fg=DarkGray bg=Reset mod=NONE text="move · "
 27:12-17 fg=Reset bg=Reset mod=BOLD text="Enter "
-27:18-24 fg=DarkGray bg=Reset mod=NONE text="open · "
-27:25-26 fg=Reset bg=Reset mod=BOLD text="/ "
-27:27-35 fg=DarkGray bg=Reset mod=NONE text="search · "
-27:36-37 fg=Reset bg=Reset mod=BOLD text="v "
-27:38-44 fg=DarkGray bg=Reset mod=NONE text="mark · "
-27:45-46 fg=Reset bg=Reset mod=BOLD text="? "
-27:47-50 fg=DarkGray bg=Reset mod=NONE text="help"
+27:18-27 fg=DarkGray bg=Reset mod=NONE text="inspect · "
+27:28-29 fg=Reset bg=Reset mod=BOLD text="/ "
+27:30-38 fg=DarkGray bg=Reset mod=NONE text="search · "
+27:39-40 fg=Reset bg=Reset mod=BOLD text="v "
+27:41-47 fg=DarkGray bg=Reset mod=NONE text="mark · "
+27:48-49 fg=Reset bg=Reset mod=BOLD text=": "
+27:50-60 fg=DarkGray bg=Reset mod=NONE text="commands · "
+27:61-62 fg=Reset bg=Reset mod=BOLD text="? "
+27:63-66 fg=DarkGray bg=Reset mod=NONE text="help"
 27:105-108 fg=DarkGray bg=Reset mod=NONE text="1/1 "
 
 110x28
@@ -116,7 +117,7 @@ TEXT
                                                            │
                                                            │
                                                            │
- j/k move · Enter open · / search · v mark · ? help                                                       1/1
+ j/k move · Enter inspect · / search · v mark · : commands · ? help                                       1/1
 STYLES
 0:0-4 fg=Cyan bg=Reset mod=BOLD | REVERSED text=" LOG "
 0:6-14 fg=Reset bg=Reset mod=BOLD text="phig-demo"
@@ -199,11 +200,13 @@ STYLES
 27:1-4 fg=Reset bg=Reset mod=BOLD text="j/k "
 27:5-11 fg=DarkGray bg=Reset mod=NONE text="move · "
 27:12-17 fg=Reset bg=Reset mod=BOLD text="Enter "
-27:18-24 fg=DarkGray bg=Reset mod=NONE text="open · "
-27:25-26 fg=Reset bg=Reset mod=BOLD text="/ "
-27:27-35 fg=DarkGray bg=Reset mod=NONE text="search · "
-27:36-37 fg=Reset bg=Reset mod=BOLD text="v "
-27:38-44 fg=DarkGray bg=Reset mod=NONE text="mark · "
-27:45-46 fg=Reset bg=Reset mod=BOLD text="? "
-27:47-50 fg=DarkGray bg=Reset mod=NONE text="help"
+27:18-27 fg=DarkGray bg=Reset mod=NONE text="inspect · "
+27:28-29 fg=Reset bg=Reset mod=BOLD text="/ "
+27:30-38 fg=DarkGray bg=Reset mod=NONE text="search · "
+27:39-40 fg=Reset bg=Reset mod=BOLD text="v "
+27:41-47 fg=DarkGray bg=Reset mod=NONE text="mark · "
+27:48-49 fg=Reset bg=Reset mod=BOLD text=": "
+27:50-60 fg=DarkGray bg=Reset mod=NONE text="commands · "
+27:61-62 fg=Reset bg=Reset mod=BOLD text="? "
+27:63-66 fg=DarkGray bg=Reset mod=NONE text="help"
 27:106-109 fg=DarkGray bg=Reset mod=NONE text="1/1 "

@@ -2,7 +2,8 @@
 
 use std::collections::{BTreeMap, HashMap, HashSet};
 
-use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use crossterm::event::KeyEvent;
+use ratcn::runtime::{KeyCode, KeyEvent as RatcnKey};
 
 use crate::app::Action;
 
@@ -38,7 +39,15 @@ pub(super) enum KeyCodeSpec {
 
 impl KeyBindings {
     pub fn resolve(&self, event: KeyEvent, default: Option<Action>) -> Option<Action> {
-        if let Some(key) = KeySpec::from_event(event)
+        self.resolve_normalized(RatcnKey::try_from(event).ok(), default)
+    }
+
+    pub(crate) fn resolve_normalized(
+        &self,
+        key: Option<RatcnKey>,
+        default: Option<Action>,
+    ) -> Option<Action> {
+        if let Some(key) = key.and_then(KeySpec::from_event)
             && let Some(action) = self.by_key.get(&key)
         {
             return Some(action.clone());
@@ -233,7 +242,7 @@ impl KeySpec {
         label
     }
 
-    fn from_event(event: KeyEvent) -> Option<Self> {
+    fn from_event(event: RatcnKey) -> Option<Self> {
         let mut implied_shift = false;
         let code = match event.code {
             KeyCode::Char(value) => {
@@ -256,13 +265,13 @@ impl KeySpec {
             _ => return None,
         };
         let mut modifiers = 0;
-        if event.modifiers.contains(KeyModifiers::CONTROL) {
+        if event.modifiers.ctrl {
             modifiers |= 1
         };
-        if event.modifiers.contains(KeyModifiers::ALT) {
+        if event.modifiers.alt {
             modifiers |= 2
         };
-        if event.modifiers.contains(KeyModifiers::SHIFT) || implied_shift {
+        if event.modifiers.shift || implied_shift {
             modifiers |= 4
         };
         Some(Self { code, modifiers })

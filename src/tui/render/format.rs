@@ -250,27 +250,43 @@ pub(super) fn list_date(timestamp: i64, timezone: &str, mode: DateMode) -> Strin
         DateMode::Unix => timestamp.to_string(),
         DateMode::Iso => minutes(0),
         DateMode::Local => minutes(parse_timezone_offset(timezone)),
-        DateMode::Relative => relative_age(timestamp),
+        DateMode::Relative => relative_age(timestamp, unix_now()),
     }
 }
 
-pub(super) fn relative_age(timestamp: i64) -> String {
-    let now = std::time::SystemTime::now()
+pub(super) fn unix_now() -> i64 {
+    std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
-        .map_or(0, |duration| duration.as_secs() as i64);
+        .map_or(0, |duration| duration.as_secs() as i64)
+}
+
+pub(super) fn relative_age(timestamp: i64, now: i64) -> String {
+    let (value, unit) = relative_parts(timestamp, now);
+    format!("{value}{unit}")
+}
+
+pub(super) fn relative_width(timestamp: i64, now: i64) -> usize {
+    let (value, unit) = relative_parts(timestamp, now);
+    value
+        .checked_ilog10()
+        .map_or(1, |digits| digits as usize + 1)
+        + unit.len()
+}
+
+fn relative_parts(timestamp: i64, now: i64) -> (i64, &'static str) {
     let seconds = now.saturating_sub(timestamp).max(0);
     if seconds < 60 {
-        format!("{seconds}s")
+        (seconds, "s")
     } else if seconds < 3_600 {
-        format!("{}m", seconds / 60)
+        (seconds / 60, "m")
     } else if seconds < 86_400 {
-        format!("{}h", seconds / 3_600)
+        (seconds / 3_600, "h")
     } else if seconds < 2_592_000 {
-        format!("{}d", seconds / 86_400)
+        (seconds / 86_400, "d")
     } else if seconds < 31_536_000 {
-        format!("{}mo", seconds / 2_592_000)
+        (seconds / 2_592_000, "mo")
     } else {
-        format!("{}y", seconds / 31_536_000)
+        (seconds / 31_536_000, "y")
     }
 }
 

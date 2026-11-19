@@ -16,8 +16,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  quality:
-    name: Quality
+  static:
+    name: Static checks
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -29,7 +29,7 @@ jobs:
       - name: Format
         run: cargo fmt --all -- --check
       - name: Clippy
-        run: cargo clippy --all-targets --all-features -- -D warnings
+        run: cargo clippy --all-targets --all-features --locked -- -D warnings
       - name: Documentation tests
         run: cargo test --doc --all-features --locked
       - name: Shell lint
@@ -64,12 +64,34 @@ jobs:
           ./target/debug/phig version --json
           ./target/debug/phig completions bash >/dev/null
           ./target/debug/phig manpage >/dev/null
-      - name: Performance regression gate
-        if: runner.os == 'Linux'
-        run: |
-          cargo build --release --locked
-          python3 scripts/benchmark.py --repository "$RUNNER_TEMP/phig-benchmark" --commits 1000 --snapshot-samples 5 --pty-samples 5 --snapshot-p95-ms 1000 --first-frame-p95-ms 1500 --skip-build --json
       - name: Verify macOS deployment floor
         if: runner.os == 'macOS'
         run: |
           otool -l ./target/debug/phig | awk '/LC_BUILD_VERSION/{seen=1;next} seen && /minos/{print; exit}' | grep '12.0'
+
+  performance:
+    name: Performance
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.88.0
+      - uses: Swatinem/rust-cache@v2
+      - name: Performance regression gate
+        run: |
+          cargo build --release --locked
+          python3 scripts/benchmark.py --repository "$RUNNER_TEMP/phig-benchmark" --commits 1000 --snapshot-samples 5 --pty-samples 5 --snapshot-p95-ms 1000 --first-frame-p95-ms 1500 --skip-build --json
+
+  # Keep performance a merge gate without changing the protected check names.
+  quality:
+    name: Quality
+    if: always()
+    needs: [static, performance]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require static checks and performance
+        env:
+          STATIC: ${{ needs.static.result }}
+          PERFORMANCE: ${{ needs.performance.result }}
+        run: test "$STATIC" = success && test "$PERFORMANCE" = success

@@ -461,7 +461,11 @@ fn real_pty_exercises_navigation_overlays_resize_and_cleanup() {
         .unwrap();
     let merge_oid = String::from_utf8(merge_oid.stdout).unwrap();
     wait_for_marker(&output, merge_oid.trim(), Duration::from_secs(5));
-    writer.write_all(b"\r").unwrap(); // inspect the selected merge commit
+    writer.write_all(b":").unwrap();
+    writer.flush().unwrap();
+    // Cursor-position sequences can split multiword labels in the byte stream.
+    wait_for_marker(&output, "Commands", Duration::from_secs(3));
+    writer.write_all(b"\r").unwrap(); // run the first contextual action
     writer.flush().unwrap();
     wait_for_marker(&output, "SHOW", Duration::from_secs(5));
     wait_for_marker(&output, "+side", Duration::from_secs(5));

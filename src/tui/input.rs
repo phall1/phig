@@ -1,14 +1,28 @@
 //! Pure terminal-key to semantic-action translation.
 
-use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use crossterm::event::KeyEvent as CrosstermKey;
+use ratcn::runtime::{KeyCode, KeyEvent, Modifiers};
 
 use crate::{
     app::{Action, App, Overlay, View},
     config::KeyBindings,
 };
 
-pub(super) fn resolve_action(app: &App, bindings: &KeyBindings, key: KeyEvent) -> Option<Action> {
-    let default = key_action(app, key);
+#[cfg(test)]
+pub(super) fn resolve_action(
+    app: &App,
+    bindings: &KeyBindings,
+    key: CrosstermKey,
+) -> Option<Action> {
+    resolve_ratcn_action(app, bindings, key.try_into().ok()?)
+}
+
+pub(super) fn resolve_ratcn_action(
+    app: &App,
+    bindings: &KeyBindings,
+    key: KeyEvent,
+) -> Option<Action> {
+    let default = normalized_action(app, key);
     if matches!(
         app.overlay,
         Overlay::Search { .. } | Overlay::Palette { .. } | Overlay::FilePicker { .. }
@@ -25,13 +39,13 @@ pub(super) fn resolve_action(app: &App, bindings: &KeyBindings, key: KeyEvent) -
         // inside help or a failed request panel.
         return default;
     }
-    bindings.resolve(key, default)
+    bindings.resolve_normalized(Some(key), default)
 }
 
 /// Readline/fzf-style list steps inside pickers: `Ctrl-n`/`Ctrl-j` down,
 /// `Ctrl-p`/`Ctrl-k` up. Plain letters stay query text.
-fn picker_step(code: KeyCode, modifiers: KeyModifiers) -> Option<i32> {
-    if !modifiers.contains(KeyModifiers::CONTROL) {
+fn picker_step(code: KeyCode, modifiers: Modifiers) -> Option<i32> {
+    if !modifiers.ctrl {
         return None;
     }
     match code {
@@ -44,15 +58,11 @@ fn picker_step(code: KeyCode, modifiers: KeyModifiers) -> Option<i32> {
 /// Keys shared by every text-entry overlay: plain characters type,
 /// `Backspace` deletes, and `Ctrl-u` clears the query.
 fn query_edit(key: KeyEvent) -> Option<Action> {
-    let control = key.modifiers.contains(KeyModifiers::CONTROL);
+    let control = key.modifiers.ctrl;
     match key.code {
         KeyCode::Backspace => Some(Action::SearchBackspace),
         KeyCode::Char('u') if control => Some(Action::SearchClear),
-        KeyCode::Char(character)
-            if !key
-                .modifiers
-                .intersects(KeyModifiers::CONTROL | KeyModifiers::ALT) =>
-        {
+        KeyCode::Char(character) if !key.modifiers.ctrl && !key.modifiers.alt => {
             Some(Action::SearchInput(character))
         }
         _ => None,
@@ -74,7 +84,12 @@ fn picker_key(key: KeyEvent, step: fn(i32) -> Action, accept: Action) -> Option<
     }
 }
 
-pub(super) fn key_action(app: &App, key: KeyEvent) -> Option<Action> {
+#[cfg(test)]
+pub(super) fn key_action(app: &App, key: CrosstermKey) -> Option<Action> {
+    normalized_action(app, key.try_into().ok()?)
+}
+
+fn normalized_action(app: &App, key: KeyEvent) -> Option<Action> {
     match &app.overlay {
         // Help is a launcher: Esc closes it, and every other key keeps its
         // normal meaning so the sheet leads straight to the action it lists.
@@ -111,13 +126,9 @@ pub(super) fn key_action(app: &App, key: KeyEvent) -> Option<Action> {
         KeyCode::Up | KeyCode::Char('k') => Some(Action::Move(-1)),
         KeyCode::PageDown => Some(Action::Page(1)),
         KeyCode::PageUp => Some(Action::Page(-1)),
-        KeyCode::Char('d') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-            Some(Action::Page(1))
-        }
-        KeyCode::Char('l') if key.modifiers.contains(KeyModifiers::CONTROL) => Some(Action::Redraw),
-        KeyCode::Char('u') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-            Some(Action::Page(-1))
-        }
+        KeyCode::Char('d') if key.modifiers.ctrl => Some(Action::Page(1)),
+        KeyCode::Char('l') if key.modifiers.ctrl => Some(Action::Redraw),
+        KeyCode::Char('u') if key.modifiers.ctrl => Some(Action::Page(-1)),
         KeyCode::Home | KeyCode::Char('g') => Some(Action::First),
         KeyCode::End | KeyCode::Char('G') => Some(Action::Last),
         KeyCode::Enter => Some(Action::Open),
@@ -143,9 +154,7 @@ pub(super) fn key_action(app: &App, key: KeyEvent) -> Option<Action> {
         KeyCode::Left => Some(Action::TreeCollapse),
         KeyCode::Right => Some(Action::TreeExpand),
         KeyCode::Char('-') => Some(Action::TreeCollapseAll),
-        KeyCode::Char('=') if key.modifiers.contains(KeyModifiers::SHIFT) => {
-            Some(Action::TreeExpandAll)
-        }
+        KeyCode::Char('=') if key.modifiers.shift => Some(Action::TreeExpandAll),
         KeyCode::Char('+') => Some(Action::TreeExpandAll),
         KeyCode::Char('F') => Some(Action::ToggleDiffFullscreen),
         KeyCode::Char('n') => Some(Action::NextMatch),
@@ -170,8 +179,8 @@ fn dominant_diff(app: &App) -> bool {
 }
 
 /// Handle keys that mutate state outside the regular action return path.
-pub fn handle_help_key(app: &mut App, key: &KeyEvent) -> bool {
-    if matches!(app.overlay, Overlay::None) && key.code == KeyCode::Char('?') {
+pub fn handle_help_key(app: &mut App, key: &CrosstermKey) -> bool {
+    if matches!(app.overlay, Overlay::None) && key.code == crossterm::event::KeyCode::Char('?') {
         app.show_help();
         true
     } else {

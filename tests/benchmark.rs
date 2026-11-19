@@ -28,6 +28,10 @@ fn benchmark_fixture_identity_is_stamped_and_mismatches_are_rebuilt() {
     assert_eq!(git_config(&repository, "phig.benchmark.version"), "1");
     assert_eq!(git_config(&repository, "phig.benchmark.commits"), "3");
     assert_eq!(git_config(&repository, "phig.benchmark.paths"), "100");
+    let git = |args: &[&str]| run(Command::new("git").arg("-C").arg(&repository).args(args)).stdout;
+    let head = git(&["rev-parse", "HEAD"]);
+    assert_eq!(git(&["show", "HEAD:files/path-001.txt"]), b"0\n1\n");
+    assert_eq!(git(&["status", "--porcelain"]), b"");
 
     run(Command::new("git").args([
         "-C",
@@ -50,4 +54,5 @@ fn benchmark_fixture_identity_is_stamped_and_mismatches_are_rebuilt() {
     assert_eq!(metadata["declared_commits"], 3);
     assert_eq!(metadata["paths"], 100);
     assert_eq!(git_config(&repository, "phig.benchmark.version"), "1");
+    assert_eq!(git(&["rev-parse", "HEAD"]), head);
 }
