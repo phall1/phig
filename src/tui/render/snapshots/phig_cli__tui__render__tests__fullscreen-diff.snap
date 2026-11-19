@@ -1,6 +1,5 @@
 ---
 source: src/tui/render/tests.rs
-assertion_line: 701
 expression: expanded
 ---
 120x28
@@ -31,7 +30,7 @@ M src/main.rs ──────────────────────
 
 
 
- F restore · [/] hunk · T files · ? help                                                                       line 2/4
+ F restore · [/] hunk · T files · : commands · ? help                                                          line 2/4
 
 60x16
  LOG  phig-demo · main · HEAD

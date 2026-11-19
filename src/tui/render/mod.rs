@@ -1,4 +1,4 @@
-//! Read-only Ratatui renderer composed from layout, chrome, and view modules.
+//! ratcn scene and paint modules. Git state and semantic actions stay in `app`.
 
 mod chrome;
 mod decorate;
@@ -10,30 +10,23 @@ mod graph;
 mod history;
 mod inspect;
 mod layout;
+mod list;
 mod picker;
+mod scene;
 mod theme;
 
 use ratatui::{
     Frame,
-    layout::{Constraint, Direction, Layout, Rect},
+    layout::Rect,
     text::{Line, Text},
     widgets::Paragraph,
 };
 
 use crate::app::{App, Overlay, View};
 
-#[derive(Default)]
-pub(crate) struct RenderState {
-    history: graph::GraphCache,
-}
-
-impl RenderState {
-    pub(crate) fn clear_history(&mut self) {
-        self.history.clear();
-    }
-}
-
 pub(crate) use layout::{diff_split_available, page_rows, preview_focus_available};
+use scene::Canvas;
+pub(super) use scene::{Input, Renderer};
 pub(crate) use theme::legacy_config;
 pub use theme::{
     ColorMode, DateMode, GlyphMode, RenderConfig, RenderContext, RenderTheme, set_color_mode,
@@ -45,7 +38,7 @@ pub fn render(frame: &mut Frame<'_>, app: &App) {
     render_with_context(frame, app, &context);
 }
 
-fn render_divider(frame: &mut Frame<'_>, layout: layout::PaneLayout, context: &RenderContext) {
+fn render_divider(frame: &mut Canvas<'_>, layout: layout::PaneLayout, context: &RenderContext) {
     let Some(area) = layout.divider else {
         return;
     };
@@ -69,12 +62,7 @@ fn render_divider(frame: &mut Frame<'_>, layout: layout::PaneLayout, context: &R
 
 /// A quiet status message centered in `area`, for loading, empty, and
 /// unavailable states, so every surface reports them the same way.
-pub(super) fn render_notice(
-    frame: &mut Frame<'_>,
-    area: Rect,
-    text: &str,
-    context: &RenderContext,
-) {
+fn render_notice(frame: &mut Canvas<'_>, area: Rect, text: &str, context: &RenderContext) {
     if area.is_empty() {
         return;
     }
@@ -92,59 +80,61 @@ pub(super) fn render_notice(
 }
 
 pub fn render_with_context(frame: &mut Frame<'_>, app: &App, context: &RenderContext) {
-    render_with_state(frame, app, context, &mut RenderState::default());
+    Renderer::new(context.clone()).draw(frame, app);
 }
 
-pub(crate) fn render_with_state(
-    frame: &mut Frame<'_>,
+fn render_body(
+    frame: &mut Canvas<'_>,
     app: &App,
+    area: Rect,
     context: &RenderContext,
-    state: &mut RenderState,
+    history: &mut graph::GraphCache,
 ) {
-    let area = frame.area();
-    let rows = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Length(1),
-            Constraint::Min(1),
-            Constraint::Length(1),
-        ])
-        .split(area);
-
-    chrome::render_header(frame, app, rows[0], context);
+    if area.is_empty() {
+        return;
+    }
     if let Overlay::DiffTree(tree) = &app.overlay {
-        diff_tree::render(frame, app, tree, rows[1], context);
+        diff_tree::render(frame, app, tree, area, context);
     } else if app.diff_fullscreen {
-        fullscreen::render(frame, app, rows[1], context);
+        fullscreen::render(frame, app, area, context);
     } else {
         match app.view {
-            View::Log => history::render_log(frame, app, rows[1], context, &mut state.history),
-            View::Detail => diff::render_detail(frame, app, rows[1], context),
-            View::Compare => inspect::render_compare(frame, app, rows[1], context),
-            View::Refs => inspect::render_refs(frame, app, rows[1], context),
-            View::Status => inspect::render_status(frame, app, rows[1], context),
-            View::StatusDiff => inspect::render_status_diff(frame, app, rows[1], context),
-            View::Tree => inspect::render_tree(frame, app, rows[1], context),
-            View::Blob => inspect::render_blob(frame, app, rows[1], context),
-            View::Blame => inspect::render_blame(frame, app, rows[1], context),
-            View::Stash => inspect::render_stashes(frame, app, rows[1], context),
+            View::Log => history::render_log(frame, app, area, context, history),
+            View::Detail => diff::render_detail(frame, app, area, context),
+            View::Compare => inspect::render_compare(frame, app, area, context),
+            View::Refs => inspect::render_refs(frame, app, area, context),
+            View::Status => inspect::render_status(frame, app, area, context),
+            View::StatusDiff => inspect::render_status_diff(frame, app, area, context),
+            View::Tree => inspect::render_tree(frame, app, area, context),
+            View::Blob => inspect::render_blob(frame, app, area, context),
+            View::Blame => inspect::render_blame(frame, app, area, context),
+            View::Stash => inspect::render_stashes(frame, app, area, context),
         }
     }
-    chrome::render_footer(frame, app, rows[2], context);
+}
 
-    if app.has_errors() && matches!(app.overlay, Overlay::None) {
-        chrome::render_errors(frame, app, rows[1], context);
-    }
+fn render_overlay(
+    frame: &mut Canvas<'_>,
+    app: &App,
+    area: Rect,
+    body: Rect,
+    context: &RenderContext,
+) {
     match &app.overlay {
         Overlay::Help => chrome::render_help(frame, app, area, context),
-        Overlay::Search { draft, .. } => chrome::render_search(frame, app, draft, rows[1], context),
+        Overlay::Search { draft, .. } if !body.is_empty() => {
+            chrome::render_search(frame, app, draft, body, context);
+        }
         Overlay::Palette { draft, selected } => {
-            chrome::render_palette(frame, draft, *selected, area, context)
+            chrome::render_palette(frame, app, draft, *selected, area, context)
         }
         Overlay::FilePicker {
             draft, selected, ..
         } => chrome::render_file_picker(frame, app, draft, *selected, area, context),
-        Overlay::None | Overlay::DiffTree(_) => {}
+        Overlay::None if app.has_errors() && !body.is_empty() => {
+            chrome::render_errors(frame, app, body, context);
+        }
+        _ => {}
     }
 }
 

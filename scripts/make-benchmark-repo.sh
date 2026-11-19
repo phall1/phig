@@ -12,9 +12,28 @@ if [ "$commits" -lt 1 ]; then
   echo "COMMITS must be positive" >&2
   exit 2
 fi
+case "$repository" in /*) ;; *) repository="./$repository" ;; esac
 
-rm -rf "$repository"
-mkdir -p "$repository/files"
+if [ -e "$repository" ] || [ -L "$repository" ]; then
+  # Rebuild only fixtures we own (including v1); never erase an arbitrary
+  # checkout or directory passed as --repository.
+  if [ -d "$repository" ] && [ ! -L "$repository" ]; then
+    if rmdir "$repository" 2>/dev/null; then
+      :
+    else
+      version=$(git config --file "$repository/.git/config" --get phig.benchmark.version || true)
+      paths=$(git config --file "$repository/.git/config" --get phig.benchmark.paths || true)
+      case "$version:$paths" in
+        1:100|2:100) rm -rf "$repository" ;;
+        *) printf 'refusing to replace a non-fixture directory: %s\n' "$repository" >&2; exit 1 ;;
+      esac
+    fi
+  else
+    printf 'refusing to replace a non-fixture path: %s\n' "$repository" >&2
+    exit 1
+  fi
+fi
+mkdir -p "$repository"
 git -C "$repository" init --quiet -b main
 git -C "$repository" config user.name 'phig benchmark'
 git -C "$repository" config user.email 'benchmark@example.invalid'
@@ -24,23 +43,36 @@ git -C "$repository" config gc.auto 0
 git -C "$repository" config maintenance.auto false
 # Stamp the private fixture identity so benchmark reuse cannot silently accept
 # an unrelated repository that merely has the same number of commits.
-git -C "$repository" config phig.benchmark.version 1
+git -C "$repository" config phig.benchmark.version 2
 git -C "$repository" config phig.benchmark.commits "$commits"
 git -C "$repository" config phig.benchmark.paths 100
-path=0
-while [ "$path" -lt 100 ]; do
-  printf '0\n' >"$repository/files/path-$(printf '%03d' "$path").txt"
-  path=$((path + 1))
-done
-git -C "$repository" add files
-git -C "$repository" commit --quiet -m 'benchmark 0'
-
-i=1
-while [ "$i" -lt "$commits" ]; do
-  path=$((i % 100))
-  printf '%s\n' "$i" >>"$repository/files/path-$(printf '%03d' "$path").txt"
-  git -C "$repository" add files
-  git -C "$repository" commit --quiet -m "benchmark $i"
-  i=$((i + 1))
-done
+# One import process, rather than staging and committing through 2,000 forks.
+# Fixed timestamps make identical fixture requests produce identical history.
+awk -v commits="$commits" '
+  function file(path, content) {
+    printf "M 100644 inline files/path-%03d.txt\ndata %d\n%s\n", path, length(content), content
+  }
+  BEGIN {
+    print "feature done"
+    for (i = 0; i < commits; i++) {
+      printf "commit refs/heads/main\ncommitter phig benchmark <benchmark@example.invalid> %.0f +0000\n", 1700000000 + i
+      message = "benchmark " i
+      printf "data %d\n%s\n", length(message), message
+      if (i == 0) {
+        for (p = 0; p < 100; p++) {
+          contents[p] = "0\n"
+          file(p, contents[p])
+        }
+      } else {
+        p = i % 100
+        contents[p] = contents[p] i "\n"
+        file(p, contents[p])
+      }
+      print ""
+    }
+    print "done"
+  }
+' | git -C "$repository" fast-import --quiet
+git -C "$repository" reset --quiet --mixed HEAD
+git -C "$repository" checkout-index --all
 printf '%s\n' "created $commits commits across 100 paths in $repository" >&2

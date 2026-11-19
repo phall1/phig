@@ -22,7 +22,7 @@ CLI ─┬─ TUI (terminal input + rendering)
 ## Technology
 
 - Rust 2024 edition
-- Ratatui with Crossterm
+- [ratcn](https://ratcn.com/) on Ratatui with a Crossterm host
 - installed Git CLI invoked with explicit argument vectors
 - Clap for the public command line
 - Serde for TOML configuration and versioned JSON
@@ -46,11 +46,13 @@ installed executable and product are `phig`.
 - `app`: view-independent state, actions, reducer, selection, search, and effect
   generation. Its module tree separates the model and command catalog from
   navigation, overlays, reducer transitions, and inspection state.
-- `tui`: terminal lifecycle, event translation, layout, widgets, styles, help,
-  and controlling-terminal selection rendering. The adapter keeps its driver,
-  input translation, request bridge, signal ownership, session guard, and
-  renderer independent; rendering further separates pure layout, chrome,
-  history, diffs, inspection views, formatting, and theme policy.
+- `tui`: the host manages the terminal, Git completions, signals and the
+  controlling-TTY output used by `select`. The ratcn scene declares header,
+  body, footer and overlays, translates normalized input into semantic actions,
+  and paints through the same path in the live driver and buffer tests.
+  One viewport policy and ratcn list widget serve history, inspection lists
+  and pickers. Git-specific graph, patch and metadata painters stay local to
+  their views.
 - `protocol`: stable JSON envelopes and byte-clean writers
 
 TUI row numbers, split geometry, and cursor coordinates must not leak into the
@@ -101,14 +103,12 @@ phig parses structural patch lines and applies Ratatui styles itself. C0/C1,
 DEL, terminal escapes, malformed sequences, and bidirectional formatting
 controls are escaped before rendering. Machine output never contains ANSI.
 
-Each terminal driver owns an immutable render context containing the resolved
-color and glyph policy, theme, date mode, and effective semantic key labels.
-Normal rendering therefore has no process-global style lookup or color-stripping
-post-pass; compatibility wrappers retain the original public setter API. A
-terminal guard owns raw mode, alternate-screen state, bracketed-paste and optional
-mouse modes, cursor visibility, and panic restoration. Phig 1.1 does not launch
-editors or other external interactive commands. `--no-alt-screen` renders in
-place and remains compatible with phux/tmux scrollback.
+Each terminal driver owns a ratcn scene and an immutable render context with
+resolved color, glyphs, dates and semantic key labels. The reducer remains the
+sole owner of selection, preview focus and modal state; a burst of keys reads
+that live state rather than waiting for another frame. The Crossterm host
+retains raw-mode cleanup, job control, alternate-screen choices and the
+controlling TTY. Public rendering wrappers retain the original API.
 
 Selection mode reserves stdout for the result. Its UI opens `/dev/tty` on Unix;
 if no controlling terminal exists, it exits with a clear unsupported-context

@@ -1,6 +1,5 @@
 ---
 source: src/tui/render/tests.rs
-assertion_line: 98
 expression: "snapshot.lines().map(str::trim_end).collect::<Vec<_>>().join(\"\\n\")"
 ---
 unicode 100x14
@@ -17,7 +16,7 @@ unicode 100x14
   ◌       0a0a0a0a 2y Pat Example base
 
 
- j/k move · Enter open · / search · v mark · ? help                                            1/10
+ j/k move · Enter inspect · / search · v mark · : commands · ? help                            1/10
 
 narrow 58x14
  LOG  phig-demo · main · all refs                 loading…
@@ -33,7 +32,7 @@ narrow 58x14
   ◌       0a0a0a0a 2y Pat base
 
 
- j/k move · Enter open · / search · v mark · ? help  1/10
+ j/k move · Enter inspect · / search · ? help        1/10
 
 folded 44x14
  LOG  phig-demo · main · all refs   loading…
@@ -49,7 +48,7 @@ folded 44x14
   ◌      0a0a0a0a 2y base
 
 
- j/k move · Enter open · ? help        1/10
+ j/k move · Enter inspect · ? help     1/10
 
 ascii 100x14
  LOG  phig-demo | main | all refs                                                         loading...
@@ -65,4 +64,4 @@ ascii 100x14
   .       0a0a0a0a 2y Pat Example base
 
 
- j/k move | Enter open | / search | v mark | ? help                                            1/10
+ j/k move | Enter inspect | / search | v mark | : commands | ? help                            1/10

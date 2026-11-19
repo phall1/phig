@@ -1,16 +1,73 @@
 //! Shared discovery presentation: matched text, effective shortcuts, and query chrome.
 
 use ratatui::{
-    Frame,
     layout::{Alignment, Constraint, Layout, Rect},
     style::Style,
     text::{Line, Span},
-    widgets::{ListItem, Paragraph},
+    widgets::Paragraph,
 };
 
 use crate::{app::PaletteCommand, fuzzy::Query, sanitize::sanitize_str};
 
-use super::{format::display_width, theme::RenderContext};
+use super::{Canvas, format::display_width, list::Window, theme::RenderContext};
+
+pub(super) struct Picker<'a> {
+    pub draft: &'a str,
+    pub selected: usize,
+    pub count: usize,
+    pub prefix: &'static str,
+    pub empty: &'static str,
+    pub accept: &'static str,
+}
+
+pub(super) fn render_picker(
+    frame: &mut Canvas<'_>,
+    (body, footer): (Rect, Rect),
+    context: &RenderContext,
+    picker: Picker<'_>,
+    mut label: impl FnMut(usize, usize) -> Line<'static>,
+) {
+    let parts = Layout::vertical([Constraint::Length(1), Constraint::Min(1)]).split(body);
+    render_prompt(
+        frame,
+        picker.draft,
+        picker.prefix,
+        picker.count,
+        parts[0],
+        context,
+    );
+    if picker.count == 0 {
+        frame.render_widget(
+            Paragraph::new(vec![
+                Line::raw(picker.empty),
+                Line::styled(
+                    "Backspace broadens your search",
+                    context.style(context.muted()),
+                ),
+            ]),
+            parts[1],
+        );
+    } else {
+        let width = usize::from(parts[1].width).saturating_sub(2);
+        Window::new(picker.count, picker.selected, parts[1]).paint(
+            frame,
+            parts[1],
+            context,
+            |index| label(index, width),
+        );
+    }
+    let glyphs = context.glyphs();
+    frame.render_widget(
+        Paragraph::new(format!(
+            "Enter {} {s} {} move {s} Esc close",
+            picker.accept,
+            glyphs.up_down,
+            s = glyphs.separator,
+        ))
+        .style(context.style(context.muted())),
+        footer,
+    );
+}
 
 pub(super) fn matched_label(
     text: &str,
@@ -82,7 +139,7 @@ pub(super) fn command_item(
     query: &Query,
     width: usize,
     context: &RenderContext,
-) -> ListItem<'static> {
+) -> Line<'static> {
     let key = sanitize_str(&context.key(&command.action));
     let key_width = cell_width(&key).min(width / 3);
     let label_width = width.saturating_sub(key_width + 2);
@@ -94,11 +151,11 @@ pub(super) fn command_item(
         clip_label(&key, key_width, context.glyphs().ellipsis).0,
         context.style(context.muted()),
     ));
-    ListItem::new(line)
+    line
 }
 
 pub(super) fn render_prompt(
-    frame: &mut Frame<'_>,
+    frame: &mut Canvas<'_>,
     draft: &str,
     prefix: &str,
     count: usize,
@@ -231,7 +288,19 @@ mod tests {
             for draft in ["لا", "abcلا", "long/界/☀️/👩‍💻/cafe\u{301}/لا"] {
                 let mut terminal = Terminal::new(TestBackend::new(width, 1)).unwrap();
                 terminal
-                    .draw(|frame| render_prompt(frame, draft, ": ", 2, frame.area(), &context))
+                    .draw(|frame| {
+                        let area = frame.area();
+                        let cursor = std::cell::Cell::new(None);
+                        render_prompt(
+                            &mut Canvas::new(frame.buffer_mut(), &cursor),
+                            draft,
+                            ": ",
+                            2,
+                            area,
+                            &context,
+                        );
+                        frame.set_cursor_position(cursor.get().unwrap());
+                    })
                     .unwrap();
                 let position = terminal.get_cursor_position().unwrap();
                 let counter_width = 9.min(width / 3);

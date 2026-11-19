@@ -1,6 +1,7 @@
 //! Temporary file navigation alongside a dominant patch preview.
 
 use super::{
+    Canvas,
     diff::status_style,
     format::{display_width, truncate_with},
     fullscreen,
@@ -8,14 +9,13 @@ use super::{
 };
 use crate::app::{App, DiffTree, DiffTreeEntry, TreeStatus};
 use ratatui::{
-    Frame,
     layout::Rect,
     text::{Line, Span},
     widgets::Paragraph,
 };
 
 pub(super) fn render(
-    frame: &mut Frame<'_>,
+    frame: &mut Canvas<'_>,
     app: &App,
     tree: &DiffTree,
     area: Rect,
@@ -86,7 +86,7 @@ impl RowMetrics {
     }
 }
 
-fn render_list(frame: &mut Frame<'_>, tree: &DiffTree, area: Rect, context: &RenderContext) {
+fn render_list(frame: &mut Canvas<'_>, tree: &DiffTree, area: Rect, context: &RenderContext) {
     frame.render_widget(
         Paragraph::new("CHANGED FILES").style(context.strong(context.accent())),
         Rect::new(area.x, area.y, area.width, area.height.min(1)),

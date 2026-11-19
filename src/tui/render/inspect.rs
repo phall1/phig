@@ -1,11 +1,12 @@
 //! Refs, status, compare, tree, blob, blame, and stash rendering.
 
+use std::ops::Range;
+
 use ratatui::{
-    Frame,
     layout::{Constraint, Layout, Rect},
     style::Style,
     text::{Line, Span},
-    widgets::{List, ListItem, ListState, Paragraph},
+    widgets::Paragraph,
 };
 
 use crate::{
@@ -15,10 +16,14 @@ use crate::{
 };
 
 use super::{
+    Canvas,
     diff::render_diff_value,
-    format::{display_width, highlight_matches, pad_left, pad_right, relative_age, truncate_with},
+    format::{
+        display_width, highlight_matches, pad_left, pad_right, relative_width, truncate_with,
+    },
     history::render_preview,
     layout::{COMPARE_HEADER_ROWS, STATUS_DIFF_HEADER_ROWS, list_preview_layout},
+    list::Window,
     render_divider, render_notice,
     theme::RenderContext,
 };
@@ -26,7 +31,7 @@ use super::{
 /// A whole-body empty state: no divider or preview for a list with nothing
 /// in it. Returns false when the list has rows to draw instead.
 fn render_empty(
-    frame: &mut Frame<'_>,
+    frame: &mut Canvas<'_>,
     app: &App,
     empty: bool,
     message: &str,
@@ -47,40 +52,8 @@ fn render_empty(
     true
 }
 
-fn render_string_list(
-    frame: &mut Frame<'_>,
-    rows: Vec<Line<'static>>,
-    selected: usize,
-    area: Rect,
-    context: &RenderContext,
-) {
-    if rows.is_empty() {
-        render_notice(frame, area, "Nothing here", context);
-        return;
-    }
-    let visible = usize::from(area.height.max(1));
-    let selected = selected.min(rows.len().saturating_sub(1));
-    let start = selected
-        .saturating_sub(visible / 2)
-        .min(rows.len().saturating_sub(visible));
-    let items = rows[start..]
-        .iter()
-        .take(visible)
-        .cloned()
-        .map(ListItem::new)
-        .collect::<Vec<_>>();
-    let mut state = ListState::default().with_selected(Some(selected - start));
-    frame.render_stateful_widget(
-        List::new(items)
-            .highlight_symbol(context.glyphs().selected)
-            .highlight_style(context.selection_style(true)),
-        area,
-        &mut state,
-    );
-}
-
 pub(super) fn render_compare(
-    frame: &mut Frame<'_>,
+    frame: &mut Canvas<'_>,
     app: &App,
     area: Rect,
     context: &RenderContext,
@@ -222,7 +195,7 @@ fn compare_header(
     vec![Line::from(semantics), Line::from(counts), Line::raw("")]
 }
 
-pub(super) fn render_refs(frame: &mut Frame<'_>, app: &App, area: Rect, context: &RenderContext) {
+pub(super) fn render_refs(frame: &mut Canvas<'_>, app: &App, area: Rect, context: &RenderContext) {
     if render_empty(
         frame,
         app,
@@ -235,8 +208,16 @@ pub(super) fn render_refs(frame: &mut Frame<'_>, app: &App, area: Rect, context:
     }
     let layout = list_preview_layout(app, area);
     let list = layout.primary;
-    let rows = ref_rows(&app.inspect.refs, list.width, context);
-    render_string_list(frame, rows, app.inspect.selected, list, context);
+    let window = Window::new(app.inspect.refs.len(), app.inspect.selected, list);
+    let rows = ref_rows(&app.inspect.refs, window.rows.clone(), list.width, context);
+    window.paint_rows(
+        frame,
+        list,
+        context,
+        context.glyphs().selected,
+        context.selection_style(true),
+        rows,
+    );
     render_divider(frame, layout, context);
     if !app.inspect.refs.is_empty()
         && let Some(preview) = layout.secondary
@@ -247,7 +228,12 @@ pub(super) fn render_refs(frame: &mut Frame<'_>, app: &App, area: Rect, context:
 
 /// `kind name oid age subject → upstream`, with the name column sized to the
 /// longest name that fits so every later column starts on the same cell.
-fn ref_rows(refs: &[RefInfo], width: u16, context: &RenderContext) -> Vec<Line<'static>> {
+fn ref_rows(
+    refs: &[RefInfo],
+    visible: Range<usize>,
+    width: u16,
+    context: &RenderContext,
+) -> impl Iterator<Item = Line<'static>> {
     let glyphs = context.glyphs();
     let muted = context.style(context.muted());
     // Highlight symbol, kind, and gaps.
@@ -261,79 +247,81 @@ fn ref_rows(refs: &[RefInfo], width: u16, context: &RenderContext) -> Vec<Line<'
     let show_oid = available >= name_width + 9 + 12;
     let show_age = show_oid && available >= name_width + 9 + 5 + 16;
     let age_width = if show_age {
+        let now = context.now();
         refs.iter()
             .filter_map(|reference| reference.timestamp)
-            .map(|timestamp| display_width(&relative_age(timestamp)))
+            .map(|timestamp| relative_width(timestamp, now))
             .max()
             .unwrap_or(0)
     } else {
         0
     };
-    refs.iter()
-        .map(|reference| {
-            let (kind, name_style) = match reference.kind {
-                RefKind::LocalBranch => ("branch", context.style(context.added())),
-                RefKind::RemoteBranch => ("remote", context.style(context.removed())),
-                RefKind::Tag => ("tag", context.style(context.warning())),
-                RefKind::Stash => ("stash", context.style(context.accent())),
-                RefKind::Other => ("ref", Style::reset()),
-            };
-            let (head, name_style) = if reference.is_head {
-                (
-                    "* ",
-                    context.emphasize(name_style, ratatui::style::Modifier::BOLD),
-                )
-            } else {
-                ("  ", name_style)
-            };
-            let name = format!("{head}{}", sanitize_str(reference.short_name.display()));
-            let mut spans = vec![
-                Span::styled(format!("{kind:<6} "), muted),
-                Span::styled(
-                    pad_right(
-                        &truncate_with(&name, name_width, glyphs.ellipsis),
-                        name_width,
-                    ),
-                    name_style,
+    refs[visible].iter().map(move |reference| {
+        let (kind, name_style) = match reference.kind {
+            RefKind::LocalBranch => ("branch", context.style(context.added())),
+            RefKind::RemoteBranch => ("remote", context.style(context.removed())),
+            RefKind::Tag => ("tag", context.style(context.warning())),
+            RefKind::Stash => ("stash", context.style(context.accent())),
+            RefKind::Other => ("ref", Style::reset()),
+        };
+        let (head, name_style) = if reference.is_head {
+            (
+                "* ",
+                context.emphasize(name_style, ratatui::style::Modifier::BOLD),
+            )
+        } else {
+            ("  ", name_style)
+        };
+        let name = format!("{head}{}", sanitize_str(reference.short_name.display()));
+        let mut spans = vec![
+            Span::styled(format!("{kind:<6} "), muted),
+            Span::styled(
+                pad_right(
+                    &truncate_with(&name, name_width, glyphs.ellipsis),
+                    name_width,
                 ),
-            ];
-            let mut used = 7 + name_width;
-            if show_oid {
-                spans.push(Span::styled(
-                    format!(" {} ", reference.target.short(8)),
-                    context.style(context.warning()),
-                ));
-                used += 10;
-            }
-            if age_width > 0 {
-                let age = reference.timestamp.map(relative_age).unwrap_or_default();
-                spans.push(Span::styled(
-                    format!("{} ", pad_left(&age, age_width)),
-                    muted,
-                ));
-                used += age_width + 1;
-            }
-            let upstream = reference
-                .upstream
-                .as_ref()
-                .map(|name| format!(" {} {}", glyphs.arrow, sanitize_str(name.display())))
+                name_style,
+            ),
+        ];
+        let mut used = 7 + name_width;
+        if show_oid {
+            spans.push(Span::styled(
+                format!(" {} ", reference.target.short(8)),
+                context.style(context.warning()),
+            ));
+            used += 10;
+        }
+        if age_width > 0 {
+            let age = reference
+                .timestamp
+                .map(|time| context.relative_age(time))
                 .unwrap_or_default();
-            let rest = usize::from(width).saturating_sub(display_width(glyphs.selected) + used);
-            let subject = sanitize_str(&reference.subject);
-            let upstream_width = display_width(&upstream);
-            if show_oid && rest > upstream_width + 12 {
-                spans.push(Span::raw(truncate_with(
-                    &subject,
-                    rest - upstream_width,
-                    glyphs.ellipsis,
-                )));
-                spans.push(Span::styled(upstream, muted));
-            } else if show_oid {
-                spans.push(Span::raw(truncate_with(&subject, rest, glyphs.ellipsis)));
-            }
-            Line::from(spans)
-        })
-        .collect()
+            spans.push(Span::styled(
+                format!("{} ", pad_left(&age, age_width)),
+                muted,
+            ));
+            used += age_width + 1;
+        }
+        let upstream = reference
+            .upstream
+            .as_ref()
+            .map(|name| format!(" {} {}", glyphs.arrow, sanitize_str(name.display())))
+            .unwrap_or_default();
+        let rest = usize::from(width).saturating_sub(display_width(glyphs.selected) + used);
+        let subject = sanitize_str(&reference.subject);
+        let upstream_width = display_width(&upstream);
+        if show_oid && rest > upstream_width + 12 {
+            spans.push(Span::raw(truncate_with(
+                &subject,
+                rest - upstream_width,
+                glyphs.ellipsis,
+            )));
+            spans.push(Span::styled(upstream, muted));
+        } else if show_oid {
+            spans.push(Span::raw(truncate_with(&subject, rest, glyphs.ellipsis)));
+        }
+        Line::from(spans)
+    })
 }
 
 fn status_group(entry: &crate::domain::StatusEntry) -> &'static str {
@@ -355,54 +343,55 @@ fn status_group(entry: &crate::domain::StatusEntry) -> &'static str {
 /// `git status` reads, while the letters carry the meaning without color.
 fn status_rows(
     entries: &[crate::domain::StatusEntry],
+    visible: Range<usize>,
     context: &RenderContext,
-) -> Vec<Line<'static>> {
+) -> impl Iterator<Item = Line<'static>> {
     let muted = context.style(context.muted());
-    let mut previous = None;
-    entries
-        .iter()
-        .map(|entry| {
-            let group = status_group(entry);
-            let label = if previous == Some(group) { "" } else { group };
-            previous = Some(group);
-            let code = |status: StatusCode, style: Style| {
-                Span::styled(
-                    status.porcelain_char().to_string(),
-                    if status == StatusCode::Unmodified {
-                        muted
-                    } else {
-                        style
-                    },
-                )
-            };
-            let (index_style, worktree_style) = if entry.conflict.is_some() {
-                let conflict = context.strong(context.error());
-                (conflict, conflict)
-            } else if entry.index == StatusCode::Untracked {
-                let untracked = context.style(context.warning());
-                (untracked, untracked)
-            } else {
-                (
-                    context.style(context.added()),
-                    context.style(context.removed()),
-                )
-            };
-            let mut spans = vec![
-                Span::styled(format!("{label:<9} "), context.style(context.accent())),
-                code(entry.index, index_style),
-                code(entry.worktree, worktree_style),
-                Span::raw(" "),
-            ];
-            if let Some(original) = &entry.original_path {
-                spans.push(Span::styled(
-                    format!("{} {} ", original.display, context.glyphs().arrow),
-                    muted,
-                ));
-            }
-            spans.extend(path_spans(&entry.path.display, Style::reset(), context));
-            Line::from(spans)
-        })
-        .collect()
+    let mut previous = visible
+        .start
+        .checked_sub(1)
+        .map(|index| status_group(&entries[index]));
+    entries[visible].iter().map(move |entry| {
+        let group = status_group(entry);
+        let label = if previous == Some(group) { "" } else { group };
+        previous = Some(group);
+        let code = |status: StatusCode, style: Style| {
+            Span::styled(
+                status.porcelain_char().to_string(),
+                if status == StatusCode::Unmodified {
+                    muted
+                } else {
+                    style
+                },
+            )
+        };
+        let (index_style, worktree_style) = if entry.conflict.is_some() {
+            let conflict = context.strong(context.error());
+            (conflict, conflict)
+        } else if entry.index == StatusCode::Untracked {
+            let untracked = context.style(context.warning());
+            (untracked, untracked)
+        } else {
+            (
+                context.style(context.added()),
+                context.style(context.removed()),
+            )
+        };
+        let mut spans = vec![
+            Span::styled(format!("{label:<9} "), context.style(context.accent())),
+            code(entry.index, index_style),
+            code(entry.worktree, worktree_style),
+            Span::raw(" "),
+        ];
+        if let Some(original) = &entry.original_path {
+            spans.push(Span::styled(
+                format!("{} {} ", original.display, context.glyphs().arrow),
+                muted,
+            ));
+        }
+        spans.extend(path_spans(&entry.path.display, Style::reset(), context));
+        Line::from(spans)
+    })
 }
 
 /// A path with its directory quiet and its file name in `style`.
@@ -416,14 +405,29 @@ fn path_spans(path: &str, style: Style, context: &RenderContext) -> Vec<Span<'st
     }
 }
 
-pub(super) fn render_status(frame: &mut Frame<'_>, app: &App, area: Rect, context: &RenderContext) {
+pub(super) fn render_status(
+    frame: &mut Canvas<'_>,
+    app: &App,
+    area: Rect,
+    context: &RenderContext,
+) {
     let empty = app.inspect.status_entries().is_empty();
     if render_empty(frame, app, empty, "Working tree clean", area, context) {
         return;
     }
     let layout = list_preview_layout(app, area);
-    let rows = status_rows(app.inspect.status_entries(), context);
-    render_string_list(frame, rows, app.inspect.selected, layout.primary, context);
+    let list = layout.primary;
+    let entries = app.inspect.status_entries();
+    let window = Window::new(entries.len(), app.inspect.selected, list);
+    let rows = status_rows(entries, window.rows.clone(), context);
+    window.paint_rows(
+        frame,
+        list,
+        context,
+        context.glyphs().selected,
+        context.selection_style(true),
+        rows,
+    );
     render_divider(frame, layout, context);
     if let Some(preview) = layout.secondary {
         if app.inspect.working_diff.is_some() {
@@ -476,7 +480,7 @@ fn status_diff_label(app: &App, context: &RenderContext) -> Line<'static> {
 }
 
 pub(super) fn render_status_diff(
-    frame: &mut Frame<'_>,
+    frame: &mut Canvas<'_>,
     app: &App,
     area: Rect,
     context: &RenderContext,
@@ -494,7 +498,7 @@ pub(super) fn render_status_diff(
     render_diff_value(frame, app, parts[1], true, context);
 }
 
-pub(super) fn render_tree(frame: &mut Frame<'_>, app: &App, area: Rect, context: &RenderContext) {
+pub(super) fn render_tree(frame: &mut Canvas<'_>, app: &App, area: Rect, context: &RenderContext) {
     if render_empty(
         frame,
         app,
@@ -507,47 +511,58 @@ pub(super) fn render_tree(frame: &mut Frame<'_>, app: &App, area: Rect, context:
     }
     let entries = &app.inspect.tree;
     let muted = context.style(context.muted());
-    let sizes: Vec<String> = entries
+    let size_width = entries
         .iter()
-        .map(|entry| entry.size.map(human_size).unwrap_or_default())
-        .collect();
-    let size_width = sizes
-        .iter()
-        .map(|size| display_width(size))
+        .filter_map(|entry| entry.size)
+        .map(human_size_width)
         .max()
         .unwrap_or(0);
     let name_room = usize::from(area.width)
         .saturating_sub(display_width(context.glyphs().selected) + 5 + size_width + 2);
-    let rows = entries
-        .iter()
-        .zip(&sizes)
-        .map(|(entry, size)| {
-            // A trailing slash marks directories without relying on color;
-            // unusual modes get a word, ordinary ones stay silent.
-            let (kind, suffix, style) = match entry.kind {
-                TreeEntryKind::Tree => ("dir", "/", context.strong(context.accent())),
-                TreeEntryKind::Commit => ("sub", "@", context.style(context.warning())),
-                TreeEntryKind::Blob if entry.mode == "120000" => {
-                    ("link", "", context.style(context.accent()))
-                }
-                TreeEntryKind::Blob if entry.mode == "100755" => {
-                    ("exec", "", context.style(context.added()))
-                }
-                TreeEntryKind::Blob => ("", "", Style::reset()),
-                TreeEntryKind::Unknown => ("obj", "", muted),
-            };
-            let name = format!("{}{suffix}", entry.path.display);
-            let name = truncate_with(&name, name_room, context.glyphs().ellipsis);
-            let gap = name_room.saturating_sub(display_width(&name));
-            Line::from(vec![
-                Span::styled(format!("{kind:<4} "), muted),
-                Span::styled(name, style),
-                Span::raw(" ".repeat(gap + 2)),
-                Span::styled(pad_left(size, size_width), muted),
-            ])
-        })
-        .collect();
-    render_string_list(frame, rows, app.inspect.selected, area, context);
+    Window::new(entries.len(), app.inspect.selected, area).paint(frame, area, context, |index| {
+        let entry = &entries[index];
+        let size = entry.size.map(human_size).unwrap_or_default();
+        // A trailing slash marks directories without relying on color;
+        // unusual modes get a word, ordinary ones stay silent.
+        let (kind, suffix, style) = match entry.kind {
+            TreeEntryKind::Tree => ("dir", "/", context.strong(context.accent())),
+            TreeEntryKind::Commit => ("sub", "@", context.style(context.warning())),
+            TreeEntryKind::Blob if entry.mode == "120000" => {
+                ("link", "", context.style(context.accent()))
+            }
+            TreeEntryKind::Blob if entry.mode == "100755" => {
+                ("exec", "", context.style(context.added()))
+            }
+            TreeEntryKind::Blob => ("", "", Style::reset()),
+            TreeEntryKind::Unknown => ("obj", "", muted),
+        };
+        let name = format!("{}{suffix}", entry.path.display);
+        let name = truncate_with(&name, name_room, context.glyphs().ellipsis);
+        let gap = name_room.saturating_sub(display_width(&name));
+        Line::from(vec![
+            Span::styled(format!("{kind:<4} "), muted),
+            Span::styled(name, style),
+            Span::raw(" ".repeat(gap + 2)),
+            Span::styled(pad_left(&size, size_width), muted),
+        ])
+    });
+}
+
+fn human_size_width(bytes: u64) -> usize {
+    if bytes < 1024 {
+        return bytes
+            .checked_ilog10()
+            .map_or(3, |digits| digits as usize + 3);
+    }
+    let shift = ((bytes.ilog2() / 10).min(4)) * 10;
+    let value = bytes as f64 / (1_u64 << shift) as f64;
+    // The integer branch rounds; 99.5, 999.5, etc. can grow by a digit.
+    let digits = (value.round() as u64).ilog10() as usize + 1;
+    if value < 10.0 {
+        7 + usize::from(value >= 9.95)
+    } else {
+        digits + 4
+    }
 }
 
 /// Binary-prefixed size with one decimal below ten units: `912 B`, `4.2 KiB`.
@@ -568,7 +583,7 @@ fn human_size(bytes: u64) -> String {
     }
 }
 
-pub(super) fn render_blob(frame: &mut Frame<'_>, app: &App, area: Rect, context: &RenderContext) {
+pub(super) fn render_blob(frame: &mut Canvas<'_>, app: &App, area: Rect, context: &RenderContext) {
     let Some(blob) = &app.inspect.blob else {
         render_notice(
             frame,
@@ -622,7 +637,7 @@ pub(super) fn render_blob(frame: &mut Frame<'_>, app: &App, area: Rect, context:
 
 const BLAME_AUTHOR: usize = 10;
 
-pub(super) fn render_blame(frame: &mut Frame<'_>, app: &App, area: Rect, context: &RenderContext) {
+pub(super) fn render_blame(frame: &mut Canvas<'_>, app: &App, area: Rect, context: &RenderContext) {
     if render_empty(
         frame,
         app,
@@ -637,58 +652,60 @@ pub(super) fn render_blame(frame: &mut Frame<'_>, app: &App, area: Rect, context
     let blame = &app.inspect.blame;
     let number_width = blame
         .iter()
-        .map(|line| line.final_line.to_string().len())
+        .map(|line| line.final_line)
         .max()
-        .unwrap_or(1);
+        .and_then(usize::checked_ilog10)
+        .map_or(1, |digits| digits as usize + 1);
+    let now = context.now();
     let age_width = blame
         .iter()
         .filter_map(|line| line.author_time)
-        .map(|time| display_width(&relative_age(time)))
+        .map(|time| relative_width(time, now))
         .max()
         .unwrap_or(0);
     let muted = context.style(context.muted());
     let vertical = context.glyphs().vertical;
-    let rows = blame
-        .iter()
-        .enumerate()
-        .map(|(index, line)| {
-            // Attribution prints once per run of lines from the same commit.
-            let repeated = index > 0 && blame[index - 1].id == line.id;
-            let mut spans = if repeated {
-                vec![Span::raw(" ".repeat(9 + age_width + 1 + BLAME_AUTHOR + 1))]
-            } else {
-                let age = line.author_time.map(relative_age).unwrap_or_default();
-                vec![
-                    Span::styled(
-                        format!("{} ", line.id.short(8)),
-                        context.style(context.warning()),
-                    ),
-                    Span::styled(format!("{} ", pad_left(&age, age_width)), muted),
-                    Span::styled(
-                        format!(
-                            "{} ",
-                            pad_right(
-                                &truncate_with(
-                                    &sanitize_str(&line.author),
-                                    BLAME_AUTHOR,
-                                    context.glyphs().ellipsis
-                                ),
+    let list = layout.primary;
+    Window::new(blame.len(), app.inspect.selected, list).paint(frame, list, context, |index| {
+        let line = &blame[index];
+        // Attribution prints once per run of lines from the same commit.
+        let repeated = index > 0 && blame[index - 1].id == line.id;
+        let mut spans = if repeated {
+            vec![Span::raw(" ".repeat(9 + age_width + 1 + BLAME_AUTHOR + 1))]
+        } else {
+            let age = line
+                .author_time
+                .map(|time| context.relative_age(time))
+                .unwrap_or_default();
+            vec![
+                Span::styled(
+                    format!("{} ", line.id.short(8)),
+                    context.style(context.warning()),
+                ),
+                Span::styled(format!("{} ", pad_left(&age, age_width)), muted),
+                Span::styled(
+                    format!(
+                        "{} ",
+                        pad_right(
+                            &truncate_with(
+                                &sanitize_str(&line.author),
                                 BLAME_AUTHOR,
-                            )
-                        ),
-                        context.style(context.accent()),
+                                context.glyphs().ellipsis
+                            ),
+                            BLAME_AUTHOR,
+                        )
                     ),
-                ]
-            };
-            spans.push(Span::styled(
-                format!("{:>number_width$} {vertical} ", line.final_line),
-                muted,
-            ));
-            spans.push(Span::raw(line.content.clone()));
-            Line::from(spans)
-        })
-        .collect();
-    render_string_list(frame, rows, app.inspect.selected, layout.primary, context);
+                    context.style(context.accent()),
+                ),
+            ]
+        };
+        spans.push(Span::styled(
+            format!("{:>number_width$} {vertical} ", line.final_line),
+            muted,
+        ));
+        spans.push(Span::raw(line.content.clone()));
+        Line::from(spans)
+    });
     render_divider(frame, layout, context);
     if !blame.is_empty()
         && let Some(preview) = layout.secondary
@@ -698,7 +715,7 @@ pub(super) fn render_blame(frame: &mut Frame<'_>, app: &App, area: Rect, context
 }
 
 pub(super) fn render_stashes(
-    frame: &mut Frame<'_>,
+    frame: &mut Canvas<'_>,
     app: &App,
     area: Rect,
     context: &RenderContext,
@@ -714,31 +731,28 @@ pub(super) fn render_stashes(
         return;
     }
     let layout = list_preview_layout(app, area);
-    let rows = app
-        .inspect
-        .stashes
-        .iter()
-        .map(|stash| {
-            Line::from(vec![
-                Span::styled(
-                    format!("{} ", stash.selector),
-                    context.style(context.accent()),
-                ),
-                Span::styled(
-                    format!("{} ", stash.id.short(8)),
-                    context.style(context.warning()),
-                ),
-                Span::styled(
-                    stash
-                        .timestamp
-                        .map_or_else(String::new, |time| format!("{:>3} ", relative_age(time))),
-                    context.style(context.muted()),
-                ),
-                Span::raw(sanitize_str(&stash.subject)),
-            ])
-        })
-        .collect();
-    render_string_list(frame, rows, app.inspect.selected, layout.primary, context);
+    let list = layout.primary;
+    let stashes = &app.inspect.stashes;
+    Window::new(stashes.len(), app.inspect.selected, list).paint(frame, list, context, |index| {
+        let stash = &stashes[index];
+        Line::from(vec![
+            Span::styled(
+                format!("{} ", stash.selector),
+                context.style(context.accent()),
+            ),
+            Span::styled(
+                format!("{} ", stash.id.short(8)),
+                context.style(context.warning()),
+            ),
+            Span::styled(
+                stash.timestamp.map_or_else(String::new, |time| {
+                    format!("{:>3} ", context.relative_age(time))
+                }),
+                context.style(context.muted()),
+            ),
+            Span::raw(sanitize_str(&stash.subject)),
+        ])
+    });
     render_divider(frame, layout, context);
     if !app.inspect.stashes.is_empty()
         && let Some(preview) = layout.secondary

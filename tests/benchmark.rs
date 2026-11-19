@@ -25,16 +25,20 @@ fn benchmark_fixture_identity_is_stamped_and_mismatches_are_rebuilt() {
 
     run(Command::new(root.join("scripts/make-benchmark-repo.sh"))
         .args([repository.to_str().unwrap(), "3"]));
-    assert_eq!(git_config(&repository, "phig.benchmark.version"), "1");
+    assert_eq!(git_config(&repository, "phig.benchmark.version"), "2");
     assert_eq!(git_config(&repository, "phig.benchmark.commits"), "3");
     assert_eq!(git_config(&repository, "phig.benchmark.paths"), "100");
+    let git = |args: &[&str]| run(Command::new("git").arg("-C").arg(&repository).args(args)).stdout;
+    let head = git(&["rev-parse", "HEAD"]);
+    assert_eq!(git(&["show", "HEAD:files/path-001.txt"]), b"0\n1\n");
+    assert_eq!(git(&["status", "--porcelain"]), b"");
 
     run(Command::new("git").args([
         "-C",
         repository.to_str().unwrap(),
         "config",
-        "--unset",
         "phig.benchmark.version",
+        "1",
     ]));
     let output = run(Command::new("python3").args([
         root.join("scripts/benchmark.py").to_str().unwrap(),
@@ -45,9 +49,28 @@ fn benchmark_fixture_identity_is_stamped_and_mismatches_are_rebuilt() {
         "--validate-fixture-only",
     ]));
     let metadata: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
-    assert_eq!(metadata["version"], 1);
+    assert_eq!(metadata["version"], 2);
     assert_eq!(metadata["commits"], 3);
     assert_eq!(metadata["declared_commits"], 3);
     assert_eq!(metadata["paths"], 100);
-    assert_eq!(git_config(&repository, "phig.benchmark.version"), "1");
+    assert_eq!(git_config(&repository, "phig.benchmark.version"), "2");
+    assert_eq!(git(&["rev-parse", "HEAD"]), head);
+}
+
+#[test]
+fn benchmark_does_not_replace_an_unrelated_directory() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let repository = tempfile::tempdir().unwrap();
+    let sentinel = repository.path().join("keep.txt");
+    std::fs::write(&sentinel, b"keep me").unwrap();
+    let output = Command::new("python3")
+        .arg(root.join("scripts/benchmark.py"))
+        .arg("--repository")
+        .arg(repository.path())
+        .args(["--commits", "3", "--validate-fixture-only"])
+        .output()
+        .unwrap();
+    assert!(!output.status.success());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("refusing to replace"));
+    assert_eq!(std::fs::read(sentinel).unwrap(), b"keep me");
 }

@@ -314,7 +314,14 @@ fn diff_review_keys_render_tree_gutters_split_and_narrow_fallback() {
         styled_screen(120, 22, &app),
         screen(60, 16, &app)
     ));
-    insta::assert_snapshot!("diff-review", scenes);
+    insta::assert_snapshot!(
+        "diff-review",
+        scenes
+            .lines()
+            .map(str::trim_end)
+            .collect::<Vec<_>>()
+            .join("\n")
+    );
     let tree_wide = styled_screen(120, 22, &app);
     assert!(tree_wide.contains('├'));
     assert!(tree_wide.contains('└'));
@@ -495,7 +502,7 @@ fn screen_with_context(width: u16, height: u16, app: &App, context: &RenderConte
     let backend = TestBackend::new(width, height);
     let mut terminal = Terminal::new(backend).unwrap();
     terminal
-        .draw(|frame| render_with_context(frame, app, context))
+        .draw(|frame| render_with_context(frame, app, &context.clone().at_time(1_790_000_000)))
         .unwrap();
     let buffer = terminal.backend().buffer();
     let mut output = String::new();
@@ -556,19 +563,15 @@ fn interaction_benchmark() {
             .draw(|frame| render_with_context(frame, &app, &context))
             .unwrap();
     });
-    let mut state = RenderState::default();
-    terminal
-        .draw(|frame| render_with_state(frame, &app, &context, &mut state))
-        .unwrap();
+    let mut state = Renderer::new(context.clone());
+    terminal.draw(|frame| state.draw(frame, &app)).unwrap();
     measure("50k graph + frame / cached navigation", || {
         app.selected = if app.selected == 49_970 {
             49_969
         } else {
             49_970
         };
-        terminal
-            .draw(|frame| render_with_state(frame, &app, &context, &mut state))
-            .unwrap();
+        terminal.draw(|frame| state.draw(frame, &app)).unwrap();
     });
     app.preview.as_mut().unwrap().diff.files = (0..50_000)
         .map(|index| DiffFile {
@@ -589,9 +592,7 @@ fn interaction_benchmark() {
     }
     measure("50k files / cached move + frame", || {
         app.update(Action::FilePickerMove(1), 10);
-        terminal
-            .draw(|frame| render_with_state(frame, &app, &context, &mut state))
-            .unwrap();
+        terminal.draw(|frame| state.draw(frame, &app)).unwrap();
     });
 }
 
@@ -602,7 +603,8 @@ fn styled_screen(width: u16, height: u16, app: &App) -> String {
     let context = RenderContext::new(RenderConfig {
         date_mode: DateMode::Unix,
         ..deterministic_config()
-    });
+    })
+    .at_time(1_790_000_000);
     terminal
         .draw(|frame| render_with_context(frame, app, &context))
         .unwrap();
@@ -715,14 +717,12 @@ fn fullscreen_key_path_preserves_patch_across_sizes_and_restores_layout() {
 #[test]
 fn cached_render_matches_fresh_after_navigation_resize_append_and_reset() {
     let mut app = branchy_app();
-    let mut state = RenderState::default();
     let context = RenderContext::new(deterministic_config());
+    let mut state = Renderer::new(context.clone());
     for (width, selected) in [(100, 0), (100, 6), (100, 2), (44, 9), (100, 8)] {
         app.selected = selected;
         let mut terminal = Terminal::new(TestBackend::new(width, 8)).unwrap();
-        terminal
-            .draw(|frame| render_with_state(frame, &app, &context, &mut state))
-            .unwrap();
+        terminal.draw(|frame| state.draw(frame, &app)).unwrap();
         let cached = terminal.backend().buffer().clone();
         terminal
             .draw(|frame| render_with_context(frame, &app, &context))
@@ -734,9 +734,7 @@ fn cached_render_matches_fresh_after_navigation_resize_append_and_reset() {
     app.commits.push(extra);
     app.selected = 10;
     let mut terminal = Terminal::new(TestBackend::new(100, 8)).unwrap();
-    terminal
-        .draw(|frame| render_with_state(frame, &app, &context, &mut state))
-        .unwrap();
+    terminal.draw(|frame| state.draw(frame, &app)).unwrap();
     let cached = terminal.backend().buffer().clone();
     terminal
         .draw(|frame| render_with_context(frame, &app, &context))
@@ -744,14 +742,82 @@ fn cached_render_matches_fresh_after_navigation_resize_append_and_reset() {
     assert_eq!(&cached, terminal.backend().buffer());
     state.clear_history();
     app = sample_app();
-    terminal
-        .draw(|frame| render_with_state(frame, &app, &context, &mut state))
-        .unwrap();
+    terminal.draw(|frame| state.draw(frame, &app)).unwrap();
     let cached = terminal.backend().buffer().clone();
     terminal
         .draw(|frame| render_with_context(frame, &app, &context))
         .unwrap();
     assert_eq!(&cached, terminal.backend().buffer());
+}
+
+#[test]
+fn ratcn_routes_a_key_burst_against_current_overlay_state() {
+    use crate::app::Action;
+    use crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers, MouseEvent, MouseEventKind};
+    let mut app = sample_app();
+    let mut renderer = Renderer::new(RenderContext::new(deterministic_config()));
+    let mut terminal = Terminal::new(TestBackend::new(60, 16)).unwrap();
+    terminal.draw(|frame| renderer.draw(frame, &app)).unwrap();
+    let key = |code| Event::Key(KeyEvent::new(code, KeyModifiers::NONE));
+    assert_eq!(
+        renderer.input(
+            Event::Key(KeyEvent::new_with_kind(
+                KeyCode::Char('q'),
+                KeyModifiers::NONE,
+                crossterm::event::KeyEventKind::Release,
+            )),
+            &app,
+        ),
+        None,
+    );
+    assert_eq!(
+        renderer.input(
+            Event::Mouse(MouseEvent {
+                kind: MouseEventKind::ScrollDown,
+                column: 2,
+                row: 2,
+                modifiers: KeyModifiers::NONE,
+            }),
+            &app
+        ),
+        Some(Input::Action(Action::Move(3))),
+    );
+    let Some(Input::Action(open)) = renderer.input(key(KeyCode::Char(':')), &app) else {
+        panic!("ratcn did not route palette key");
+    };
+    app.update(open, 10);
+    assert_eq!(
+        renderer.input(key(KeyCode::Char('q')), &app),
+        Some(Input::Action(Action::SearchInput('q'))),
+    );
+    assert_eq!(
+        renderer.input(Event::Paste("file".into()), &app),
+        Some(Input::Paste("file".into())),
+    );
+    let Some(Input::Action(accept)) = renderer.input(key(KeyCode::Enter), &app) else {
+        panic!("ratcn did not route palette accept");
+    };
+    app.update(accept, 10);
+    assert_eq!(app.view, View::Detail);
+    assert_eq!(renderer.input(Event::Paste("ignored".into()), &app), None);
+}
+
+#[test]
+fn scene_tolerates_viewports_shorter_than_the_header_and_footer() {
+    let mut app = sample_app();
+    let mut renderer = Renderer::new(RenderContext::new(deterministic_config()));
+    for (width, height) in [(1, 1), (2, 2), (3, 3)] {
+        let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
+        for action in [
+            crate::app::Action::ToggleHelp,
+            crate::app::Action::StartPalette,
+            crate::app::Action::StartSearch,
+            crate::app::Action::CancelOverlay,
+        ] {
+            app.update(action, 1);
+            terminal.draw(|frame| renderer.draw(frame, &app)).unwrap();
+        }
+    }
 }
 
 #[test]
@@ -915,7 +981,7 @@ fn selection_footer_is_explicit_and_adapts_to_narrow_and_normal_widths() {
 fn log_footer_keeps_core_actions_visible_at_eighty_columns() {
     let output = screen(80, 16, &sample_app());
     let footer = output.lines().nth(15).unwrap();
-    for hint in ["j/k move", "Enter open", "/ search"] {
+    for hint in ["j/k move", "Enter inspect", "/ search", ": commands"] {
         assert!(
             footer.contains(hint),
             "missing footer hint {hint:?}: {footer}"
@@ -1231,7 +1297,7 @@ fn fuzzy_picker_layout_is_stable_with_matches_and_empty_results() {
     let empty = screen(60, 16, &app);
     assert_eq!(top(&initial), top(&empty));
     assert!(empty.contains("0 results"));
-    assert!(empty.contains("Try fewer letters"));
+    assert!(empty.contains("Backspace broadens your search"));
 }
 
 #[test]
@@ -1568,7 +1634,7 @@ fn footer_and_help_use_effective_remapped_keys() {
     let context = RenderContext::with_bindings(RenderConfig::default(), bindings);
     let app = sample_app();
     let footer = screen_with_context(100, 28, &app, &context);
-    assert!(footer.contains("Ctrl+x open"));
+    assert!(footer.contains("Ctrl+x inspect"));
     assert!(footer.contains("Alt+s search"));
     let mut help = app;
     help.show_help();
@@ -1601,7 +1667,7 @@ fn footer_and_help_use_effective_remapped_keys() {
         .unwrap()
         .to_owned();
     assert!(
-        footer.contains('界') && footer.contains("open"),
+        footer.contains('界') && footer.contains("inspect"),
         "wide key hint was clipped: {footer:?}"
     );
     assert!(footer.trim_end().ends_with("1/1"));

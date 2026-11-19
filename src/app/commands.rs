@@ -1,6 +1,6 @@
 //! Canonical semantic command catalog shared by config, palette, and input adapters.
 
-use super::{Action, PaletteCommand};
+use super::{Action, App, PaletteCommand, View};
 
 /// A semantic command's stable configuration name and human-facing palette label.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -174,6 +174,61 @@ pub fn palette_commands(query: &str) -> Vec<PaletteCommand> {
             action: command.action.clone(),
         })
         .collect()
+}
+
+impl App {
+    /// Suggestions change with the view; a typed query always searches the
+    /// full catalog in its normal relevance order.
+    pub(crate) fn commands_for_palette(&self, query: &str) -> Vec<PaletteCommand> {
+        let mut commands = palette_commands(query);
+        if !query.trim().is_empty() {
+            return commands;
+        }
+        let suggested: &[Action] = match self.view {
+            View::Log => &[
+                Action::Open,
+                Action::StartSearch,
+                Action::StartCompare,
+                Action::ViewRefs,
+                Action::ViewStatus,
+            ],
+            View::Detail | View::Compare | View::StatusDiff => &[
+                Action::StartFilePicker,
+                Action::ToggleDiffTree,
+                Action::NextHunk(1),
+                Action::ToggleDiffFullscreen,
+                Action::ToggleDiffStyle,
+            ],
+            View::Refs if self.inspect.compare_picker => {
+                &[Action::Open, Action::StartSearch, Action::Back]
+            }
+            View::Refs => &[Action::ViewLog, Action::StartCompare, Action::StartSearch],
+            View::Status => &[
+                Action::ToggleStatusDiff,
+                Action::ViewTree,
+                Action::StartSearch,
+            ],
+            View::Tree | View::Blob => &[Action::ViewBlame, Action::StartSearch, Action::ViewLog],
+            View::Blame | View::Stash => {
+                &[Action::StartSearch, Action::CopySelection, Action::ViewLog]
+            }
+        };
+        commands.sort_by_key(|command| {
+            suggested
+                .iter()
+                .position(|action| *action == command.action)
+                .unwrap_or(usize::MAX)
+        });
+        if self.view == View::Refs
+            && self.inspect.compare_picker
+            && let Some(command) = commands
+                .iter_mut()
+                .find(|command| command.action == Action::Open)
+        {
+            command.name = "Compare with selected ref";
+        }
+        commands
+    }
 }
 
 #[cfg(test)]

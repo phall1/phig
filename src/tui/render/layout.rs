@@ -11,6 +11,25 @@ pub(super) const STATUS_DIFF_HEADER_ROWS: u16 = 1;
 /// At this width a list and its preview sit side by side.
 const SIDE_BY_SIDE_WIDTH: u16 = 110;
 
+pub(super) struct Screen {
+    pub header: Rect,
+    pub body: Rect,
+    pub footer: Rect,
+}
+
+impl Screen {
+    pub(super) fn new(area: Rect) -> Self {
+        let header = area.height.min(1);
+        let footer = area.height.saturating_sub(header).min(1);
+        let body = area.height - header - footer;
+        Self {
+            header: Rect::new(area.x, area.y, area.width, header),
+            body: Rect::new(area.x, area.y + header, area.width, body),
+            footer: Rect::new(area.x, area.y + header + body, area.width, footer),
+        }
+    }
+}
+
 /// Rows available to patch content after reserving the truncation notice.
 pub(super) fn diff_content_rows(height: u16, truncated: bool) -> u16 {
     if truncated && height > 1 {
@@ -46,7 +65,7 @@ impl PaneLayout {
 }
 
 pub(crate) fn preview_focus_available(app: &App, width: u16, height: u16) -> bool {
-    let body_height = height.saturating_sub(2);
+    let body_height = Screen::new(Rect::new(0, 0, width, height)).body.height;
     app.show_preview && width >= 72 && body_height >= 16
 }
 
@@ -114,7 +133,7 @@ pub(super) fn list_preview_layout(app: &App, area: Rect) -> PaneLayout {
 }
 
 pub(crate) fn page_rows(app: &App, width: u16, height: u16) -> usize {
-    let body = Rect::new(0, 1, width, height.saturating_sub(2));
+    let body = Screen::new(Rect::new(0, 0, width, height)).body;
     if matches!(app.overlay, crate::app::Overlay::DiffTree(_)) {
         return usize::from(body.height.saturating_sub(1).max(1));
     }
@@ -165,7 +184,7 @@ pub(crate) fn diff_split_available(app: &App, width: u16, height: u16) -> bool {
     if app.diff_fullscreen || matches!(app.view, View::Detail | View::Compare | View::StatusDiff) {
         return width >= 100;
     }
-    let body = Rect::new(0, 1, width, height.saturating_sub(2));
+    let body = Screen::new(Rect::new(0, 0, width, height)).body;
     // The same geometry the renderer draws with, or the reducer would step
     // through split rows while unified rows are on screen.
     let layout = match app.view {

@@ -3,6 +3,8 @@
 //! Literal matches outrank subsequences; ties retain the source order. Positions
 //! refer to original Unicode characters, never UTF-8 bytes or terminal columns.
 
+use std::borrow::Cow;
+
 type Score = (u8, usize, usize, usize); // match tier, gaps, start, candidate length
 
 #[derive(Debug, PartialEq, Eq)]
@@ -11,42 +13,71 @@ pub(crate) struct Match {
     pub positions: Vec<usize>,
 }
 
-pub(crate) struct Query(String);
+pub(crate) struct Query {
+    text: String,
+    chars: Vec<char>,
+}
 
 impl Query {
     pub fn new(query: &str) -> Self {
-        Self(normalize(query.trim()))
+        let text = normalize(query.trim()).into_owned();
+        let chars = text.chars().collect();
+        Self { text, chars }
     }
 
     pub fn find(&self, text: &str) -> Option<Match> {
+        if self.chars.is_empty() {
+            return Some(Match {
+                score: (0, 0, 0, 0),
+                positions: Vec::new(),
+            });
+        }
         let (folded, origins) = fold(text);
-        let (score, indices) = self.alignment(&folded)?;
-        let mut positions: Vec<_> = indices.iter().map(|index| origins[*index]).collect();
+        let score = self.score_normalized(&folded, &mut vec![None; self.chars.len()])?;
+        let (_, gaps, start, _) = score;
+        let mut candidates = folded
+            .chars()
+            .enumerate()
+            .skip(start)
+            .take(gaps + self.chars.len());
+        let mut positions = Vec::with_capacity(self.chars.len());
+        for needle in &self.chars {
+            let (index, _) = candidates.find(|(_, character)| character == needle)?;
+            positions.push(origins[index]);
+        }
         positions.dedup();
         Some(Match { score, positions })
     }
 
+    #[cfg(test)]
     fn score(&self, text: &str) -> Option<Score> {
-        self.alignment(&normalize(text)).map(|(score, _)| score)
+        self.score_normalized(&normalize(text), &mut vec![None; self.chars.len()])
     }
 
-    fn alignment(&self, text: &str) -> Option<(Score, Vec<usize>)> {
-        if self.0.is_empty() {
-            return Some(((0, 0, 0, 0), Vec::new()));
+    fn score_normalized(&self, text: &str, scratch: &mut [Option<usize>]) -> Option<Score> {
+        if self.chars.is_empty() {
+            return Some((0, 0, 0, 0));
         }
-        let (tier, indices) = self
-            .literal_match(text)
-            .or_else(|| subsequence(text, &self.0).map(|indices| (3, indices)))?;
-        let start = *indices.first()?;
-        let gaps = indices.last()? - start + 1 - indices.len();
-        Some(((tier, gaps, start, text.chars().count()), indices))
-    }
+        if let Some((tier, byte)) = best_literal(text, &self.text) {
+            return Some((tier, 0, text[..byte].chars().count(), text.chars().count()));
+        }
 
-    fn literal_match(&self, text: &str) -> Option<(u8, Vec<usize>)> {
-        let (tier, byte) = best_literal(text, &self.0)?;
-        let start = text[..byte].chars().count();
-        let count = self.0.chars().count();
-        Some((tier, (start..start + count).collect()))
+        // Reject nonmatches with a linear scan before considering alternate alignments.
+        let mut remaining = text.chars();
+        if !self
+            .chars
+            .iter()
+            .all(|needle| remaining.any(|c| c == *needle))
+        {
+            return None;
+        }
+        let (start, end) = shortest_window(text, &self.chars, scratch)?;
+        Some((
+            3,
+            end - start + 1 - self.chars.len(),
+            start,
+            text.chars().count(),
+        ))
     }
 }
 
@@ -93,13 +124,19 @@ fn normalized_chars(text: &str) -> impl Iterator<Item = (usize, char)> + '_ {
     })
 }
 
-fn normalize(text: &str) -> String {
+fn normalize(text: &str) -> Cow<'_, str> {
     if text.is_ascii() {
-        return text.to_ascii_lowercase();
+        return if text.bytes().any(|byte| byte.is_ascii_uppercase()) {
+            Cow::Owned(text.to_ascii_lowercase())
+        } else {
+            Cow::Borrowed(text)
+        };
     }
-    normalized_chars(text)
-        .map(|(_, character)| character)
-        .collect()
+    Cow::Owned(
+        normalized_chars(text)
+            .map(|(_, character)| character)
+            .collect(),
+    )
 }
 
 fn fold(text: &str) -> (String, Vec<usize>) {
@@ -112,35 +149,18 @@ fn fold(text: &str) -> (String, Vec<usize>) {
     (folded, origins)
 }
 
-fn subsequence(text: &str, query: &str) -> Option<Vec<usize>> {
-    // Reject nonmatches with a linear scan before considering alternate alignments.
-    let mut remaining = text.chars();
-    if !query.chars().all(|needle| remaining.any(|c| c == needle)) {
-        return None;
-    }
-    let characters: Vec<_> = text.chars().collect();
-    let needle: Vec<_> = query.chars().collect();
-    let (start, end) = shortest_window(&characters, &needle)?;
-    let mut remaining = characters.iter().enumerate().take(end + 1).skip(start);
-    needle
-        .iter()
-        .map(|needle| {
-            remaining
-                .by_ref()
-                .find(|(_, c)| *c == needle)
-                .map(|(i, _)| i)
-        })
-        .collect()
-}
-
 /// Track the latest viable start of every query prefix. This finds the smallest
 /// window in O(text × query) time and O(query) space, without enumerating paths.
-fn shortest_window(text: &[char], query: &[char]) -> Option<(usize, usize)> {
-    let mut starts = vec![None; query.len()];
+fn shortest_window(
+    text: &str,
+    query: &[char],
+    starts: &mut [Option<usize>],
+) -> Option<(usize, usize)> {
+    starts.fill(None);
     let mut best = None;
-    for (end, character) in text.iter().enumerate() {
+    for (end, character) in text.chars().enumerate() {
         for (index, needle) in query.iter().enumerate().rev() {
-            if character != needle {
+            if character != *needle {
                 continue;
             }
             starts[index] = if index == 0 {
@@ -163,12 +183,17 @@ pub(crate) fn ranked<T>(
     label: impl Fn(&T) -> &str,
 ) -> Vec<T> {
     let query = Query::new(query);
-    if query.0.is_empty() {
+    if query.chars.is_empty() {
         return items.into_iter().collect();
     }
+    let mut scratch = vec![None; query.chars.len()];
     let mut matches: Vec<_> = items
         .into_iter()
-        .filter_map(|item| query.score(label(&item)).map(|score| (score, item)))
+        .filter_map(|item| {
+            query
+                .score_normalized(&normalize(label(&item)), &mut scratch)
+                .map(|score| (score, item))
+        })
         .collect();
     matches.sort_by_key(|(score, _)| *score);
     matches.into_iter().map(|(_, item)| item).collect()

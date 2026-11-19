@@ -1080,6 +1080,34 @@ fn inspect_search_cancel_restores_semantic_cursor() {
 }
 
 #[test]
+fn palette_accepts_the_pending_compare_base() {
+    let mut app = app();
+    app.update(Action::StartCompare, 10);
+    app.apply_refs(vec![RefInfo {
+        full_name: RefName::new(b"refs/heads/base".to_vec()),
+        short_name: RefName::new(b"base".to_vec()),
+        kind: RefKind::LocalBranch,
+        target: oid('b'),
+        peeled: None,
+        upstream: None,
+        subject: "base".into(),
+        timestamp: None,
+        is_head: false,
+    }]);
+    app.update(Action::StartPalette, 10);
+    assert_eq!(
+        app.commands_for_palette("")[0].name,
+        "Compare with selected ref"
+    );
+    assert_eq!(
+        app.update(Action::ExecutePalette, 10),
+        [Effect::LoadCompare]
+    );
+    assert_eq!(app.view, View::Compare);
+    assert!(!app.inspect.compare_picker);
+}
+
+#[test]
 fn compare_picker_cancel_and_missing_blame_path_are_safe() {
     let mut app = app();
     let _ = app.update(Action::StartCompare, 10);

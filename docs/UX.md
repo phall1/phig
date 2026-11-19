@@ -2,25 +2,27 @@
 
 ## Visual model
 
-The width-budgeted header names the active view in a reverse-video badge and
-the repository first, reserves space for critical selection/error state, and
-then adds branch, revision, path, loading, and marked-endpoint context as room
-permits. The body is one dominant list or document. At 110 columns and wider,
+The width-budgeted header names the active view and repository first, reserves
+space for critical selection/error state, and then adds scope, path, loading,
+and marked-endpoint context as room permits. On the default walk, the branch
+already identifies `HEAD`; explicit revisions and ref families stay visible.
+The body is one dominant list or document. At 110 columns and wider,
 log, refs, status, blame, and stash previews occupy the right side behind one
 thin vertical divider; lists keep about half the width (blame, which is read as
 source, keeps more) and the preview gets one cell of padding. Normal widths use
 a stacked list/preview with one horizontal divider; narrow terminals hide
 previews and open details with `Enter`. Empty lists drop the preview and state
 why they are empty; loading and unavailable states are centered notices. The
-footer shows up to three effective, contextual key hints (four in the log), then
-always `? help`, with keys in normal weight and descriptions muted, plus a quiet
-right-aligned position (`12/256+` while more history can stream in).
+footer leads with the effective actions for the current view: inspect and search
+in history, files and hunks in a patch. It includes `: commands` when there is
+room and always reserves space for help and position (`12/256+` while history
+can stream in; `file 2/4 · line 38` on a multi-file patch).
 
 Phig must remain usable at 60×16, comfortable at 100×28, and information-dense
 without decorative borders at larger sizes. It uses the terminal's native
 background, marker-led selection, restrained semantic color, and thin functional
-dividers rather than boxed panes or cards. Overlays alone use a thin adaptive
-frame with a short title and a persistent action footer.
+dividers rather than boxed panes or cards. Overlays use a thin adaptive frame
+and a persistent action footer, leaving the surrounding view visible.
 
 ## Default keys
 
@@ -216,9 +218,10 @@ words when nothing is found and keeps the last position.
 The pickers highlight matching characters, show a live result count, and keep
 their geometry steady while typing. `Tab`/`Shift-Tab`, `Ctrl-n`/`Ctrl-p`, and
 `Ctrl-j`/`Ctrl-k` move through results and `Ctrl-u` clears the query; plain
-letters always type. With an empty query the palette lists discoverable
-commands before basic movement. The palette also shows effective remapped
-shortcuts. Long queries scroll to keep the insertion point visible; empty results
+letters always type. With an empty query the palette leads with actions for
+the current view. Typing searches the full catalog, including actions from other
+views. The palette also shows effective remapped shortcuts. Long queries scroll
+to keep the insertion point visible; empty results
 offer a recovery hint. Arrows move through the ranked results, `Enter` runs or
 jumps, and `Esc` closes without changing the original diff position. Monochrome
 uses the normal marker-led selection without colored match styling.
