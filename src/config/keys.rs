@@ -2,7 +2,7 @@
 
 use std::collections::{BTreeMap, HashMap, HashSet};
 
-use crossterm::event::KeyEvent;
+use crossterm::event::{KeyEvent, KeyEventKind};
 use ratcn::runtime::{KeyCode, KeyEvent as RatcnKey};
 
 use crate::app::Action;
@@ -38,7 +38,10 @@ pub(super) enum KeyCodeSpec {
 }
 
 impl KeyBindings {
-    pub fn resolve(&self, event: KeyEvent, default: Option<Action>) -> Option<Action> {
+    pub fn resolve(&self, mut event: KeyEvent, default: Option<Action>) -> Option<Action> {
+        // The public lookup is independent of key lifecycle. The live ratcn
+        // router separately ignores release events before resolving actions.
+        event.kind = KeyEventKind::Press;
         self.resolve_normalized(RatcnKey::try_from(event).ok(), default)
     }
 

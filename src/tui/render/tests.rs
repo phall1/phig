@@ -761,6 +761,17 @@ fn ratcn_routes_a_key_burst_against_current_overlay_state() {
     let key = |code| Event::Key(KeyEvent::new(code, KeyModifiers::NONE));
     assert_eq!(
         renderer.input(
+            Event::Key(KeyEvent::new_with_kind(
+                KeyCode::Char('q'),
+                KeyModifiers::NONE,
+                crossterm::event::KeyEventKind::Release,
+            )),
+            &app,
+        ),
+        None,
+    );
+    assert_eq!(
+        renderer.input(
             Event::Mouse(MouseEvent {
                 kind: MouseEventKind::ScrollDown,
                 column: 2,

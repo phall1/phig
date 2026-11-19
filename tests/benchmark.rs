@@ -56,3 +56,21 @@ fn benchmark_fixture_identity_is_stamped_and_mismatches_are_rebuilt() {
     assert_eq!(git_config(&repository, "phig.benchmark.version"), "2");
     assert_eq!(git(&["rev-parse", "HEAD"]), head);
 }
+
+#[test]
+fn benchmark_does_not_replace_an_unrelated_directory() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let repository = tempfile::tempdir().unwrap();
+    let sentinel = repository.path().join("keep.txt");
+    std::fs::write(&sentinel, b"keep me").unwrap();
+    let output = Command::new("python3")
+        .arg(root.join("scripts/benchmark.py"))
+        .arg("--repository")
+        .arg(repository.path())
+        .args(["--commits", "3", "--validate-fixture-only"])
+        .output()
+        .unwrap();
+    assert!(!output.status.success());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("refusing to replace"));
+    assert_eq!(std::fs::read(sentinel).unwrap(), b"keep me");
+}

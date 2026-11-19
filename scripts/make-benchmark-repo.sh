@@ -12,8 +12,27 @@ if [ "$commits" -lt 1 ]; then
   echo "COMMITS must be positive" >&2
   exit 2
 fi
+case "$repository" in /*) ;; *) repository="./$repository" ;; esac
 
-rm -rf "$repository"
+if [ -e "$repository" ] || [ -L "$repository" ]; then
+  # Rebuild only fixtures we own (including v1); never erase an arbitrary
+  # checkout or directory passed as --repository.
+  if [ -d "$repository" ] && [ ! -L "$repository" ]; then
+    if rmdir "$repository" 2>/dev/null; then
+      :
+    else
+      version=$(git config --file "$repository/.git/config" --get phig.benchmark.version || true)
+      paths=$(git config --file "$repository/.git/config" --get phig.benchmark.paths || true)
+      case "$version:$paths" in
+        1:100|2:100) rm -rf "$repository" ;;
+        *) printf 'refusing to replace a non-fixture directory: %s\n' "$repository" >&2; exit 1 ;;
+      esac
+    fi
+  else
+    printf 'refusing to replace a non-fixture path: %s\n' "$repository" >&2
+    exit 1
+  fi
+fi
 mkdir -p "$repository"
 git -C "$repository" init --quiet -b main
 git -C "$repository" config user.name 'phig benchmark'

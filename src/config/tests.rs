@@ -156,6 +156,18 @@ fn semantic_override_resolves() {
     );
     assert_eq!(
         bindings.resolve(
+            KeyEvent::new_with_kind(
+                KeyCode::Char('x'),
+                KeyModifiers::CONTROL,
+                crossterm::event::KeyEventKind::Release,
+            ),
+            None,
+        ),
+        Some(Action::Open),
+        "the public binding lookup does not filter key-event kinds"
+    );
+    assert_eq!(
+        bindings.resolve(
             KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE),
             Some(Action::Open)
         ),
