@@ -4,6 +4,13 @@ All notable changes to phig are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and releases follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.7.0](https://github.com/phall1/phig/compare/v1.6.0...v1.7.0) (2026-11-19)
+
+
+### Added
+
+* **tui:** rebuild Phig around ratcn ([fd11258](https://github.com/phall1/phig/commit/fd11258431d7f3f36cead795add4016b9e746101))
+
 ## [1.6.0](https://github.com/phall1/phig/compare/v1.5.0...v1.6.0) (2026-09-27)
 
 
