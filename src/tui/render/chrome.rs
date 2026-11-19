@@ -5,7 +5,7 @@ use ratatui::{
     layout::{Alignment, Constraint, Layout, Rect},
     style::Style,
     text::{Line, Span},
-    widgets::{Block, Borders, Clear, Paragraph, Wrap},
+    widgets::{Block, Borders, Paragraph, Wrap},
 };
 
 use crate::{
@@ -404,7 +404,7 @@ fn overlay_regions(
         height.min(area.height),
         area,
     );
-    frame.render_widget(Clear, popup);
+    frame.clear_overlay(popup);
     let color = if error {
         context.error()
     } else {
@@ -654,7 +654,7 @@ pub(super) fn render_search(
     context: &RenderContext,
 ) {
     let area = Rect::new(body.x, body.bottom().saturating_sub(1), body.width, 1);
-    frame.render_widget(Clear, area);
+    frame.clear_overlay(area);
     let muted = context.style(context.muted());
     let separator = context.glyphs().separator;
     // A miss is stated in words, not just color, and the hint says what

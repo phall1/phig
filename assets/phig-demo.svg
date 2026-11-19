@@ -305,16 +305,19 @@
     <text x="67.2" y="667.0" fill="#6b7894" textLength="36.1" lengthAdjust="spacingAndGlyphs">move</text>
     <text x="112.3" y="667.0" fill="#6b7894">·</text>
     <text x="130.4" y="667.0" fill="#d7deef" font-weight="700" textLength="45.1" lengthAdjust="spacingAndGlyphs">Enter</text>
-    <text x="184.5" y="667.0" fill="#6b7894" textLength="36.1" lengthAdjust="spacingAndGlyphs">open</text>
-    <text x="229.7" y="667.0" fill="#6b7894">·</text>
-    <text x="247.7" y="667.0" fill="#d7deef" font-weight="700">/</text>
-    <text x="265.8" y="667.0" fill="#6b7894" textLength="54.2" lengthAdjust="spacingAndGlyphs">search</text>
-    <text x="329.0" y="667.0" fill="#6b7894">·</text>
-    <text x="347.1" y="667.0" fill="#d7deef" font-weight="700">v</text>
-    <text x="365.1" y="667.0" fill="#6b7894" textLength="36.1" lengthAdjust="spacingAndGlyphs">mark</text>
-    <text x="410.3" y="667.0" fill="#6b7894">·</text>
-    <text x="428.3" y="667.0" fill="#d7deef" font-weight="700">?</text>
-    <text x="446.4" y="667.0" fill="#6b7894" textLength="36.1" lengthAdjust="spacingAndGlyphs">help</text>
+    <text x="184.5" y="667.0" fill="#6b7894" textLength="63.2" lengthAdjust="spacingAndGlyphs">inspect</text>
+    <text x="256.8" y="667.0" fill="#6b7894">·</text>
+    <text x="274.8" y="667.0" fill="#d7deef" font-weight="700">/</text>
+    <text x="292.9" y="667.0" fill="#6b7894" textLength="54.2" lengthAdjust="spacingAndGlyphs">search</text>
+    <text x="356.1" y="667.0" fill="#6b7894">·</text>
+    <text x="374.1" y="667.0" fill="#d7deef" font-weight="700">v</text>
+    <text x="392.2" y="667.0" fill="#6b7894" textLength="36.1" lengthAdjust="spacingAndGlyphs">mark</text>
+    <text x="437.4" y="667.0" fill="#6b7894">·</text>
+    <text x="455.4" y="667.0" fill="#d7deef" font-weight="700">:</text>
+    <text x="473.5" y="667.0" fill="#6b7894" textLength="72.2" lengthAdjust="spacingAndGlyphs">commands</text>
+    <text x="554.8" y="667.0" fill="#6b7894">·</text>
+    <text x="572.8" y="667.0" fill="#d7deef" font-weight="700">?</text>
+    <text x="590.9" y="667.0" fill="#6b7894" textLength="36.1" lengthAdjust="spacingAndGlyphs">help</text>
     <text x="1141.7" y="667.0" fill="#6b7894" textLength="27.1" lengthAdjust="spacingAndGlyphs">1/9</text>
   </g>
 </svg>

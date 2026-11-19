@@ -213,4 +213,68 @@ impl<'a> Canvas<'a> {
     pub(super) fn set_style(&mut self, area: Rect, style: Style) {
         self.buffer.set_style(area, style);
     }
+
+    /// Erase just the overlay, plus any underlying wide glyph crossing an edge.
+    /// A surviving lead cell would otherwise skip the border when emitted.
+    pub(super) fn clear_overlay(&mut self, area: Rect) {
+        let area = area.intersection(self.buffer.area);
+        if area.is_empty() {
+            return;
+        }
+        for y in area.top()..area.bottom() {
+            if area.left() > self.buffer.area.left() {
+                self.clear_crossing_glyph(area.left() - 1, y);
+            }
+            if area.right() < self.buffer.area.right() {
+                self.clear_crossing_glyph(area.right() - 1, y);
+            }
+        }
+        self.render_widget(ratatui::widgets::Clear, area);
+    }
+
+    fn clear_crossing_glyph(&mut self, x: u16, y: u16) {
+        let cell = &self.buffer[(x, y)];
+        let width = super::format::display_width(cell.symbol());
+        if width > 1 {
+            let end = usize::from(x)
+                .saturating_add(width)
+                .min(usize::from(self.buffer.area.right()));
+            for column in x..end as u16 {
+                self.buffer[(column, y)].reset();
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use ratatui::{
+        Terminal,
+        backend::TestBackend,
+        widgets::{Block, Borders},
+    };
+
+    use super::*;
+
+    #[test]
+    fn overlay_border_replaces_both_halves_of_wide_content() {
+        let mut terminal = Terminal::new(TestBackend::new(12, 3)).unwrap();
+        terminal
+            .draw(|frame| {
+                let buffer = frame.buffer_mut();
+                buffer.set_string(0, 1, "text界 xxx界", Style::default());
+                let cursor = Cell::new(None);
+                let mut canvas = Canvas::new(buffer, &cursor);
+                let popup = Rect::new(5, 0, 6, 3);
+                canvas.clear_overlay(popup);
+                canvas.render_widget(Block::default().borders(Borders::ALL), popup);
+            })
+            .unwrap();
+        let buffer = terminal.backend().buffer();
+        assert_eq!(buffer[(3, 1)].symbol(), "t");
+        assert_eq!(buffer[(4, 1)].symbol(), " ");
+        assert_eq!(buffer[(5, 1)].symbol(), "│");
+        assert_eq!(buffer[(10, 1)].symbol(), "│");
+        assert_eq!(buffer[(11, 1)].symbol(), " ");
+    }
 }

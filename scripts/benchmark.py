@@ -21,7 +21,7 @@ import time
 from pathlib import Path
 
 
-FIXTURE_VERSION = 1
+FIXTURE_VERSION = 2
 FIXTURE_PATHS = 100
 
 

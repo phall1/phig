@@ -6,6 +6,31 @@ fixture and standard-library harness rather than a developer's changing checkout
 
 ## Release benchmark
 
+### ratcn migration
+
+On Apple Silicon macOS, Rust 1.88.0 and Git 2.56.0, the optimized builds at
+`4323d17` and `8436983` were measured on the same 1,000-commit, 100-path fixture
+(`4130afd`). Startup samples were interleaved between the binaries: 20 warm
+snapshots and 10 PTY launches per binary. The rendering probes below used 40
+samples at 120×28. These are same-host measurements, not portable latency claims.
+
+| Metric | Before p95 | After p95 |
+| --- | ---: | ---: |
+| Warm snapshot | 775.364 ms | 278.658 ms |
+| First useful PTY frame | 746.375 ms | 170.555 ms |
+| 50k commits, cached navigation and paint | 2.340 ms | 0.111 ms |
+| 50k paths, uncached fuzzy ranking | 16.816 ms | 7.511 ms |
+| 50k paths, cached picker movement and paint | 3.578 ms | 0.546 ms |
+
+The release binary grew from 2.714 to 2.826 MiB; measured peak PTY RSS stayed
+around 8.5 MiB. The candidate passed all release gates. The synthetic fixture
+took 26.69 s to generate with per-commit Git invocations and 0.15 s with one
+`git fast-import` on the same host. CI now builds and benchmarks the release
+alongside the test matrix, with the benchmark still required by `Quality`.
+
+To benchmark an already-built binary, add
+`--skip-build --binary /path/to/phig --binary-source REV` to the Python harness.
+
 ### Cached interaction probe
 
 ```sh

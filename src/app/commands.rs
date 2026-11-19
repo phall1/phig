@@ -199,6 +199,9 @@ impl App {
                 Action::ToggleDiffFullscreen,
                 Action::ToggleDiffStyle,
             ],
+            View::Refs if self.inspect.compare_picker => {
+                &[Action::Open, Action::StartSearch, Action::Back]
+            }
             View::Refs => &[Action::ViewLog, Action::StartCompare, Action::StartSearch],
             View::Status => &[
                 Action::ToggleStatusDiff,
@@ -216,6 +219,14 @@ impl App {
                 .position(|action| *action == command.action)
                 .unwrap_or(usize::MAX)
         });
+        if self.view == View::Refs
+            && self.inspect.compare_picker
+            && let Some(command) = commands
+                .iter_mut()
+                .find(|command| command.action == Action::Open)
+        {
+            command.name = "Compare with selected ref";
+        }
         commands
     }
 }
