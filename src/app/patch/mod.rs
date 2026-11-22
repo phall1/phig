@@ -1,6 +1,11 @@
 //! Derived source coordinates and bounded replacement emphasis, never protocol data.
 
+mod words;
+
+use std::sync::{Arc, Mutex, OnceLock};
+
 use crate::domain::{Diff, DiffLineKind};
+use words::WordChanges;
 
 #[derive(Debug, Clone, Default)]
 pub(crate) struct PatchLine {
@@ -28,6 +33,11 @@ pub(crate) struct RowMap {
 }
 
 impl RowMap {
+    pub fn first_row(&self, anchor: usize, height: usize) -> usize {
+        self.position(anchor)
+            .min(self.rows.len().saturating_sub(height))
+    }
+
     pub fn position(&self, raw: usize) -> usize {
         self.positions
             .get(raw)
@@ -50,11 +60,16 @@ pub(crate) struct PatchIndex {
     pub lines: Vec<PatchLine>,
     pub unified: RowMap,
     pub split: RowMap,
+    changes: OnceLock<RowMap>,
+    split_changes: OnceLock<RowMap>,
+    has_context: bool,
     pub file_stats: Vec<FileStats>,
     /// Widest old/new line number, so gutters fit the file instead of a guess.
     pub number_width: usize,
     kinds: Vec<DiffLineKind>,
     hunks: Vec<crate::domain::Hunk>,
+    file_headers: Vec<usize>,
+    words: Arc<Mutex<words::Cache>>,
 }
 
 impl PatchIndex {
@@ -63,11 +78,15 @@ impl PatchIndex {
             lines: vec![PatchLine::default(); diff.lines.len()],
             unified: RowMap::default(),
             split: RowMap::default(),
-            file_stats: diff
-                .files
+            changes: OnceLock::new(),
+            split_changes: OnceLock::new(),
+            has_context: diff
+                .lines
                 .iter()
-                .map(|file| file_stats(diff, file))
-                .collect(),
+                .any(|line| line.kind == DiffLineKind::Context),
+            file_stats: file_stats(diff),
+            file_headers: diff.files.iter().map(|file| file.header_line).collect(),
+            words: Arc::default(),
             number_width: 0,
             kinds: diff.lines.iter().map(|line| line.kind).collect(),
             hunks: diff
@@ -92,34 +111,69 @@ impl PatchIndex {
             .map_or(1, |n| n.to_string().len())
             .max(3);
         let hidden = banner_replaced_lines(diff);
-        index.unified = index.row_map(diff, &hidden, false);
-        index.split = index.row_map(diff, &hidden, true);
+        index.unified = index.row_map(false, |raw, _| hidden[raw]);
+        index.split = index.row_map(true, |raw, _| hidden[raw]);
         index
     }
 
-    fn row_map(&self, diff: &Diff, hidden: &[bool], split: bool) -> RowMap {
+    fn row_map(&self, split: bool, hidden: impl Fn(usize, DiffLineKind) -> bool) -> RowMap {
         let mut map = RowMap {
             rows: Vec::new(),
-            positions: vec![0; diff.lines.len()],
+            positions: vec![0; self.lines.len()],
         };
-        for (i, line) in diff.lines.iter().enumerate() {
+        for (i, &kind) in self.kinds.iter().enumerate() {
             if split
-                && line.kind == DiffLineKind::Added
+                && kind == DiffLineKind::Added
                 && let Some(pair) = self.lines[i].pair
             {
                 map.positions[i] = map.positions[pair];
                 continue;
             }
             map.positions[i] = map.rows.len();
-            if !hidden[i] {
+            if !hidden(i, kind) {
                 map.rows.push(i);
             }
         }
         map
     }
 
-    pub fn rows(&self, split: bool) -> &RowMap {
-        if split { &self.split } else { &self.unified }
+    pub fn rows(&self, split: bool, changes: bool) -> &RowMap {
+        match (split, changes && self.has_context) {
+            (false, false) => &self.unified,
+            (true, false) => &self.split,
+            (false, true) => self.changes.get_or_init(|| self.compact_rows(false)),
+            (true, true) => self.split_changes.get_or_init(|| self.compact_rows(true)),
+        }
+    }
+
+    fn compact_rows(&self, split: bool) -> RowMap {
+        let mut map = self.row_map(split, |raw, kind| {
+            kind == DiffLineKind::Context || !self.unified.is_drawn(raw)
+        });
+        for (&kind, position) in self.kinds.iter().zip(&mut map.positions) {
+            if kind != DiffLineKind::Context {
+                continue;
+            }
+            // Trailing context stays with its hunk instead of jumping across
+            // a file or hunk boundary when the presentation changes.
+            let next = map.rows.get(*position).map(|&raw| self.kinds[raw]);
+            if matches!(
+                next,
+                None | Some(DiffLineKind::FileHeader | DiffLineKind::HunkHeader)
+            ) {
+                *position = position.saturating_sub(1);
+            }
+        }
+        map
+    }
+
+    pub fn word_changes(&self, diff: &Diff, raw: usize) -> Option<Arc<WordChanges>> {
+        let pair = self.lines.get(raw)?.pair?;
+        let (old, new) = (raw.min(pair), raw.max(pair));
+        self.words
+            .lock()
+            .ok()?
+            .get(old, &diff.lines[old].text, &diff.lines[new].text)
     }
 
     fn matches_source(&self, diff: &Diff) -> bool {
@@ -133,6 +187,11 @@ impl PatchIndex {
                 .hunks
                 .iter()
                 .eq(diff.files.iter().flat_map(|file| &file.hunks))
+            && self
+                .file_headers
+                .iter()
+                .copied()
+                .eq(diff.files.iter().map(|file| file.header_line))
     }
 
     fn number_hunk(&mut self, diff: &Diff, hunk: &crate::domain::Hunk) {
@@ -186,16 +245,39 @@ impl PatchIndex {
     }
 }
 
-fn file_stats(diff: &Diff, file: &crate::domain::DiffFile) -> FileStats {
-    // Public records may be edited by embedding callers, so every bound is
-    // clamped to the lines actually present.
-    let end = diff
+pub(super) fn file_stats(diff: &Diff) -> Vec<FileStats> {
+    let len = diff.lines.len();
+    if diff
         .files
-        .iter()
-        .find(|next| next.header_line > file.header_line)
-        .map_or(diff.lines.len(), |next| next.header_line)
-        .min(diff.lines.len());
-    diff.lines[file.header_line.min(end)..end]
+        .is_sorted_by(|a, b| a.header_line < b.header_line)
+    {
+        let starts = diff.files.iter().map(|file| file.header_line.min(len));
+        let ends = starts.clone().skip(1).chain(std::iter::once(len));
+        return starts
+            .zip(ends)
+            .map(|(start, end)| count_changes(&diff.lines[start..end]))
+            .collect();
+    }
+    // Git emits ordered file headers. Keep the public-API fallback bounded
+    // and count duplicate or out-of-order anchors by their source ranges.
+    let mut order: Vec<_> = (0..diff.files.len()).collect();
+    let header = |ordinal: usize| diff.files[ordinal].header_line.min(len);
+    order.sort_unstable_by_key(|ordinal| header(*ordinal));
+    let mut stats = vec![FileStats::default(); order.len()];
+    let mut groups = order.chunk_by(|a, b| header(*a) == header(*b)).peekable();
+    while let Some(group) = groups.next() {
+        let start = header(group[0]);
+        let end = groups.peek().map_or(len, |next| header(next[0]));
+        let count = count_changes(&diff.lines[start..end]);
+        for &ordinal in group {
+            stats[ordinal] = count;
+        }
+    }
+    stats
+}
+
+pub(crate) fn count_changes(lines: &[crate::domain::DiffLine]) -> FileStats {
+    lines
         .iter()
         .fold(FileStats::default(), |stats, line| match line.kind {
             DiffLineKind::Added => FileStats {
@@ -356,6 +438,41 @@ mod tests {
             .position(|line| line.text.starts_with("old mode"))
             .unwrap();
         assert!(index.unified.rows.contains(&mode));
+    }
+
+    #[test]
+    fn compact_context_anchors_stay_in_their_hunk() {
+        let index = PatchIndex::new(&fixture());
+        for split in [false, true] {
+            let compact = index.rows(split, true);
+            assert_eq!(compact.position(4), compact.position(5));
+            assert_eq!(compact.position(7), compact.position(6));
+            assert_ne!(compact.position(7), compact.position(8));
+        }
+    }
+
+    #[test]
+    fn file_counts_hold_for_missing_and_unordered_headers() {
+        let mut diff = fixture();
+        let expected = file_stats(&diff);
+        diff.files.swap(0, 2);
+        diff.files.push(diff.files[2].clone());
+        diff.files.push(crate::domain::DiffFile {
+            header_line: usize::MAX,
+            old_path: None,
+            new_path: None,
+            hunks: Vec::new(),
+        });
+        assert_eq!(
+            file_stats(&diff),
+            [
+                expected[2],
+                expected[1],
+                expected[0],
+                expected[0],
+                FileStats::default()
+            ]
+        );
     }
 
     #[test]

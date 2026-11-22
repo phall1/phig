@@ -56,6 +56,11 @@ pub const COMMANDS: &[CommandDescriptor] = &[
         Action::ToggleDiffStyle
     ),
     command!(
+        "toggle-diff-context",
+        "Toggle changes-only diff",
+        Action::ToggleDiffContext
+    ),
+    command!(
         "diff-tree-collapse",
         "Collapse changed directory",
         Action::TreeCollapse
@@ -198,6 +203,7 @@ impl App {
                 Action::NextHunk(1),
                 Action::ToggleDiffFullscreen,
                 Action::ToggleDiffStyle,
+                Action::ToggleDiffContext,
             ],
             View::Refs if self.inspect.compare_picker => {
                 &[Action::Open, Action::StartSearch, Action::Back]

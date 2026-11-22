@@ -168,6 +168,7 @@ fn default_binding(action: &Action) -> Option<(KeySpec, &'static str)> {
     let (code, modifiers, label) = match action {
         Action::ToggleDiffTree => (KeyCodeSpec::Char('t'), 4, "T"),
         Action::ToggleDiffStyle => (KeyCodeSpec::Char('s'), 4, "S"),
+        Action::ToggleDiffContext => (KeyCodeSpec::Char('w'), 0, "w"),
         Action::TreeCollapse => (KeyCodeSpec::Left, 0, "Left"),
         Action::TreeExpand => (KeyCodeSpec::Right, 0, "Right"),
         Action::TreeCollapseAll => (KeyCodeSpec::Char('-'), 0, "-"),

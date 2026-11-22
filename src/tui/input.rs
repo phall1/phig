@@ -151,6 +151,7 @@ fn normalized_action(app: &App, key: KeyEvent) -> Option<Action> {
         KeyCode::Char('f') => Some(Action::StartFilePicker),
         KeyCode::Char('T') => Some(Action::ToggleDiffTree),
         KeyCode::Char('S') => Some(Action::ToggleDiffStyle),
+        KeyCode::Char('w') if app.active_diff().is_some() => Some(Action::ToggleDiffContext),
         KeyCode::Left => Some(Action::TreeCollapse),
         KeyCode::Right => Some(Action::TreeExpand),
         KeyCode::Char('-') => Some(Action::TreeCollapseAll),

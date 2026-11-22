@@ -41,11 +41,14 @@ installed executable and product are `phig`.
   Its façade separates the persisted model, compiled semantic bindings, and
   source discovery/loading/validation paths.
 - `domain`: byte-preserving repository identities and normalized records
+  (`domain::patch` owns Git patch records and ordered source-anchor lookups).
 - `git`: repository discovery, command construction, parsers, bounds, errors,
   capability detection, and cancellation
 - `app`: view-independent state, actions, reducer, selection, search, and effect
   generation. Its module tree separates the model and command catalog from
   navigation, overlays, reducer transitions, and inspection state.
+  `app::patch` maps raw source anchors to display rows and owns bounded word
+  refinement; the TUI's unified and split painters consume that shared model.
 - `tui`: the host manages the terminal, Git completions, signals and the
   controlling-TTY output used by `select`. The ratcn scene declares header,
   body, footer and overlays, translates normalized input into semantic actions,

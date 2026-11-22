@@ -199,9 +199,8 @@ fn patch_position(app: &App, context: &RenderContext) -> String {
         return format!("line {}", index_position(app.diff_scroll, diff.lines.len()));
     }
     let file = diff
-        .files
-        .partition_point(|file| file.header_line <= app.diff_scroll)
-        .max(1);
+        .file_at(app.diff_scroll)
+        .map_or(1, |(index, _)| index + 1);
     format!(
         "file {file}/{} {} line {line}",
         diff.files.len(),
@@ -230,13 +229,8 @@ fn hints(app: &App, context: &RenderContext) -> Vec<Hint> {
             ),
         ];
     }
-    let hunk = || pair(&Action::NextHunk(-1), &Action::NextHunk(1));
     if app.diff_fullscreen {
-        return vec![
-            (key(&Action::ToggleDiffFullscreen), "restore"),
-            (hunk(), "hunk"),
-            (key(&Action::ToggleDiffTree), "files"),
-        ];
+        return patch_hints(app, context);
     }
     let move_keys = pair(&Action::Move(1), &Action::Move(-1));
     match app.view {
@@ -277,23 +271,52 @@ fn hints(app: &App, context: &RenderContext) -> Vec<Hint> {
             (key(&Action::Open), "open"),
             (key(&Action::Ascend), "up"),
         ],
-        View::Detail | View::StatusDiff => vec![
-            (key(&Action::StartFilePicker), "files"),
-            (hunk(), "hunk"),
-            (key(&Action::ToggleDiffFullscreen), "expand"),
-            (key(&Action::ToggleDiffTree), "tree"),
-        ],
-        View::Compare => vec![
-            (key(&Action::StartFilePicker), "files"),
-            (key(&Action::SwapCompare), "swap"),
-            (key(&Action::ToggleCompareMode), "mode"),
-            (hunk(), "hunk"),
-        ],
         View::Blob => vec![
             (move_keys, "scroll"),
             (key(&Action::StartSearch), "search"),
             (key(&Action::ViewBlame), "blame"),
         ],
+        View::Detail | View::StatusDiff | View::Compare => patch_hints(app, context),
+    }
+}
+
+fn patch_hints(app: &App, context: &RenderContext) -> Vec<Hint> {
+    let key = |action: &Action| context.key(action);
+    let hunk = (
+        key_pair(context, &Action::NextHunk(-1), &Action::NextHunk(1)),
+        "hunk",
+    );
+    let granularity = (
+        key(&Action::ToggleDiffContext),
+        if app.diff_changes_only {
+            "context"
+        } else {
+            "changes"
+        },
+    );
+    if app.diff_fullscreen {
+        vec![
+            (key(&Action::ToggleDiffFullscreen), "restore"),
+            hunk,
+            granularity,
+            (key(&Action::ToggleDiffTree), "files"),
+        ]
+    } else if app.view == View::Compare {
+        vec![
+            (key(&Action::StartFilePicker), "files"),
+            granularity,
+            (key(&Action::SwapCompare), "swap"),
+            (key(&Action::ToggleCompareMode), "mode"),
+            hunk,
+        ]
+    } else {
+        vec![
+            (key(&Action::StartFilePicker), "files"),
+            hunk,
+            granularity,
+            (key(&Action::ToggleDiffFullscreen), "expand"),
+            (key(&Action::ToggleDiffTree), "tree"),
+        ]
     }
 }
 
@@ -479,6 +502,7 @@ const HELP_SECTIONS: &[(&str, &[HelpEntry])] = &[
             entry(&[Action::ToggleDiffTree], "file tree"),
             entry(&[Action::ToggleDiffFullscreen], "expand diff"),
             entry(&[Action::ToggleDiffStyle], "split/unified"),
+            entry(&[Action::ToggleDiffContext], "changes/context"),
             entry(&[Action::NextParent], "merge parent"),
             entry(&[Action::TogglePreview], "preview on/off"),
         ],

@@ -103,9 +103,3 @@ impl super::App {
         }
     }
 }
-
-impl Default for ComparisonMode {
-    fn default() -> Self {
-        Self::MergeBase
-    }
-}

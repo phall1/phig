@@ -49,12 +49,19 @@ impl App {
                 self.diff_split = !self.diff_split;
                 Vec::new()
             }
+            Action::ToggleDiffContext => {
+                if self.active_diff().is_some() {
+                    self.diff_changes_only = !self.diff_changes_only;
+                }
+                Vec::new()
+            }
             Action::TreeCollapse
             | Action::TreeExpand
             | Action::TreeCollapseAll
             | Action::TreeExpandAll => Vec::new(),
             Action::ToggleFocus => self.toggle_focus(),
             Action::StartSearch => {
+                self.search_previous_changes_only = self.diff_changes_only;
                 self.overlay = Overlay::Search {
                     draft: self.search_query.clone(),
                     previous_query: self.search_query.clone(),

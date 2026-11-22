@@ -72,6 +72,7 @@ impl App {
                     .get(self.selected)
                     .map(|commit| commit.id.clone());
                 self.diff_scroll = *original_scroll;
+                self.diff_changes_only = self.search_previous_changes_only;
                 self.search_pending = None;
                 self.overlay = Overlay::None;
             }

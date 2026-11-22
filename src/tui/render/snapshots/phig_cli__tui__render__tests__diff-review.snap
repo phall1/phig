@@ -25,7 +25,7 @@ M README.md ──────────────────────�
 
 
 
- F restore · [/] hunk · T files · : commands · ? help                             file 1/3 · line 1
+ F restore · [/] hunk · w changes · T files · : commands · ? help                 file 1/3 · line 1
 STYLES
 0:0-4 fg=Cyan bg=Reset mod=BOLD | REVERSED text=" LOG "
 0:6-14 fg=Reset bg=Reset mod=BOLD text="phig-demo"
@@ -79,12 +79,14 @@ STYLES
 21:3-12 fg=DarkGray bg=Reset mod=NONE text="restore · "
 21:13-16 fg=Reset bg=Reset mod=BOLD text="[/] "
 21:17-23 fg=DarkGray bg=Reset mod=NONE text="hunk · "
-21:24-25 fg=Reset bg=Reset mod=BOLD text="T "
-21:26-33 fg=DarkGray bg=Reset mod=NONE text="files · "
-21:34-35 fg=Reset bg=Reset mod=BOLD text=": "
-21:36-46 fg=DarkGray bg=Reset mod=NONE text="commands · "
-21:47-48 fg=Reset bg=Reset mod=BOLD text="? "
-21:49-52 fg=DarkGray bg=Reset mod=NONE text="help"
+21:24-25 fg=Reset bg=Reset mod=BOLD text="w "
+21:26-35 fg=DarkGray bg=Reset mod=NONE text="changes · "
+21:36-37 fg=Reset bg=Reset mod=BOLD text="T "
+21:38-45 fg=DarkGray bg=Reset mod=NONE text="files · "
+21:46-47 fg=Reset bg=Reset mod=BOLD text=": "
+21:48-58 fg=DarkGray bg=Reset mod=NONE text="commands · "
+21:59-60 fg=Reset bg=Reset mod=BOLD text="? "
+21:61-64 fg=DarkGray bg=Reset mod=NONE text="help"
 21:82-99 fg=DarkGray bg=Reset mod=NONE text="file 1/3 · line 1 "
 
 SPLIT 140x22
@@ -110,7 +112,7 @@ M README.md ──────────────────────�
 
 
 
- F restore · [/] hunk · T files · : commands · ? help                                                                     file 1/3 · line 1
+ F restore · [/] hunk · w changes · T files · : commands · ? help                                                         file 1/3 · line 1
 STYLES
 0:0-4 fg=Cyan bg=Reset mod=BOLD | REVERSED text=" LOG "
 0:6-14 fg=Reset bg=Reset mod=BOLD text="phig-demo"
@@ -169,12 +171,14 @@ STYLES
 21:3-12 fg=DarkGray bg=Reset mod=NONE text="restore · "
 21:13-16 fg=Reset bg=Reset mod=BOLD text="[/] "
 21:17-23 fg=DarkGray bg=Reset mod=NONE text="hunk · "
-21:24-25 fg=Reset bg=Reset mod=BOLD text="T "
-21:26-33 fg=DarkGray bg=Reset mod=NONE text="files · "
-21:34-35 fg=Reset bg=Reset mod=BOLD text=": "
-21:36-46 fg=DarkGray bg=Reset mod=NONE text="commands · "
-21:47-48 fg=Reset bg=Reset mod=BOLD text="? "
-21:49-52 fg=DarkGray bg=Reset mod=NONE text="help"
+21:24-25 fg=Reset bg=Reset mod=BOLD text="w "
+21:26-35 fg=DarkGray bg=Reset mod=NONE text="changes · "
+21:36-37 fg=Reset bg=Reset mod=BOLD text="T "
+21:38-45 fg=DarkGray bg=Reset mod=NONE text="files · "
+21:46-47 fg=Reset bg=Reset mod=BOLD text=": "
+21:48-58 fg=DarkGray bg=Reset mod=NONE text="commands · "
+21:59-60 fg=Reset bg=Reset mod=BOLD text="? "
+21:61-64 fg=DarkGray bg=Reset mod=NONE text="help"
 21:122-139 fg=DarkGray bg=Reset mod=NONE text="file 1/3 · line 1 "
 
 NARROW 60x16
@@ -193,7 +197,7 @@ M src/ui/view.rs ─────────────────────
 M README.md ───────────────────────────────────────── +0 -0
         │ old mode 100644
         │ new mode 100755
- F restore · [/] hunk · T files · ? help  file 1/3 · line 1
+ F restore · [/] hunk · w changes · ? helpfile 1/3 · line 1
 
 TREE 120x22
 TEXT

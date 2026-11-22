@@ -42,7 +42,7 @@ impl App {
             .into_iter()
             .flat_map(|diff| &diff.files)
             .filter_map(|file| {
-                let path = file.new_path.as_ref().or(file.old_path.as_ref())?;
+                let path = file.path()?;
                 Some((path.display.as_str(), file.header_line))
             })
     }

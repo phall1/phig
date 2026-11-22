@@ -50,6 +50,10 @@ Figma: none provided; the user requested adapting these viewer references.
    anchor. Split view pairs equally sized replacement runs and shows context on
    both sides. Below 100 patch-pane columns it falls back to unified; widening
    restores split. Movement and paging advance visual rows in the effective mode.
+8. `w` hides unchanged context in either layout without changing the source
+   anchor or asking Git for a new patch. File headers, hunk ranges, and patch
+   notes remain visible. Searching can reveal a hit in hidden context; cancelling
+   search restores the original mode and anchor.
 
 ## Implementation and acceptance evidence
 
@@ -58,8 +62,9 @@ they never enter machine JSON or Git records. Cached navigation constructs only
 visible styled rows. `similar` supplies Unicode word refinement, bounded to
 400-byte lines and equally sized adjacent replacement runs. The bound is by
 length rather than a wall-clock deadline, so emphasis is identical on every
-frame and machine. Refinement runs only for
-visible rows; ambiguous pairings use whole-line styling. Public App mutations are
+frame and machine. Both sides are refined together on demand; a bounded
+per-patch cache reuses the result across adjacent frames and layouts.
+Ambiguous pairings use whole-line styling. Public App mutations are
 validated against cached line kinds and hunk metadata without rescanning text.
 The tree snapshots structural metadata on open,
 rebuilds its visible index only on collapse/expand, and paints a viewport slice.

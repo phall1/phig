@@ -480,6 +480,11 @@ fn real_pty_exercises_navigation_overlays_resize_and_cleanup() {
     writer.write_all(b"\rS").unwrap(); // open file, then use library-refined split view
     writer.flush().unwrap();
     wait_for_marker(&output, "split", Duration::from_secs(3));
+    writer.write_all(b"w").unwrap();
+    writer.flush().unwrap();
+    // The first `c` is already present in "changes"; Ratatui can leave it untouched.
+    wait_for_marker(&output, "ontext", Duration::from_secs(3));
+    writer.write_all(b"w").unwrap();
     writer.write_all(b"S\t").unwrap(); // restore unified, jump file in expanded detail
     writer.write_all(b"F").unwrap(); // restore the detailed layout without a Git reload
     writer.write_all(b"f").unwrap();
