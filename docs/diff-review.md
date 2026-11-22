@@ -79,6 +79,24 @@ fresh context, and record measured complexity and performance evidence.
 
 ### Measured navigation
 
+The changes-only update (`db469c6`) was compared with `35971e8` on Apple
+Silicon macOS, Rust 1.99.1 release builds in separate target directories.
+The fixture contains 102,000 patch rows and 18,000 file headers. The
+140×40 TestBackend probe took 200 move-and-paint samples per mode:
+
+| Operation | Before | After |
+| --- | ---: | ---: |
+| Patch index construction (one sample) | 84.625 ms | 1.637 ms |
+| Unified move + buffer paint (p95) | 0.338 ms | 0.323 ms |
+| Split move + buffer paint (p95) | 0.367 ms | 0.322 ms |
+| Changes-only unified / split (p95) | — | 0.324 / 0.337 ms |
+
+This measures patch preparation and painting, not Git subprocess or terminal
+transport latency. The large indexing improvement comes from counting each
+file's rows once rather than scanning the file list again for each file.
+
+#### Earlier diff review measurements
+
 Local macOS/Apple Silicon, Rust 1.88 release build, Ratatui TestBackend 140×40,
 102,000 synthetic patch rows with replacements, 200 move-and-paint samples per mode:
 
@@ -93,6 +111,11 @@ These measure application/buffer work, not terminal transport or end-to-end Git
 latency. File/hunk seeking also no longer allocates a complete anchor vector.
 
 ### Complexity and checks
+
+For the changes-only update, Lizard measured footer hint dispatch at **10 → 9**
+with a small patch-specific helper (4). Split-row drawing stayed at **7** and
+shrank from 61 to 38 lines. Unified painting and scrolling each gained one
+decision (**4 → 5** and **3 → 4**, respectively).
 
 Lizard's Rust measurements for the touched navigation/rendering functions:
 
