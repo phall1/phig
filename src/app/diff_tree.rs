@@ -1,7 +1,7 @@
 //! A temporary changed-file navigator with a cached, collapsible directory index.
 
 use super::{Action, App, Overlay};
-use crate::domain::{Diff, DiffFile, DiffLineKind, GitPath};
+use crate::domain::{Diff, DiffFile, GitPath};
 use std::collections::{BTreeMap, HashSet};
 
 /// Change kind of a file entry, derived from its diff header paths.
@@ -58,26 +58,12 @@ pub struct DiffTree {
 impl DiffTree {
     pub fn new(diff: &Diff, scroll: usize) -> Self {
         let mut nodes = BTreeMap::new();
-        for (i, file) in diff.files.iter().enumerate() {
-            let Some(path) = file.new_path.as_ref().or(file.old_path.as_ref()) else {
+        for (file, stats) in diff.files.iter().zip(super::patch::file_stats(diff)) {
+            let Some(path) = file.path() else {
                 continue;
             };
             let status = TreeStatus::of(file);
             let bytes = path.bytes();
-            let end = diff
-                .files
-                .get(i + 1)
-                .map_or(diff.lines.len(), |next| next.header_line);
-            let lines =
-                &diff.lines[file.header_line.min(diff.lines.len())..end.min(diff.lines.len())];
-            let added = lines
-                .iter()
-                .filter(|line| line.kind == DiffLineKind::Added)
-                .count();
-            let removed = lines
-                .iter()
-                .filter(|line| line.kind == DiffLineKind::Removed)
-                .count();
             let mut prefix = Vec::new();
             let components: Vec<_> = bytes.split(|byte| *byte == b'/').collect();
             for (depth, component) in components.iter().enumerate() {
@@ -98,8 +84,8 @@ impl DiffTree {
                         removed: 0,
                         status: if directory { None } else { status },
                     });
-                node.added += added;
-                node.removed += removed;
+                node.added += stats.added;
+                node.removed += stats.removed;
             }
         }
         let mut entries: Vec<_> = nodes.into_values().collect();
@@ -110,11 +96,11 @@ impl DiffTree {
             .into_iter()
             .map(|index| entries[index].clone())
             .collect();
-        let active = diff
-            .files
-            .partition_point(|file| file.header_line <= scroll)
-            .saturating_sub(1);
-        let header = diff.files.get(active).map_or(0, |file| file.header_line);
+        let header = diff
+            .file_at(scroll)
+            .map(|(_, file)| file)
+            .or_else(|| diff.files.first())
+            .map_or(0, |file| file.header_line);
         let selected = entries
             .iter()
             .position(|entry| !entry.directory && entry.header_line == header)

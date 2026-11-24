@@ -165,7 +165,7 @@ pub fn selection_from_app(app: &App, kind: SelectionKind) -> Option<SelectionPay
             let mut s = SelectionPayload::base(app, "file");
             s.oid = current_oid(app);
             s.parent = current_parent(app);
-            s.path = file.new_path.clone().or_else(|| file.old_path.clone());
+            s.path = file.path().cloned();
             s.old_path = file.old_path.clone();
             Some(s)
         }
@@ -173,15 +173,13 @@ pub fn selection_from_app(app: &App, kind: SelectionKind) -> Option<SelectionPay
             let diff = active_diff(app)?;
             let file = file_at(diff, app.diff_scroll)?;
             let h = file
-                .hunks
-                .iter()
-                .rev()
-                .find(|h| h.header_line <= app.diff_scroll)
+                .hunk_at(app.diff_scroll)
+                .map(|(_, hunk)| hunk)
                 .or_else(|| file.hunks.first())?;
             let mut s = SelectionPayload::base(app, "hunk");
             s.oid = current_oid(app);
             s.parent = current_parent(app);
-            s.path = file.new_path.clone().or_else(|| file.old_path.clone());
+            s.path = file.path().cloned();
             s.old_path = file.old_path.clone();
             s.hunk = Some(HunkLocator {
                 old_start: h.old_start,
@@ -227,10 +225,8 @@ fn active_diff(app: &App) -> Option<&Diff> {
     }
 }
 fn file_at(diff: &Diff, line: usize) -> Option<&crate::domain::DiffFile> {
-    diff.files
-        .iter()
-        .rev()
-        .find(|f| f.header_line <= line)
+    diff.file_at(line)
+        .map(|(_, file)| file)
         .or_else(|| diff.files.first())
 }
 fn current_oid(app: &App) -> Option<Oid> {

@@ -160,7 +160,12 @@ impl App {
             .find(|index| diff.lines[*index].text.to_lowercase().contains(needle));
         drop(patch);
         match index {
-            Some(index) => self.diff_scroll = index,
+            Some(index) => {
+                if diff.lines[index].kind == crate::domain::DiffLineKind::Context {
+                    self.diff_changes_only = false;
+                }
+                self.diff_scroll = index;
+            }
             None => self.search_miss = true,
         }
         Vec::new()

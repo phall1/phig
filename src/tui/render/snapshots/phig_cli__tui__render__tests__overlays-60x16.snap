@@ -6,7 +6,7 @@ PALETTE
 TEXT
  LOG  phig-demo · main · HEAD
 ›╭ Commands ──────────────────────────────────────────────╮
- │ Find: type to fuzzy-find                    45 results │
+ │ Find: type to fuzzy-find                    46 results │
  │ › Inspect commit                                 Enter │
  │   Search                                             / │
  │   Compare revisions                                  c │
@@ -34,7 +34,7 @@ STYLES
 2:1-1 fg=DarkGray bg=Reset mod=NONE text="│"
 2:3-8 fg=Cyan bg=Reset mod=BOLD text="Find: "
 2:9-26 fg=DarkGray bg=Reset mod=NONE text="type to fuzzy-find"
-2:47-56 fg=DarkGray bg=Reset mod=NONE text="45 results"
+2:47-56 fg=DarkGray bg=Reset mod=NONE text="46 results"
 2:58-58 fg=DarkGray bg=Reset mod=NONE text="│"
 3:1-1 fg=DarkGray bg=Reset mod=NONE text="│"
 3:3-56 fg=Cyan bg=Reset mod=BOLD text="› Inspect commit                                 Enter"

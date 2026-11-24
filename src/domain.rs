@@ -6,6 +6,9 @@ use thiserror::Error;
 
 use crate::sanitize::sanitize_bytes;
 
+mod patch;
+pub use patch::*;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum ObjectFormat {
@@ -500,67 +503,6 @@ pub struct StashEntry {
     pub parents: Vec<Oid>,
     pub timestamp: Option<i64>,
     pub subject: String,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "kebab-case")]
-pub enum DiffLineKind {
-    FileHeader,
-    HunkHeader,
-    Added,
-    Removed,
-    Context,
-    Metadata,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct DiffLine {
-    pub kind: DiffLineKind,
-    pub text: String,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Hunk {
-    pub header_line: usize,
-    pub old_start: usize,
-    pub old_lines: usize,
-    pub new_start: usize,
-    pub new_lines: usize,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct DiffFile {
-    pub header_line: usize,
-    pub old_path: Option<GitPath>,
-    pub new_path: Option<GitPath>,
-    pub hunks: Vec<Hunk>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Diff {
-    pub lines: Vec<DiffLine>,
-    pub files: Vec<DiffFile>,
-    pub truncated: bool,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "kebab-case")]
-pub enum ComparisonMode {
-    Exact,
-    MergeBase,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Comparison {
-    pub mode: ComparisonMode,
-    pub requested_base: String,
-    pub requested_head: String,
-    pub resolved_base: Oid,
-    pub resolved_head: Oid,
-    pub merge_base: Option<Oid>,
-    pub ahead: usize,
-    pub behind: usize,
-    pub diff: Diff,
 }
 
 #[cfg(test)]

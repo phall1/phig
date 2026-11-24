@@ -108,6 +108,7 @@ Set `ui.glyphs = "ascii"` when a terminal cannot display Unicode line art.
 | `F` | expand/restore diff | `p` | show/hide preview |
 | `v` | mark endpoint | `c` | compare marked/current |
 | `T` | changed-file tree | `S` | split/unified diff |
+| `w` | changes only / show context | `{` / `}` | previous/next file |
 | `r` `s` `t` `b` `z` | refs, status, tree, blame, stash | `M` | merge-base/exact |
 | `:` | command palette | `?` | key sheet |
 

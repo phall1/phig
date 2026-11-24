@@ -43,7 +43,7 @@ M src/main.rs ──────────────────────
 
 
 
- f files · [/] hunk · F expand · T tree · : commands · ? help                                                                      line 1/4
+ f files · [/] hunk · w changes · F expand · T tree · : commands · ? help                                                          line 1/4
 STYLES
 0:0-5 fg=Cyan bg=Reset mod=BOLD | REVERSED text=" SHOW "
 0:7-15 fg=Reset bg=Reset mod=BOLD text="phig-demo"
@@ -76,14 +76,16 @@ STYLES
 39:3-10 fg=DarkGray bg=Reset mod=NONE text="files · "
 39:11-14 fg=Reset bg=Reset mod=BOLD text="[/] "
 39:15-21 fg=DarkGray bg=Reset mod=NONE text="hunk · "
-39:22-23 fg=Reset bg=Reset mod=BOLD text="F "
-39:24-32 fg=DarkGray bg=Reset mod=NONE text="expand · "
-39:33-34 fg=Reset bg=Reset mod=BOLD text="T "
-39:35-41 fg=DarkGray bg=Reset mod=NONE text="tree · "
-39:42-43 fg=Reset bg=Reset mod=BOLD text=": "
-39:44-54 fg=DarkGray bg=Reset mod=NONE text="commands · "
-39:55-56 fg=Reset bg=Reset mod=BOLD text="? "
-39:57-60 fg=DarkGray bg=Reset mod=NONE text="help"
+39:22-23 fg=Reset bg=Reset mod=BOLD text="w "
+39:24-33 fg=DarkGray bg=Reset mod=NONE text="changes · "
+39:34-35 fg=Reset bg=Reset mod=BOLD text="F "
+39:36-44 fg=DarkGray bg=Reset mod=NONE text="expand · "
+39:45-46 fg=Reset bg=Reset mod=BOLD text="T "
+39:47-53 fg=DarkGray bg=Reset mod=NONE text="tree · "
+39:54-55 fg=Reset bg=Reset mod=BOLD text=": "
+39:56-66 fg=DarkGray bg=Reset mod=NONE text="commands · "
+39:67-68 fg=Reset bg=Reset mod=BOLD text="? "
+39:69-72 fg=DarkGray bg=Reset mod=NONE text="help"
 39:131-139 fg=DarkGray bg=Reset mod=NONE text="line 1/4 "
 
 HELP 60x16
@@ -101,7 +103,7 @@ TEXT
  │ r         refs               T         file tree       │
  │ s         status             F         expand diff     │
  │ t         tree               S         split/unified   │
- │ b         blame              P         merge parent    │
+ │ b         blame              w         changes/context │
  │ : all commands · ? close · log view                    │
  ╰────────────────────────────────────────────────────────╯
 STYLES
@@ -178,8 +180,8 @@ STYLES
 13:1-1 fg=DarkGray bg=Reset mod=NONE text="│"
 13:3-10 fg=Reset bg=Reset mod=BOLD text="b       "
 13:13-17 fg=DarkGray bg=Reset mod=NONE text="blame"
-13:32-39 fg=Reset bg=Reset mod=BOLD text="P       "
-13:42-53 fg=DarkGray bg=Reset mod=NONE text="merge parent"
+13:32-39 fg=Reset bg=Reset mod=BOLD text="w       "
+13:42-56 fg=DarkGray bg=Reset mod=NONE text="changes/context"
 13:58-58 fg=DarkGray bg=Reset mod=NONE text="│"
 14:1-1 fg=DarkGray bg=Reset mod=NONE text="│"
 14:3-3 fg=Reset bg=Reset mod=BOLD text=":"

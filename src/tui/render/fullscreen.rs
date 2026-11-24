@@ -16,6 +16,7 @@ use super::{
     diff::render_diff_value,
     format::{display_width, truncate_with},
     inspect::render_compare,
+    layout::can_split_patch,
     theme::RenderContext,
 };
 
@@ -47,7 +48,7 @@ pub(super) fn render(frame: &mut Canvas<'_>, app: &App, area: Rect, context: &Re
             format!("{}  ", detail.commit.id.short(10))
         }),
     };
-    let style = if area.width < 100 {
+    let style = if !can_split_patch(area.width) {
         ""
     } else if app.diff_split {
         "split  "
@@ -70,26 +71,22 @@ pub(super) fn render(frame: &mut Canvas<'_>, app: &App, area: Rect, context: &Re
 }
 
 fn location(diff: &Diff, scroll: usize, width: usize, context: &RenderContext) -> String {
-    let index = diff
-        .files
-        .partition_point(|file| file.header_line <= scroll)
-        .saturating_sub(1);
-    let Some(file) = diff.files.get(index) else {
+    let Some((index, file)) = diff
+        .file_at(scroll)
+        .or_else(|| diff.files.first().map(|file| (0, file)))
+    else {
         return "Patch".into();
     };
-    let path = file
-        .new_path
-        .as_ref()
-        .or(file.old_path.as_ref())
-        .map_or("patch", |path| path.display.as_str());
-    let hunk = file
-        .hunks
-        .partition_point(|hunk| hunk.header_line <= scroll);
+    let path = file.path().map_or("patch", |path| path.display.as_str());
     let separator = context.glyphs().separator;
     let mut ordinal = format!("  {separator}  file {}/{}", index + 1, diff.files.len());
     // Above the first hunk there is no current hunk to count.
-    if hunk > 0 {
-        ordinal.push_str(&format!("  {separator}  hunk {hunk}/{}", file.hunks.len()));
+    if let Some((hunk, _)) = file.hunk_at(scroll) {
+        ordinal.push_str(&format!(
+            "  {separator}  hunk {}/{}",
+            hunk + 1,
+            file.hunks.len()
+        ));
     }
     let path_width = width.saturating_sub(display_width(&ordinal));
     format!(

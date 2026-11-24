@@ -32,11 +32,11 @@ impl Screen {
 
 /// Rows available to patch content after reserving the truncation notice.
 pub(super) fn diff_content_rows(height: u16, truncated: bool) -> u16 {
-    if truncated && height > 1 {
-        height - 1
-    } else {
-        height.max(1)
-    }
+    height - u16::from(truncated && height > 1)
+}
+
+pub(super) fn can_split_patch(width: u16) -> bool {
+    width >= 100
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -167,7 +167,7 @@ pub(crate) fn page_rows(app: &App, width: u16, height: u16) -> usize {
     };
     let content_height = preview.height.saturating_sub(persistent_header);
     let truncated = app.active_diff().is_some_and(|diff| diff.truncated);
-    usize::from(diff_content_rows(content_height, truncated))
+    usize::from(diff_content_rows(content_height, truncated).max(1))
 }
 
 fn fullscreen_page_rows(app: &App, height: u16) -> usize {
@@ -177,12 +177,12 @@ fn fullscreen_page_rows(app: &App, height: u16) -> usize {
         1
     };
     let truncated = app.active_diff().is_some_and(|diff| diff.truncated);
-    usize::from(diff_content_rows(height.saturating_sub(header), truncated))
+    usize::from(diff_content_rows(height.saturating_sub(header), truncated).max(1))
 }
 
 pub(crate) fn diff_split_available(app: &App, width: u16, height: u16) -> bool {
     if app.diff_fullscreen || matches!(app.view, View::Detail | View::Compare | View::StatusDiff) {
-        return width >= 100;
+        return can_split_patch(width);
     }
     let body = Screen::new(Rect::new(0, 0, width, height)).body;
     // The same geometry the renderer draws with, or the reducer would step
@@ -191,7 +191,9 @@ pub(crate) fn diff_split_available(app: &App, width: u16, height: u16) -> bool {
         View::Log => log_layout(app, body),
         _ => list_preview_layout(app, body),
     };
-    layout.secondary.is_some_and(|pane| pane.width >= 100)
+    layout
+        .secondary
+        .is_some_and(|pane| can_split_patch(pane.width))
 }
 
 pub(super) fn centered_rect(width: u16, height: u16, area: Rect) -> Rect {

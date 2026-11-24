@@ -386,6 +386,33 @@ fn diff_review_monochrome_retains_signs_and_word_emphasis() {
 }
 
 #[test]
+fn changes_only_key_hides_context_in_split_and_narrow_layouts() {
+    use crate::app::Action;
+    use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+
+    let mut app = review_app();
+    app.diff_split = true;
+    let key = KeyEvent::new(KeyCode::Char('w'), KeyModifiers::NONE);
+    assert_eq!(
+        crate::tui::input::key_action(&app, key),
+        Some(Action::ToggleDiffContext)
+    );
+    app.update(Action::ToggleDiffContext, 10);
+    for (width, height) in [(60, 16), (140, 24)] {
+        let text = screen(width, height, &app);
+        assert!(text.contains("w context"), "{width} columns:\n{text}");
+        assert!(text.contains("fn main()"));
+        assert!(text.contains("-let timeout"));
+        assert!(text.contains("+let timeout"));
+        assert!(text.contains("old mode"));
+        assert!(!text.contains("render(label)"));
+        assert!(!text.contains("let label"));
+    }
+    app.update(Action::ToggleDiffContext, 10);
+    assert!(screen(60, 16, &app).contains("render(label)"));
+}
+
+#[test]
 fn diff_tree_ascii_guides_and_footer_survive_monochrome() {
     use crate::app::Action;
     let mut app = review_app();
@@ -443,10 +470,14 @@ fn diff_review_benchmark() {
     eprintln!("index 102,000 patch lines: {:?}", start.elapsed());
     let mut terminal = Terminal::new(TestBackend::new(140, 40)).unwrap();
     let context = RenderContext::new(deterministic_config());
-    for split in [false, true] {
+    for (split, changes_only) in [(false, false), (true, false), (false, true), (true, true)] {
         app.diff_split = split;
         app.diff_split_available = true;
+        app.diff_changes_only = changes_only;
         app.diff_scroll = 50_000;
+        terminal
+            .draw(|frame| render_with_context(frame, &app, &context))
+            .unwrap();
         let mut samples = Vec::new();
         for _ in 0..200 {
             let start = Instant::now();
@@ -458,7 +489,7 @@ fn diff_review_benchmark() {
         }
         samples.sort();
         eprintln!(
-            "split={split}: move+paint p50={:?} p95={:?}",
+            "split={split} changes_only={changes_only}: move+paint p50={:?} p95={:?}",
             samples[100], samples[190]
         );
     }

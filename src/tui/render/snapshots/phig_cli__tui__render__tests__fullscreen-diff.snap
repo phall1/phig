@@ -30,7 +30,7 @@ M src/main.rs ──────────────────────
 
 
 
- F restore · [/] hunk · T files · : commands · ? help                                                          line 2/4
+ F restore · [/] hunk · w changes · T files · : commands · ? help                                              line 2/4
 
 60x16
  LOG  phig-demo · main · HEAD
@@ -48,4 +48,4 @@ M src/main.rs ──────────────────────
 
 
 
- F restore · [/] hunk · T files · ? help           line 2/4
+ F restore · [/] hunk · w changes · ? help         line 2/4

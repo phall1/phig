@@ -295,11 +295,37 @@ fn split_pages_from_added_side_preserve_anchor_across_width_changes() {
     app.update(Action::Move(1), 1);
     assert_eq!(app.diff_scroll, 7); // widening preserves +C's logical row
     app.update(Action::Move(1), 2);
-    // The final page (c/C, d) is already on screen, so the step settles on
-    // its drawn top rather than moving an invisible cursor.
-    assert_eq!(app.diff_scroll, 4);
+    // The final page (c/C, d) is already on screen. A no-op at the edge
+    // must not change the logical location used by later jumps and resize.
+    assert_eq!(app.diff_scroll, 7);
 }
 
+#[test]
+fn changes_only_retains_the_patch_anchor_and_search_can_reveal_hidden_context() {
+    let mut app = app();
+    app.view = View::StatusDiff;
+    app.apply_working_diff(patch::fixture());
+    app.diff_scroll = 4;
+    assert!(app.update(Action::ToggleDiffContext, 3).is_empty());
+    assert!(app.diff_changes_only);
+    assert_eq!(app.diff_scroll, 4);
+    assert_eq!(app.patch_index().rows(false, true).rows[..4], [0, 3, 5, 6]);
+    assert_eq!(app.patch_index().rows(true, true).rows[..4], [0, 3, 5, 8]);
+
+    app.update(Action::StartSearch, 3);
+    for c in "render(label)".chars() {
+        app.update(Action::SearchInput(c), 3);
+    }
+    assert_eq!(app.diff_scroll, 7);
+    assert!(!app.diff_changes_only);
+    app.update(Action::CancelOverlay, 3);
+    assert_eq!(app.diff_scroll, 4);
+    assert!(app.diff_changes_only);
+
+    app.update(Action::ToggleDiffContext, 3);
+    assert_eq!(app.diff_scroll, 4);
+    assert!(!app.diff_changes_only);
+}
 #[test]
 fn fullscreen_preserves_view_selection_scroll_and_focus_across_resize() {
     let mut app = app();

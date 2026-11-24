@@ -50,6 +50,10 @@ Figma: none provided; the user requested adapting these viewer references.
    anchor. Split view pairs equally sized replacement runs and shows context on
    both sides. Below 100 patch-pane columns it falls back to unified; widening
    restores split. Movement and paging advance visual rows in the effective mode.
+8. `w` hides unchanged context in either layout without changing the source
+   anchor or asking Git for a new patch. File headers, hunk ranges, and patch
+   notes remain visible. Searching can reveal a hit in hidden context; cancelling
+   search restores the original mode and anchor.
 
 ## Implementation and acceptance evidence
 
@@ -58,8 +62,9 @@ they never enter machine JSON or Git records. Cached navigation constructs only
 visible styled rows. `similar` supplies Unicode word refinement, bounded to
 400-byte lines and equally sized adjacent replacement runs. The bound is by
 length rather than a wall-clock deadline, so emphasis is identical on every
-frame and machine. Refinement runs only for
-visible rows; ambiguous pairings use whole-line styling. Public App mutations are
+frame and machine. Both sides are refined together on demand; a bounded
+per-patch cache reuses the result across adjacent frames and layouts.
+Ambiguous pairings use whole-line styling. Public App mutations are
 validated against cached line kinds and hunk metadata without rescanning text.
 The tree snapshots structural metadata on open,
 rebuilds its visible index only on collapse/expand, and paints a viewport slice.
@@ -73,6 +78,24 @@ and cached large-patch navigation. Run `just check`, review the final diff in a
 fresh context, and record measured complexity and performance evidence.
 
 ### Measured navigation
+
+The changes-only update (`db469c6`) was compared with `35971e8` on Apple
+Silicon macOS, Rust 1.99.1 release builds in separate target directories.
+The fixture contains 102,000 patch rows and 18,000 file headers. The
+140×40 TestBackend probe took 200 move-and-paint samples per mode:
+
+| Operation | Before | After |
+| --- | ---: | ---: |
+| Patch index construction (one sample) | 84.625 ms | 1.637 ms |
+| Unified move + buffer paint (p95) | 0.338 ms | 0.323 ms |
+| Split move + buffer paint (p95) | 0.367 ms | 0.322 ms |
+| Changes-only unified / split (p95) | — | 0.324 / 0.337 ms |
+
+This measures patch preparation and painting, not Git subprocess or terminal
+transport latency. The large indexing improvement comes from counting each
+file's rows once rather than scanning the file list again for each file.
+
+#### Earlier diff review measurements
 
 Local macOS/Apple Silicon, Rust 1.88 release build, Ratatui TestBackend 140×40,
 102,000 synthetic patch rows with replacements, 200 move-and-paint samples per mode:
@@ -88,6 +111,11 @@ These measure application/buffer work, not terminal transport or end-to-end Git
 latency. File/hunk seeking also no longer allocates a complete anchor vector.
 
 ### Complexity and checks
+
+For the changes-only update, Lizard measured footer hint dispatch at **10 → 9**
+with a small patch-specific helper (4). Split-row drawing stayed at **7** and
+shrank from 61 to 38 lines. Unified painting and scrolling each gained one
+decision (**4 → 5** and **3 → 4**, respectively).
 
 Lizard's Rust measurements for the touched navigation/rendering functions:
 

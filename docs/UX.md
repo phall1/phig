@@ -46,6 +46,7 @@ and a persistent action footer, leaving the surrounding view visible.
 | `f` | filter changed files and jump to one |
 | `T` | browse changed-file tree; arrows fold directories, `-`/`+` fold/unfold all, `Enter` opens |
 | `S` | toggle unified/side-by-side diff (unified below 100 patch columns) |
+| `w` | toggle changes only / show unchanged context |
 | `F` | expand/restore the active diff |
 | `r` | refs view |
 | `s` | status view |

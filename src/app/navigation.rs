@@ -508,12 +508,14 @@ impl App {
         if self.active_diff().is_some() {
             let split = self.diff_split && self.diff_split_available;
             let index = self.patch_index();
-            let map = index.rows(split);
-            let next = step(
-                map.position(self.diff_scroll),
-                self.last_page(map.rows.len()),
-            );
-            self.diff_scroll = map.rows.get(next).copied().unwrap_or(0);
+            let map = index.rows(split, self.diff_changes_only);
+            let first = map.first_row(self.diff_scroll, self.diff_viewport.max(1));
+            let next = step(first, self.last_page(map.rows.len()));
+            // At a boundary, keep the more precise jump/search anchor rather
+            // than silently replacing it with the top of the final page.
+            if next != first {
+                self.diff_scroll = map.rows.get(next).copied().unwrap_or(0);
+            }
             return;
         }
         self.diff_scroll = step(self.diff_scroll, self.last_page(self.diff_len()));
@@ -590,9 +592,6 @@ fn seek_anchor(
 }
 
 fn diff_path_at(diff: &Diff, line: usize) -> Option<GitPath> {
-    diff.files
-        .iter()
-        .rev()
-        .find(|file| file.header_line <= line)
-        .and_then(|file| file.new_path.clone().or_else(|| file.old_path.clone()))
+    diff.file_at(line)
+        .and_then(|(_, file)| file.path().cloned())
 }
