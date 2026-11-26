@@ -4,6 +4,23 @@ All notable changes to phig are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and releases follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.8.0](https://github.com/phall1/phig/compare/v1.7.0...v1.8.0) (2026-11-26)
+
+
+### Added
+
+* **tui:** add a faster changes-only diff lens ([#29](https://github.com/phall1/phig/issues/29)) ([f416fcc](https://github.com/phall1/phig/commit/f416fccccef4afea34efc6c12dfa6efdea4418a1))
+
+
+### Fixed
+
+* **tui:** keep history columns stable while scrolling ([#32](https://github.com/phall1/phig/issues/32)) ([2ea2bd5](https://github.com/phall1/phig/commit/2ea2bd5159bc6edd7226cfa9c81f7382e0284e45))
+
+
+### Changed
+
+* **deps:** bump the rust-dependencies group across 1 directory with 11 updates ([#31](https://github.com/phall1/phig/issues/31)) ([46f345f](https://github.com/phall1/phig/commit/46f345f97920d0a9dc75cdb9bcf585d25b21f15e))
+
 ## [1.7.0](https://github.com/phall1/phig/compare/v1.6.0...v1.7.0) (2026-11-19)
 
 
