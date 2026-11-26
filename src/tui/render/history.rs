@@ -72,19 +72,15 @@ fn render_history(
     let end = window.rows.end;
     cache.rows(
         &app.commits,
-        end,
+        app.commits.len(),
         lane_limit(area.width),
         context.glyphs().graph,
     );
+    // Cache a loaded-history grid: navigation neither replans columns nor
+    // rescans author names within a clock tick. Pages, resize and relative-age
+    // ticks may change the budget.
+    let columns = cache.columns(&app.commits, area.width, context);
     let rows = cache.computed_rows();
-    // Every row is padded to the widest lane column in view so the commit text
-    // stays aligned while the graph breathes.
-    let graph_width = rows[start..end]
-        .iter()
-        .map(|row| row.width() + usize::from(row.folded_lanes() > 0))
-        .max()
-        .unwrap_or(0);
-    let columns = LogColumns::plan(&app.commits[start..end], graph_width, area.width, context);
     let named_in_view: HashSet<usize> = app.commits[start..end]
         .iter()
         .zip(&rows[start..end])

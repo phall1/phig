@@ -77,7 +77,10 @@ actions.
 ### Log
 
 Rows are a grid: graph glyphs, short object ID, date, author, then named refs
-and subject. Date and author widths are planned once per screen, so every
+and subject. Graph, date, and author widths are planned across loaded history (not the
+visible viewport), so scrolling preserves the grid. Resize and newly loaded
+pages may replan widths to accommodate their contents; relative-date ticks
+also refresh widths so units are never clipped as ages grow. Every
 column starts on the same cell on every row; the author column narrows and then
 drops before the date as width shrinks, and dates are compact (`14d`, or
 `2026-09-12 15:43` in absolute modes). Named refs sit inline before the subject,
