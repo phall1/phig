@@ -83,6 +83,22 @@ fn branchy_app() -> App {
 }
 
 #[test]
+fn history_columns_refresh_when_relative_ages_gain_a_digit() {
+    let app = branchy_app();
+    let commit = &app.commits[..1];
+    let before = RenderContext::new(RenderConfig {
+        date_mode: DateMode::Relative,
+        ..deterministic_config()
+    })
+    .at_time(commit[0].author.timestamp + 9 * 60 + 59);
+    let after = before.clone().at_time(commit[0].author.timestamp + 10 * 60);
+    let mut cache = graph::GraphCache::default();
+    cache.rows(commit, 1, lane_limit(100), before.glyphs().graph);
+    assert_eq!(cache.columns(commit, 100, &before).date, 2);
+    assert_eq!(cache.columns(commit, 100, &after).date, 3);
+}
+
+#[test]
 fn history_columns_stay_put_across_scroll_resize_and_pages() {
     let mut app = branchy_app();
     app.commits[8].author.name = "An exceptionally long author".into();

@@ -77,7 +77,8 @@ fn render_history(
         context.glyphs().graph,
     );
     // Cache a loaded-history grid: navigation neither replans columns nor
-    // rescans author names. New pages and resize may change the budget.
+    // rescans author names within a clock tick. Pages, resize and relative-age
+    // ticks may change the budget.
     let columns = cache.columns(&app.commits, area.width, context);
     let rows = cache.computed_rows();
     let named_in_view: HashSet<usize> = app.commits[start..end]
