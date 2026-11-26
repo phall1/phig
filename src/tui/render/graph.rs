@@ -151,6 +151,7 @@ pub(in crate::tui) struct GraphCache {
     names: HashMap<usize, (usize, String)>,
     state: Lanes,
     projection: Option<(usize, [char; 3])>,
+    columns: Option<(usize, u16, super::history::LogColumns)>,
     #[cfg(test)]
     steps: usize,
 }
@@ -158,6 +159,29 @@ pub(in crate::tui) struct GraphCache {
 impl GraphCache {
     pub(in crate::tui) fn clear(&mut self) {
         *self = Self::default();
+    }
+
+    pub(super) fn columns(
+        &mut self,
+        commits: &[Commit],
+        width: u16,
+        context: &RenderContext,
+    ) -> super::history::LogColumns {
+        if let Some((len, planned_width, columns)) = self.columns
+            && len == commits.len()
+            && planned_width == width
+        {
+            return columns;
+        }
+        let graph = self
+            .rows
+            .iter()
+            .map(|row| row.width() + usize::from(row.folded_lanes() > 0))
+            .max()
+            .unwrap_or(0);
+        let columns = super::history::LogColumns::plan(commits, graph, width, context);
+        self.columns = Some((commits.len(), width, columns));
+        columns
     }
 
     pub(super) fn computed_rows(&self) -> &[GraphRow] {

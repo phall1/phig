@@ -83,6 +83,49 @@ fn branchy_app() -> App {
 }
 
 #[test]
+fn history_columns_stay_put_across_scroll_resize_and_pages() {
+    let mut app = branchy_app();
+    app.commits[8].author.name = "An exceptionally long author".into();
+    app.commits[8].author.timestamp = 0;
+    for (index, commit) in app.commits.iter_mut().enumerate() {
+        commit.subject = format!("subject-{index}");
+        commit.decorations.clear();
+    }
+    let mut renderer = Renderer::new(RenderContext::new(deterministic_config()));
+    for width in [100, 60, 120, 60] {
+        let mut terminal = Terminal::new(TestBackend::new(width, 6)).unwrap();
+        let mut positions = Vec::new();
+        for selected in 0..app.commits.len() {
+            app.selected = selected;
+            terminal.draw(|frame| renderer.draw(frame, &app)).unwrap();
+            let buffer = terminal.backend().buffer();
+            for y in 1..5 {
+                let row: String = (0..width).map(|x| buffer[(x, y)].symbol()).collect();
+                if let Some(position) = row.find("subject-") {
+                    positions.push(row[..position].chars().count());
+                }
+            }
+        }
+        assert!(!positions.is_empty());
+        assert!(
+            positions.iter().all(|position| *position == positions[0]),
+            "{width}: {positions:?}"
+        );
+    }
+    let mut more = app.commits[9].clone();
+    more.id = "ff".repeat(20).parse().unwrap();
+    more.author.name = "Wide appended author".into();
+    app.commits.push(more);
+    app.selected = 10;
+    let mut terminal = Terminal::new(TestBackend::new(100, 6)).unwrap();
+    terminal.draw(|frame| renderer.draw(frame, &app)).unwrap();
+    let mut fresh = Renderer::new(RenderContext::new(deterministic_config()));
+    let mut expected = Terminal::new(TestBackend::new(100, 6)).unwrap();
+    expected.draw(|frame| fresh.draw(frame, &app)).unwrap();
+    assert_eq!(terminal.backend().buffer(), expected.backend().buffer());
+}
+
+#[test]
 fn golden_ref_scope_graph_100x14() {
     let ascii = RenderContext::new(RenderConfig {
         glyph_mode: GlyphMode::Ascii,
